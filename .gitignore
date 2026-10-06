@@ -1,0 +1,4 @@
+# 비밀 정보 (API 키, DB 암호)
+.env
+.env.*
+!.env.example

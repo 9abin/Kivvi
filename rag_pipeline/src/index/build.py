@@ -1,0 +1,126 @@
+"""검색 색인 적재: 청크를 BGE-m3로 임베딩하고 Kiwi 형태소 토큰을 만든 뒤 PostgreSQL(pgvector)에 넣는다.
+
+실행 (rag_pipeline 폴더에서):
+  uv run python -m src.index.build               # 전체 (documents 90, chunks 4,579, 색인 4,465)
+  uv run python -m src.index.build --limit 200   # 샘플 (적재 전체를 비우지 않고 샘플만 덮어씀)
+
+전체 실행은 documents와 chunks를 비운 뒤 다시 넣는다.
+"""
+import argparse
+import io
+import json
+import os
+import sys
+import time
+from datetime import datetime, timezone
+
+import numpy as np
+from kiwipiepy import Kiwi
+
+from config import EMBED_BATCH, EMBED_DIM, EMBED_MODEL, OUT_DIR
+from src.store.pgstore import PgStore
+
+sys.stdout.reconfigure(encoding="utf-8")
+
+CHUNKS = os.path.join(OUT_DIR, "chunks.jsonl")
+
+
+def load_chunks():
+    """전체 청크를 읽는다. 색인 대상은 정상 조·항 청크(부칙 제외)다."""
+    rows = []
+    with io.open(CHUNKS, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                rows.append(json.loads(line))
+    return rows
+
+
+def is_indexed(r):
+    return r["상태"] == "정상" and not r["id"].endswith("_부칙")
+
+
+def documents_from(rows):
+    """청크에 반복된 문서 정보를 고유번호 기준으로 한 번씩만 모은다."""
+    docs = {}
+    for r in rows:
+        docs.setdefault(r["고유번호"], {
+            "doc_id": r["고유번호"],
+            "title": r["문서명"],
+            "tier": r["위계"],
+            "revision": r["개정표기"] or None,
+            "source_url": r["출처URL"] or None,
+            "file_name": r["파일"] or None,
+        })
+    return list(docs.values())
+
+
+def build(limit=None, full=True):
+    from sentence_transformers import SentenceTransformer  # 무거운 import는 실행 때만
+
+    rows = load_chunks()
+    indexed = [r for r in rows if is_indexed(r)]
+    if limit:
+        # 샘플: 색인 대상 중 앞부분만 쓴다. 나머지 청크는 적재하지 않는다.
+        indexed = indexed[:limit]
+        rows = [r for r in rows if not is_indexed(r)] + indexed
+    print(f"적재 대상: 청크 {len(rows)}개 (색인 {len(indexed)}개, 부칙·삭제 {len(rows) - len(indexed)}개)")
+
+    store = PgStore()
+    if full and not limit:
+        store.truncate()
+    store.upsert_documents(documents_from(rows))
+    print(f"documents 적재: {len({r['고유번호'] for r in rows})}개")
+
+    kiwi = Kiwi()
+    t0 = time.time()
+    model = SentenceTransformer(EMBED_MODEL, device="cuda")
+    model.half()  # 8GB GPU에서 메모리를 줄이기 위해 fp16 사용
+    assert model.get_sentence_embedding_dimension() == EMBED_DIM
+    print(f"모델 로드: {time.time() - t0:.1f}초")
+
+    now = datetime.now(timezone.utc)
+    indexed_ids = {r["id"] for r in indexed}
+    t0 = time.time()
+    for start in range(0, len(rows), EMBED_BATCH):
+        batch = rows[start:start + EMBED_BATCH]
+        ind = [x for x in batch if x["id"] in indexed_ids]
+        vecs = {}
+        if ind:
+            # 검색에는 정정 반영 글자(본문_검색)를 쓴다. 답변 인용은 원문(본문)을 가져온다.
+            enc = model.encode([x["본문_검색"] for x in ind], batch_size=EMBED_BATCH,
+                               normalize_embeddings=True, convert_to_numpy=True)
+            vecs = {x["id"]: enc[i].astype(np.float32) for i, x in enumerate(ind)}
+        store.upsert_chunks([to_row(x, vecs.get(x["id"]), kiwi, now) for x in batch])
+        done = start + len(batch)
+        if done % (EMBED_BATCH * 20) == 0 or done == len(rows):
+            print(f"  {done}/{len(rows)} ({time.time() - t0:.0f}초)")
+
+    print(f"chunks 적재 완료: 전체 {store.count()}, 색인 {store.count(is_indexed=True)}")
+    store.close()
+
+
+def to_row(r, vec, kiwi, now):
+    indexed = vec is not None
+    tokens = " ".join(t.form for t in kiwi.tokenize(r["본문_검색"])) if indexed else None
+    return {
+        "chunk_id": r["id"],
+        "doc_id": r["고유번호"],
+        "article": r["조항"],
+        "status": r["상태"],
+        "is_indexed": indexed,
+        "body": r["본문"],
+        "body_search": r["본문_검색"],
+        "body_tokens": tokens,
+        "corrections_note": r.get("정정안내") or None,
+        "cites": r.get("cites", []),
+        "embedding": vec,
+        "embedding_model": EMBED_MODEL if indexed else None,
+        "indexed_at": now if indexed else None,
+    }
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--limit", type=int, default=None)
+    args = ap.parse_args()
+    build(limit=args.limit)
