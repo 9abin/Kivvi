@@ -9,8 +9,8 @@
 이 저장소: 조항 수정 에이전트(박형건). 법률 DB는 한석희, 챗봇 RAG는 김가빈. ([AGENTS §1](../AGENTS.md))
 
 ## 핵심 결정
+- **방향: 개정 요청 → 연쇄 수정까지 담은 개정 패키지를 만들어 오는 에이전트.** 주 사용자 내규담당부서·준법감시인, LLM은 문안만·검증은 규칙 → [261007-1645-24](reports/261007-1645-24-direction-agent.md), [03](03-product-plan.md)
 - 영향 관계는 미리 연결한 관련 조항 표(근거·출처·신뢰도·검증 상태)로, 수정할 때는 조회만. 그래프 DB 불필요, 임베딩은 관계 구축 보조 → [261006-1744-11](reports/261006-1744-11-relations.md)
-- 형태: 챗봇 아님, 사건 기반 점검 + 검토 화면. 수정은 초안 사본에 신·구조문대비표, 변경 단위 수락·거절. PoC는 "설치 첫날" 시나리오 → [261006-1414-06](reports/261006-1414-06-operation-poc.md), [03](03-product-plan.md)
 - DB 4계층(원문·관계·의미·점검), `edge` 통합, 후보 수집 후 정밀 점검, 기준선 + 변경분 운영 → [261006-1340-04](reports/261006-1340-04-db-design-baseline.md), [02](02-specs.md)
 - 기법: TAG+SQL 중심, RAG는 의미 검사, CAG는 수정안·기준선, 그래프는 RDB 엣지로 (제안) → [261006-1152-03](reports/261006-1152-03-rag-cag-tag-graph.md)
 - 관리 구조와 저장소 범위: [261006-1133-01-project-structure](reports/261006-1133-01-project-structure.md)
@@ -25,8 +25,8 @@
 - git: 로컬 저장소(main, 첫 커밋 952e720). 원격 없음 → 팀 공유 위치 정하기
 
 ## 다음 액션
-1. 확인 대기 26건 판정(검토 화면 `uv run streamlit run app/review_app.py`) → 원장 추가, 시나리오 10~15개(사람 확인)
-2. 가빈 corrections.json 155건 받아 독립 평가 ([goldset](todo/goldset.md)), 합의: [law-db-interface](todo/law-db-interface.md)(한석희), [regulation-db-sharing](todo/regulation-db-sharing.md)(김가빈); 법령 목록(130종) 한석희 전달, 오류 주입으로 독립 검증, 로컬 LLM 후보 비교 ([error-rules](todo/error-rules.md))
+1. 연쇄 수정 루프 → 과거 재현 시연 → 자연어 개정문(LLM) → 학습 문서 → 발표 ([03](03-product-plan.md) 일정)
+2. 사람: 확인 대기 36건 판정(`uv run streamlit run app/review_app.py`), 시나리오 5~10개 작성. 합의: 부칙 옛 조문·오탈자(김가빈), 미수집 법령 55종(한석희)
 
 ## 최근 변경
 - 261007: 법률 DB 연결, 법령 개정 대조 22건, S01 법령 대조 1/1 → [261007-1629-23](reports/261007-1629-23-law-db.md)
