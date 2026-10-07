@@ -78,19 +78,51 @@ if ask:
     with st.spinner("규정을 찾아 답을 만드는 중입니다..."):
         result = assistant.ask(question.strip(), filters=build_filters(tier, doc_choice, min_year))
 
+    mode = result.get("mode", "answer")
+    score = result.get("top_score")
     st.subheader("답변")
-    st.markdown(result["answer"])
-    for w in result.get("warnings", []):
-        st.warning(w)
-    if result.get("model"):
+    if mode == "none":
+        st.info(result["answer"])
+    elif mode == "partial":
+        st.warning("질문한 내용은 찾을 수 없었습니다. 관련 조문만 보여 드립니다.")
+        st.markdown(result["answer"])
+    else:
+        st.markdown(result["answer"])
+    exact = any(r.get("match") == "정확조회" for r in result.get("results", []))
+    if score is not None:
+        note = " · 문서·조항이 확정되어 점수 기준을 적용하지 않음" if exact and mode == "answer" else ""
+        st.caption(f"근거 일치도: {score:.2f} (모드: {mode}, 일반 답변 기준 0.60 이상){note}")
+    if result.get("model") and mode == "answer":
         st.caption(f"모델: {result['model']}")
 
+    for c in result.get("conflicts", []):
+        x, y = c["items"]
+        st.warning("⚠ 같은 주제의 조문이 서로 다른 내용을 말합니다. 어느 쪽이 적용되는지는 담당 부서 확인이 필요합니다.")
+        left, right = st.columns(2)
+        for col, n, e in ((left, c["pair"][0], x), (right, c["pair"][1], y)):
+            with col:
+                st.markdown(f"**[{n}] {e['문서명']} {e['article']}**")
+                st.caption(f"위계: {e.get('위계') or '-'} · 개정: {e.get('개정표기') or '-'}")
+                st.text(e["body"][:300])
+
+    # 경고를 두 종류로 나눈다: 인용 번호 자체가 잘못된 것(심각)과, 문장이 근거와 맞지 않을 수 있다는 것(내용 검사).
+    for w in result.get("warnings", []):
+        if w.startswith("근거와 맞지 않을 수 있음"):
+            st.warning("🔍 " + w)
+        else:
+            st.error("⚠ " + w)
+
     entries = result.get("entries", [])
-    st.subheader(f"근거 ({len(entries)}개, {result['assembled']['chars']:,}자)")
-    for i, e in enumerate(entries, start=1):
-        with st.expander(f"[{i}] {e['문서명']} {e['article']} · {STATE_BADGE.get(e['조문상태'], e['조문상태'])}",
-                         expanded=(i <= 2)):
-            show_entry(e)
+    cited = set(result.get("cited", []))
+    if entries:
+        chars = sum(len(e["body"]) for e in entries)
+        st.subheader(f"근거 ({len(entries)}개, {chars:,}자)")
+        for i, e in enumerate(entries, start=1):
+            used = i in cited
+            tag = "✅ 인용됨 · " if used else ("참고 · " if mode == "answer" else "")
+            label = f"[{i}] {tag}{e['문서명']} {e['article']} · {STATE_BADGE.get(e['조문상태'], e['조문상태'])}"
+            with st.expander(label, expanded=used or i == 1):
+                show_entry(e)
 
     if show_debug:
         st.subheader("검색 과정")

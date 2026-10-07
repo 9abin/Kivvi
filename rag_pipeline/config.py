@@ -38,6 +38,11 @@ CONTEXT_CHAR_BUDGET = 8000
 
 # 답변 생성 (OpenAI API, 키는 프로젝트 상위 폴더의 .env에 있다)
 OPENAI_MODEL = "gpt-4o-mini"
+
+# 근거 점수 구간 (리랭커 1위 점수). 임시값: 측정 질문 35개로 정했다. 평가셋을 만든 뒤 다시 본다 (답변_설계.md 3절)
+ANSWER_NONE_BELOW = 0.3     # 이보다 낮으면 "관련 내용 없음" (모델을 부르지 않음)
+ANSWER_PARTIAL_BELOW = 0.6  # 이보다 낮으면 "관련 조문만 제시" (모델을 부르지 않음)
+PARTIAL_SHOW = 3            # 애매함 구간에서 보여줄 관련 조문 수
 BM25_B = 0.75
 
 TIER_RULES = [  # 문서명 끝 글자 → 위계
