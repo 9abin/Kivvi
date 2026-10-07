@@ -450,3 +450,13 @@ def to_text(rows: list[dict]) -> str:
             b = line(r["new"][k]) if k < len(r["new"]) else ""
             out.append(f"  현행  | {a}\n  개정안| {b}")
     return "\n".join(out)
+
+
+def build_changeset(reg: dict, text: str, cid: str, title: str = "") -> tuple[dict, dict]:
+    """개정문 → (changeset, 개정안 사본). scripts/amend.py와 검토 화면이 같이 쓴다."""
+    ops = parse_amendment(text)
+    new, changes = apply(reg, ops)
+    rows = compare_table(reg, new, changes)
+    cs = {"id": cid, "title": title, "reg_id": reg["reg_id"], "reg_name": reg["name"], "amendment": text,
+          "sentences": [o.sentence for o in ops], "changes": changes, "label_map": label_map(changes), "rows": rows}
+    return cs, new

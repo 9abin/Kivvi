@@ -5,7 +5,7 @@
 - 마지막 갱신: 261007
 
 ## 단계
-구현 중. 원문 파싱(90건) → 인용 엣지·구조 검사(1주차 §C 구조 대상 11/11) → 벡터 색인(BGE-m3, 4,467 청크) → 대상 불일치 후보(설명구+reranker, 정답 5/5) → 정답 원장 23/23. 실행 기록(역추적), 1차 결과 페이지 `out/report/index.html`(`scripts/make_report.py`). 개정문 적용·대비표 v0, 변경안 점검 v0(시나리오 S01~S03 대조, 독립 평가 아님). 검토 화면(수락·거절)·LLM 선정은 아직 없다.
+구현 중. 원문 파싱(90건) → 인용 엣지·구조 검사(1주차 §C 구조 대상 11/11) → 벡터 색인(BGE-m3, 4,467 청크) → 대상 불일치 후보(설명구+reranker, 정답 5/5) → 정답 원장 23/23. 실행 기록(역추적), 1차 결과 페이지 `out/report/index.html`(`scripts/make_report.py`). 개정문 적용·대비표 v0, 변경안 점검 v0(시나리오 S01~S03 대조, 독립 평가 아님). 검토 화면 v0(Streamlit, 결정 기록). 법령 시나리오(필수 ③)·LLM 선정은 아직 없다.
 이 저장소: 조항 수정 에이전트(박형건). 법률 DB는 한석희, 챗봇 RAG는 김가빈. ([AGENTS §1](../AGENTS.md))
 
 ## 핵심 결정
@@ -25,12 +25,12 @@
 - git: 로컬 저장소(main, 첫 커밋 952e720). 원격 없음 → 팀 공유 위치 정하기
 
 ## 다음 액션
-1. 검토 화면(대비표·영향 항목 수락·거절, 이력), 시나리오 10~15개 확장(사람 확인)
+1. 확인 대기 46건 판정(검토 화면 `uv run streamlit run app/review_app.py`) → 원장 추가, 시나리오 10~15개(사람 확인), 법령 시나리오(수작업 스냅샷)
 2. 가빈 corrections.json 155건 받아 독립 평가 ([goldset](todo/goldset.md)), 합의: [law-db-interface](todo/law-db-interface.md)(한석희), [regulation-db-sharing](todo/regulation-db-sharing.md)(김가빈); 법령 목록(130종) 한석희 전달, 오류 주입으로 독립 검증, 로컬 LLM 후보 비교 ([error-rules](todo/error-rules.md))
 
 ## 최근 변경
-- 261007: 변경안 점검 v0 (깨짐·충돌·해소·확인 필요), 결과 페이지에 영향 목록 → [261007-1152-15](reports/261007-1152-15-change-check.md)
-- 261007: 개정문 적용·신·구조문대비표 v0, 결과 페이지 대비표 탭 → [261007-1145-14](reports/261007-1145-14-amendment-compare.md)
+- 261007: 검토 화면 v0 (기준선·개정안·현황, 결정 기록) → [261007-1158-16](reports/261007-1158-16-review-screen.md)
+- 261007: 개정문 적용·대비표 [261007-1145-14](reports/261007-1145-14-amendment-compare.md), 변경안 점검 v0 → [261007-1152-15](reports/261007-1152-15-change-check.md)
 - 261007: RFP(석유공사) 벤치마킹, 실행 기록(out/runs·eval/runs), 1차 결과 페이지 → [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md)
 - 261007: 로컬 규정 DB(reg-db, 가빈 DB와 같은 계정) 준비, 읽기 전용 접속. 가빈 덤프 복원 대기 → [regulation-db-sharing](todo/regulation-db-sharing.md)
 - 261007: 정답 원장·채점 틀, 항번호 중복 점검, 제12-1조 파싱. week1 16/16, 가빈 정리본 7/7(대상 불일치는 낮음 등급) → [261007-1028-12](reports/261007-1028-12-goldset-eval.md)

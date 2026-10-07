@@ -69,6 +69,10 @@
 
 `regcheck.change_check`, `scripts/check_change.py`. changeset 하나 → 인용받음·문서 인용(관련 조항 표), 같은 제목(메타데이터), 의미 유사(보조), 재검사로 후보 수집 → 깨짐·새 충돌 후보·해소 후보·확인 필요·법령 대조·판단 불가로 분류. 번호 이동은 같은 규정 안 인용 = 깨짐(새 번호 제안), 다른 규정 = 확인 필요(부칙 「다른 내규와의 관계」에 달림). 값 비교는 같은 제목 후보에만. 출력 `out/changes/{id}/check.json`, 시나리오(`eval/scenarios/`) 채점 포함. 근거: [261007-1152-15](reports/261007-1152-15-change-check.md)
 
+## 검토 화면과 결정 기록 (v0)
+
+`app/review_app.py`(Streamlit). 결정은 `eval/review_log.jsonl`에 덧붙이기만 한다(`regcheck.review`): 열쇠(위치·문구·종류 해시), 이전·다음 상태, 검토자, 일시, 의견. 마지막 줄이 현재 상태. finding_log 테이블의 PoC 형태. 근거: [261007-1158-16](reports/261007-1158-16-review-screen.md)
+
 ## RDB 테이블
 
 담당 구분은 [law-db-interface](todo/law-db-interface.md), [regulation-db-sharing](todo/regulation-db-sharing.md)에서 확정한다.

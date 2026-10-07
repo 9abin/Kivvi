@@ -287,3 +287,16 @@ def score(found: list[dict], expected: dict) -> dict:
     res["not_affected"] = [{"expected": e, "result": "오탐" if any(same(e, f) for f in found if f["category"] != "info") else "통과"}
                            for e in na]
     return res
+
+
+def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5) -> list[dict]:
+    """changeset 하나 점검 (개정안 사본을 다시 만들어 재검사까지). scripts/check_change.py와 검토 화면이 같이 쓴다."""
+    from .amend import apply, parse_amendment
+    from .citations import Registry
+
+    new_reg, _ = apply(regs[cs["reg_id"]], parse_amendment(cs["amendment"]))
+
+    def factory(nr):
+        return Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])
+
+    return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k)

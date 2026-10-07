@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from regcheck import runinfo  # noqa: E402
-from regcheck.amend import AmendError, apply, compare_table, label_map, parse_amendment, to_html, to_text  # noqa: E402
+from regcheck.amend import AmendError, build_changeset, to_html, to_text  # noqa: E402
 
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>신·구조문대비표</title><style>
@@ -58,16 +58,13 @@ def main() -> None:
         cid, title = args.id or "draft", ""
     run = runinfo.start("amend", [ROOT / "out" / "parsed" / f"{reg['reg_id']}.json"], params={"change": cid})
     try:
-        ops = parse_amendment(text)
-        new, changes = apply(reg, ops)
+        cs, _ = build_changeset(reg, text, cid, title)
     except AmendError as e:
         sys.exit(f"적용 못함 — {e}")
-    rows = compare_table(reg, new, changes)
+    cs["run"] = run["run_id"]
+    rows = cs["rows"]
     out = ROOT / "out" / "changes" / cid
     out.mkdir(parents=True, exist_ok=True)
-    cs = {"id": cid, "title": title, "reg_id": reg["reg_id"], "reg_name": reg["name"], "amendment": text,
-          "sentences": [o.sentence for o in ops], "changes": changes, "label_map": label_map(changes),
-          "rows": rows, "run": run["run_id"]}
     (out / "changeset.json").write_text(json.dumps(cs, ensure_ascii=False, indent=1), encoding="utf-8")
     note = ('<p class="note">참고 초안입니다. 원문은 바꾸지 않았고, 승인은 개정이 아닙니다 (공포된 개정본의 시행일에만 규정이 바뀝니다).'
             ' 현행 문안은 개정 표시(&lt;개정 …&gt;)를 뺀 본문입니다.</p>')

@@ -19,9 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from regcheck import runinfo  # noqa: E402
-from regcheck.amend import apply, parse_amendment  # noqa: E402
-from regcheck.change_check import check, score  # noqa: E402
-from regcheck.citations import Registry  # noqa: E402
+from regcheck.change_check import run as run_check  # noqa: E402
+from regcheck.change_check import score  # noqa: E402
 
 CAT = {"breaks": "깨짐", "new_conflicts": "새 충돌 후보", "resolved": "해소 후보", "review": "확인 필요",
        "law_check": "법령 대조", "undeterminable": "판단 불가", "info": "참고"}
@@ -57,9 +56,7 @@ def main() -> None:
         cs = json.loads((cdir / "changeset.json").read_text(encoding="utf-8"))
         run = runinfo.start("check_change", [cdir / "changeset.json", ROOT / "out" / "relations" / "relations.jsonl",
                                              ROOT / "out" / "parsed"], models=models, params={"change": cid, "k": args.k})
-        new_reg, _ = apply(regs[cs["reg_id"]], parse_amendment(cs["amendment"]))
-        factory = lambda nr: Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])  # noqa: E731
-        found = check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=args.k)
+        found = run_check(cs, regs, rels, edges, vector=vector, k=args.k)
         sc_path = ROOT / "eval" / "scenarios" / f"{cid}.json"
         result = score(found, json.loads(sc_path.read_text(encoding="utf-8"))["expected"]) if sc_path.exists() else None
         for f in found:
