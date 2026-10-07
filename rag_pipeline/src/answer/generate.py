@@ -146,10 +146,11 @@ def _parse_json_list(text):
 def parse_pairs(text, n_entries):
     """모델이 돌려준 충돌 쌍을 검사한다.
 
-    반환: (쌍 목록, ok). ok=False는 응답을 믿을 수 없다는 뜻이다(검사 결과를 믿을 수 없음) — JSON
-    배열이 아니거나, 배열 안에 "정수 두 개짜리 목록"이 아닌 항목이 섞여 있을 때다. 형식이 깨진
-    항목을 조용히 버리고 ok=True로 돌려주면, "쌍이 없음"(정상)과 구분이 안 된다.
-    범위 밖 숫자(1~n_entries 밖)나 중복은 형식은 맞지만 값이 틀린 것이라 그냥 걸러낸다(ok=True 유지).
+    반환: (쌍 목록, ok). ok=False는 응답을 믿을 수 없다는 뜻이다 — JSON 배열이 아니거나, 배열 안에
+    "정수 두 개짜리 목록"이 아닌 항목이 있거나, 존재하지 않는 근거 번호나 자기 자신과의 쌍처럼
+    값 자체가 말이 안 되는 항목이 있을 때다. 이런 항목은 모델이 넘겨준 근거 목록([1]..[n])을
+    혼동했다는 신호이므로, 조용히 버리고 ok=True(정상 통과)로 돌려주면 안 된다. 형식이 깨진
+    경우와 똑같이 응답 전체를 믿지 않는다.
     """
     raw = _parse_json_list(text)
     if raw is None:
@@ -158,10 +159,11 @@ def parse_pairs(text, n_entries):
     for p in raw:
         if not (isinstance(p, list) and len(p) == 2
                and all(isinstance(x, int) and not isinstance(x, bool) for x in p)):
-            return [], False  # 형식이 깨진 항목이 하나라도 있으면 응답 전체를 믿지 않는다
+            return [], False  # 형식이 깨진 항목
         a, b = sorted(p)
-        if 1 <= a < b <= n_entries:
-            pairs.append((a, b))
+        if not (1 <= a < b <= n_entries):
+            return [], False  # 존재하지 않는 근거 번호이거나 자기 자신과의 쌍
+        pairs.append((a, b))
     return sorted(set(pairs)), True
 
 

@@ -40,9 +40,17 @@ class ParsePairsTests(unittest.TestCase):
     def test_normal_pair_is_parsed(self):
         self.assertEqual(parse_pairs("[[1, 3]]", n_entries=5), ([(1, 3)], True))
 
-    def test_out_of_range_pair_is_dropped_but_still_ok(self):
-        # 형식은 맞지만 값이 범위 밖이라, 걸러내되 "응답 해석 실패"는 아니다.
-        self.assertEqual(parse_pairs("[[1, 99]]", n_entries=5), ([], True))
+    def test_out_of_range_pair_is_a_failure(self):
+        # 형식은 맞지만 존재하지 않는 근거 번호다. 모델이 근거 목록을 혼동했다는 뜻이라
+        # 조용히 걸러내지 않고 실패로 본다 (PR #1 두 번째 재검증에서 지적됨).
+        self.assertEqual(parse_pairs("[[1, 99]]", n_entries=5), ([], False))
+
+    def test_self_pair_is_a_failure(self):
+        self.assertEqual(parse_pairs("[[2, 2]]", n_entries=5), ([], False))
+
+    def test_one_valid_pair_with_one_out_of_range_pair_is_a_failure(self):
+        # 쌍 하나는 정상이어도, 다른 하나가 틀렸으면 응답 전체를 믿지 않는다.
+        self.assertEqual(parse_pairs("[[1, 2], [1, 99]]", n_entries=5), ([], False))
 
     def test_not_json_is_a_failure(self):
         self.assertEqual(parse_pairs("이건 JSON이 아님", n_entries=5), ([], False))
