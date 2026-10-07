@@ -146,27 +146,41 @@ def _parse_json_list(text):
 def parse_pairs(text, n_entries):
     """모델이 돌려준 충돌 쌍을 검사한다.
 
-    반환: (쌍 목록, ok). ok=False는 응답이 JSON 배열 형식이 아니었다는 뜻이다(검사 결과를 믿을 수 없음).
-    "쌍이 없음"(정상, []을 받음)과 "응답을 해석하지 못함"(비정상)을 구분해야 호출 쪽에서 경고할 수 있다.
+    반환: (쌍 목록, ok). ok=False는 응답을 믿을 수 없다는 뜻이다(검사 결과를 믿을 수 없음) — JSON
+    배열이 아니거나, 배열 안에 "정수 두 개짜리 목록"이 아닌 항목이 섞여 있을 때다. 형식이 깨진
+    항목을 조용히 버리고 ok=True로 돌려주면, "쌍이 없음"(정상)과 구분이 안 된다.
+    범위 밖 숫자(1~n_entries 밖)나 중복은 형식은 맞지만 값이 틀린 것이라 그냥 걸러낸다(ok=True 유지).
     """
     raw = _parse_json_list(text)
     if raw is None:
         return [], False
     pairs = []
     for p in raw:
-        if isinstance(p, list) and len(p) == 2 and all(isinstance(x, int) for x in p):
-            a, b = sorted(p)
-            if 1 <= a < b <= n_entries:
-                pairs.append((a, b))
+        if not (isinstance(p, list) and len(p) == 2
+               and all(isinstance(x, int) and not isinstance(x, bool) for x in p)):
+            return [], False  # 형식이 깨진 항목이 하나라도 있으면 응답 전체를 믿지 않는다
+        a, b = sorted(p)
+        if 1 <= a < b <= n_entries:
+            pairs.append((a, b))
     return sorted(set(pairs)), True
 
 
 def parse_unsupported(text):
-    """모델이 돌려준 '근거 밖 문장' 목록을 검사한다. 반환은 parse_pairs와 같은 (목록, ok) 형태다."""
+    """모델이 돌려준 '근거 밖 문장' 목록을 검사한다. 반환은 parse_pairs와 같은 (목록, ok) 형태다.
+
+    배열 안의 모든 항목이 문자열이어야 한다. 문자열이 아닌 항목이 섞여 있으면(예: [123]) 형식이
+    깨진 것으로 보고 ok=False를 돌려준다.
+    """
     raw = _parse_json_list(text)
     if raw is None:
         return [], False
-    return [s for s in raw if isinstance(s, str) and s.strip()], True
+    out = []
+    for s in raw:
+        if not isinstance(s, str):
+            return [], False
+        if s.strip():
+            out.append(s)
+    return out, True
 
 
 class Generator:
