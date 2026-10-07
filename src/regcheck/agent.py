@@ -75,7 +75,8 @@ def build_package(cs: dict, regs: dict, rels: list[dict], edges: list[dict], law
             break
         cur["fixed"] = sorted(fixed)
         found = run_check(cur, regs, rels, edges, vector=vector, lawdb=lawdb)
-        same_breaks = [f for f in found if f["category"] == "breaks" and f["reg_id"] == reg["reg_id"] and f.get("suggest")]
+        same_breaks = [f for f in found if f["category"] == "breaks" and f["reg_id"] == reg["reg_id"] and f.get("suggest")
+                       and f.get("unit", "본문") == "본문"]   # 별표·별지 안 인용은 개정문으로 못 고침 → 아래 수작업 목록
         rec = {"round": rnd, "breaks": sum(f["category"] == "breaks" for f in found), "fixable": len(same_breaks), "added": []}
         rounds.append(rec)
         if not same_breaks:
@@ -145,6 +146,8 @@ def build_package(cs: dict, regs: dict, rels: list[dict], edges: list[dict], law
                               "quote": f.get("quote", ""), "question": f"{f['reason']} — 두 규정 중 어느 값을 따를지 결정이 필요합니다."})
 
     remaining = [f for f in found if f["category"] == "breaks"]
+    manual_same = [{"where": f"{f.get('unit')} {f['article']}", "quote": f["quote"], "suggest": f.get("suggest", ""), "reason": f["reason"]}
+                   for f in remaining if f["reg_id"] == reg["reg_id"] and f.get("unit", "본문") != "본문"]
     return {
         "id": cs["id"], "reg_id": reg["reg_id"], "reg_name": reg["name"], "request": cs.get("title", ""),
         "amendment_input": base_text, "amendment_final": base_text + ("\n" + "\n".join(added) if added else ""),
@@ -154,6 +157,6 @@ def build_package(cs: dict, regs: dict, rels: list[dict], edges: list[dict], law
         "companion": companion, "addendum_draft": addendum, "questions": questions,
         "law_check": [f for f in found if f["category"] == "law_check"],
         "review": [f for f in found if f["category"] in ("review", "resolved")],
-        "remaining_breaks": remaining,
+        "remaining_breaks": remaining, "manual_same": manual_same,
         "fixed": sorted(fixed),
     }

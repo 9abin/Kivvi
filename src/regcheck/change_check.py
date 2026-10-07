@@ -141,8 +141,8 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                       priority="높음", **base))
         elif tgt in lmap:
             new = lmap[tgt]
-            now = (f" 지금 {c['old_label']}은 신설 조문을 가리킴" if c["old_label"] in inserted_labels
-                   else f" 지금 {c['old_label']}은 종전 다른 조문({moved_here[c['old_label']]['old_label']})을 가리킴"
+            now = (f" 지금 {c['old_label']}는 신설 조문을 가리킴" if c["old_label"] in inserted_labels
+                   else f" 지금 {c['old_label']}는 종전 다른 조문({moved_here[c['old_label']]['old_label']})을 가리킴"
                    if c["old_label"] in moved_here else "")
             if same:
                 sug = _renumber_ref(r["evidence"], c["old_label"], new)
