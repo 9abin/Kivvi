@@ -25,7 +25,7 @@ EMBED_BATCH = 32
 
 # 하이브리드 검색 (검색_설계.md 3절). 코드를 고치지 않고 여기서만 바꾼다.
 RRF_K = 60                  # RRF 상수 (표준값)
-HYBRID_VECTOR_WEIGHT = 0.7  # 시작값. 골든셋 준비 후 조정한다
+HYBRID_VECTOR_WEIGHT = 0.7  # 측정 완료(2026.10.07, 질문 277개). 바꿀 근거 없음. 검색_설계.md 3.2절
 HYBRID_KEYWORD_WEIGHT = 0.3
 RERANK_MODEL = "BAAI/bge-reranker-v2-m3"  # 첫 실행 때 내려받음
 # 리랭커 입력 앞에 "[문서명 조항]"을 붙인다. 주어가 앞 항에만 있는 항이나 "하나, 우리는…"처럼

@@ -120,12 +120,14 @@ class Searcher:
         return [{"chunk_id": cid, **self.row_info[cid]} for cid, _ in pairs]
 
     # 3. 결합 ---------------------------------------------------------------
-    def fuse(self, vec_hits, key_hits):
+    def fuse(self, vec_hits, key_hits, vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT):
+        """가중 RRF로 합친다. 가중치 인자는 기본값이 config.py 값이라 평소 호출은 그대로 동작한다.
+        가중치를 바꿔가며 비교할 때만(src/eval/sweep_weights.py) 인자로 넘긴다."""
         score = defaultdict(float)
         info = {}
         origin = defaultdict(set)
-        for name, hits, weight in (("벡터", vec_hits, HYBRID_VECTOR_WEIGHT),
-                                   ("키워드", key_hits, HYBRID_KEYWORD_WEIGHT)):
+        for name, hits, weight in (("벡터", vec_hits, vector_weight),
+                                   ("키워드", key_hits, keyword_weight)):
             for rank, h in enumerate(hits, start=1):
                 cid = h["chunk_id"]
                 score[cid] += weight / (RRF_K + rank)
@@ -206,10 +208,12 @@ class Searcher:
         return out
 
     # 전체 -------------------------------------------------------------------
-    def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True):
+    def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True,
+              vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT):
         """질의 하나에 대해 상위 k개 청크를 돌려준다.
 
         filters: {"tier": "지침", "doc_ids": ["23234"], "min_year": 2025} (모두 선택)
+        vector_weight, keyword_weight: 기본값은 config.py 값. 가중치 비교(src/eval/sweep_weights.py)에서만 넘긴다.
         반환: [{"chunk_id", "doc_id", "article", "body", "score", "rerank", "match",
                 "siblings": [...], "cited": [...]}, ...]
         """
@@ -220,7 +224,8 @@ class Searcher:
         doc_ids = self._allowed_doc_ids(filters)
         vec_hits = self.vector_hits(text, doc_ids)
         key_hits = self.bm25_hits(text, doc_ids)
-        fused = [h for h in self.fuse(vec_hits, key_hits) if h["chunk_id"] not in taken]
+        fused = [h for h in self.fuse(vec_hits, key_hits, vector_weight, keyword_weight)
+                if h["chunk_id"] not in taken]
 
         if rerank:
             fused = self.rerank(text, fused[:RERANK_TOP])
