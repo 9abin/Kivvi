@@ -94,7 +94,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
         c = changed[tgt]
         loc = locate(r["src"])
         same = r["src"].split(":")[0] == rid
-        base = dict(quote=r["evidence"], context=r["context"], path="인용받음", target=f"{reg['name']} {c['old_label']}")
+        base = dict(quote=r["evidence"], context=r["context"], path="인용받음", src=r["src"], target=f"{reg['name']} {c['old_label']}")
         if r["src_kind"] == "부칙":
             add(_item("info", loc, regs, reason="부칙의 옛 조문 언급 (경과조치·이력, 오류 제외 원칙)", handling="참고", priority="낮음", **base))
             continue
@@ -125,7 +125,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
             continue
         for o, t in titles.items():
             if t not in GENERIC_TITLES and t in r["context"]:
-                add(_item("review", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="문서 인용",
+                add(_item("review", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="문서 인용", src=r["src"],
                           target=f"{reg['name']} {changed[o]['old_label']}",
                           reason=f"「{reg['name']}」에 문서 단위로 맡긴 조항이고 문맥에 「{t}」가 있음", handling="판단 가능", priority="중간"))
 
@@ -196,7 +196,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
         # 법령 대조: 바뀐 조가 인용하는 법령 (삭제된 조는 대조할 문안이 없음)
         for r in rels:
             if not deleted and r["src_article"] == o and r["target_type"] == "law":
-                add(_item("law_check", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="나가는 인용",
+                add(_item("law_check", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="나가는 인용", src=r["src"],
                           target=r["target"], reason="바뀐 조가 인용하는 법령 — 개정안이 법령과 맞는지 대조 (법률 DB 연결 후)",
                           handling="판단 가능", priority="중간"))
         if deleted:

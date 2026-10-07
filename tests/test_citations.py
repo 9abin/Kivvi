@@ -124,3 +124,9 @@ def test_addendum_amending_other_unknown_is_history():
 def test_article_citation_of_law_with_alias_paren():
     es = _edges_of('가규정\n제1조(목적) 「국가를 당사자로 하는 계약에 관한 법률 시행령(이하 "국가계약법 시행령"이라 한다)」제76조제1항에 따른다.')
     assert [e.status for e in es] == ["law_pending"]
+
+
+def test_unbracketed_generic_phrases_are_not_citations():
+    es = _edges_of("가규정\n제1조(목적) 목적.\n부      칙 <2020.01.01.>\n제2조(경과조치) 개정 전 선정된 자는 개정 지침에 의한 것으로 본다. "
+                   "종전 규정에 의한 호봉을 적용한다.")
+    assert [e for e in es if e.target_type == "regulation"] == []

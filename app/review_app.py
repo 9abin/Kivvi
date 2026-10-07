@@ -100,6 +100,33 @@ def article_of(reg_id: str, label: str, unit: str = "본문") -> dict | None:
     return next((a for a in r["articles"] if a["label"] == label), None)
 
 
+def unit_html(src_id: str, quote: str = "", context: str = "") -> str:
+    """본문이 아닌 단위(별지·별표·부칙)의 전체 문안. 문맥 조각(앞뒤 60자)만 보이면 문장이 잘려 보인다."""
+    from regcheck.amend import marker
+    from regcheck.normalize import normalize
+    r = regs.get(src_id.split(":")[0])
+    text = ""
+    if r:
+        aid = src_id.split("-")[0]
+        ap = next((x for x in r["appendices"] if x["id"] == aid), None)
+        if ap:
+            text = (f"{ap['kind']} {ap['number']} {ap['title']}".strip() + "\n" + normalize(ap["text"])).strip()
+        else:
+            for ad in r["addenda"]:
+                a = next((x for x in ad["articles"] if x["id"] == aid), None)
+                if a:
+                    head = f"부칙 <{ad['date']}> {a['label']}" + (f"({a['title']})" if a["title"] else "")
+                    text = head + "\n" + "\n".join(marker(it["path"]) + it["norm"] for it in a["items"])
+                    break
+    if not text:
+        return f'<div class="art">{html.escape(context)}</div>'
+    body = html.escape(text)
+    q = html.escape(quote.strip("「」")) if quote else ""
+    if q and q in body:
+        body = body.replace(q, f"<mark>{q}</mark>")
+    return f'<div class="art" style="max-height:420px;overflow:auto">{body}</div>'
+
+
 def art_html(a: dict, para: int = 0, quote: str = "") -> str:
     from regcheck.amend import marker
     lines = [f"<b>{html.escape(a['label'])}{'(' + html.escape(a['title']) + ')' if a['title'] else ''}</b>"]
@@ -181,11 +208,12 @@ if page == "기준선 이슈":
             st.markdown(f"#### {f['reg_name']} {f['unit']} {f['article']}" + (f" {f['para']}항" if f["para"] else ""))
             st.markdown(f"**{f['type']}** · 우선순위 {f['priority']} · 방법 {f['method']} · {f['fid']}"
                         + (f" · 정답 {f['gold']}" if f["gold"] else ""))
-            st.markdown(f"**인용** 「{f['quote']}」  \n**설명** {f['note'] or '-'}")
+            qd = f["quote"] if f["quote"].startswith("「") else f"「{f['quote']}」"
+            st.markdown(f"**인용** {qd}  \n**설명** {f['note'] or '-'}")
             if f.get("suggest"):
                 st.markdown(f"**참고 수정안** 「{f['suggest']}」 (자동 반영 안 함)")
             a = article_of(f["reg_id"], f["article"], f["unit"])
-            st.markdown(art_html(a, f["para"], f["quote"]) if a else f'<div class="art">{html.escape(f["context"])}</div>',
+            st.markdown(art_html(a, f["para"], f["quote"]) if a else unit_html(f.get("src_id", ""), f["quote"], f["context"]),
                         unsafe_allow_html=True)
             aid = a["id"] if a else None
             if aid:
@@ -288,7 +316,7 @@ elif page == "개정안 검토":
                         if a:
                             st.markdown(art_html(a, x.get("para") or 0, q), unsafe_allow_html=True)
                         elif x.get("context"):
-                            st.markdown(f'<div class="art">{html.escape(x["context"])}</div>', unsafe_allow_html=True)
+                            st.markdown(unit_html(x.get("src", ""), x.get("quote", ""), x["context"]), unsafe_allow_html=True)
                         decision_form(k, "impact", {"change": cur_id, "category": c, "reg_id": x["reg_id"],
                                                     "article": x.get("article"), "quote": x.get("quote")}, reviewer, f"if_{k}")
 

@@ -152,7 +152,7 @@ class Registry:
             if w in NAME_STOPWORDS or NOT_NAME_HEAD.match(w) or (PARTICLE_END.search(w) and not w.endswith(("제도", "정도", "한도"))):
                 break
             cands.append(f"{w} {cands[-1]}")
-        usable = [c for c in cands if compact(c) not in GENERIC]
+        usable = [c for c in cands if compact(c) not in GENERIC and not GENERIC_DOC.search(compact(c))]
         usable = [c for c in usable if not GENERIC_HEAD.match(compact(c))]
         best = None
         for c in usable:
