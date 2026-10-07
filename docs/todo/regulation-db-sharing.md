@@ -27,3 +27,5 @@ finding과 챗봇 답변이 같은 조문을 가리켜야 연결된다. 개정�
 
 ## 막힌 점 / 필요한 것
 - 법률 DB 엔진([law-db-interface](law-db-interface.md))과 같은 엔진을 쓰면 규정 ↔ 법령 조인이 쉬움. 세 명이 함께 정하는 편이 낫다.
+- 261007: 가빈 저장소 sql/schema.sql 확인 — documents(doc_id, title, tier, revision, source_url, file_name), chunks(chunk_id, doc_id, article, status, is_indexed, body, body_search, body_tokens, corrections_note, cites, embedding vector(1024) BGE-m3, …). 읽기 금지 칸 확정: body_search·corrections_note·cites·body_tokens(보정본 기반 여부 확인 필요). 데이터 덤프는 아직 이 PC에 없음
+

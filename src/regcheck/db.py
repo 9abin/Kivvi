@@ -12,8 +12,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# 점검 코드가 읽으면 안 되는 칸 (사람 보정이 반영된 값). 덤프 확인 후 실제 칸 이름으로 맞춘다
-FORBIDDEN_COLUMNS = {"본문_검색", "body_search", "cites", "정정안내", "correction_note"}
+# 점검 코드가 읽으면 안 되는 칸 (사람 보정이 반영된 값). 가빈 sql/schema.sql(chunks 테이블) 기준으로 확정 (261007)
+#   body_search: 확정 오탈자 반영본 / corrections_note: 정정 안내 / cites: 보정 반영 인용 목록
+#   body_tokens: 형태소 토큰 — 보정본에서 만들었을 수 있어 확인 전까지 금지
+# 읽어도 되는 칸: documents(doc_id, title, tier, revision, source_url, file_name), chunks(chunk_id, doc_id, article, status, is_indexed, body)
+FORBIDDEN_COLUMNS = {"body_search", "corrections_note", "cites", "body_tokens", "본문_검색", "정정안내"}
 
 
 def load_env(path: Path = ROOT / ".env") -> dict[str, str]:
