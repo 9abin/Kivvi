@@ -70,3 +70,17 @@ def test_value_change_new_conflict():
     cs, new = changeset(rs, '제2조제1항 중 "2회"를 "4회"로 한다.')
     found = check(cs, rs, RELS, new_reg=new)
     assert [f["article"] for f in found if f["category"] == "new_conflicts"] == ["제2조"]
+
+
+def test_value_change_shows_only_changed_item_in_full_and_real_phrase():
+    rs = regs()
+    long_tail = " 단, 이 문장은 길어서 예전에는 200자에서 잘렸다." * 8
+    rs["1"]["articles"][1]["items"][1]["norm"] += long_tail          # 바뀌지 않는 ② 를 길게
+    rs["1"]["articles"][1]["items"][0]["norm"] = "휴직은 최대 2회(단위는 총 3회)까지 한다."
+    rs["2"]["articles"][1]["items"][0]["norm"] = "휴직은 3회(단위는 최대 4회)까지 한다."
+    cs, new = changeset(rs, '제2조제1항 중 "최대 2회(단위는 총 3회)"를 "최대 3회(단위는 총 4회)"로 한다.')
+    res = [f for f in check(cs, rs, RELS, new_reg=new) if f["category"] == "resolved"][0]
+    items = res["counterpart"]["items"]
+    assert [d["marker"] for d in items] == ["①"]                       # 바뀐 항만
+    assert items[0]["new"] == "휴직은 최대 3회(단위는 총 4회)까지 한다."  # 자르지 않음
+    assert "개정 「최대 2회(단위는 총 3회)」→「최대 3회(단위는 총 4회)」" in res["reason"]

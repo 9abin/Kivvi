@@ -107,7 +107,7 @@ def main() -> None:
         w.writerow(["fid", "규정", "단위", "조", "항", "인용", "종류", "방법", "설명", "문맥", "판정(오류/정상/애매/판단불가)", "메모"])
         for f in queue:
             w.writerow([f["fid"], f["reg_name"], f["unit"], f["article"], f["para"], f["quote"], f["type"], f["method"],
-                        f["note"], f["context"][:100], "", ""])
+                        f["note"], f["context"], "", ""])
     total = {k: sum(r[k] for r in results.values()) for k in ("채점 대상", "탐지", "높음")}
     rec = runinfo.finish(run, [qpath], {"원장별": results, "합계": total, "확인 대기": len(queue),
                                          "정답 연결 finding": sorted(matched_fids)}, where="eval")

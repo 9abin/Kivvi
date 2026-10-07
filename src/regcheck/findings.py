@@ -96,7 +96,7 @@ def duplicate_paragraphs(regs: dict[str, dict]) -> list[dict]:
                         out.append({
                             "reg_id": reg["reg_id"], "unit": "본문", "article": a["label"], "para": p,
                             "quote": f"{CIRCLED[p - 1]} {it['text'][:30]}",
-                            "context": it["text"][:80],
+                            "context": it["text"],
                             "type": "항번호_중복", "method": "rule", "suggest": "",
                             "note": f"{a['label']}에서 {CIRCLED[p - 1]}가 다시 나옴 (앞선 항: {''.join(CIRCLED[x - 1] for x in seen)})",
                             "src_id": it["id"],

@@ -27,6 +27,21 @@ def _nums(text: str) -> set[str]:
     return {a + b for a, b in RE_NUM.findall(text)}
 
 
+def _sorted_nums(s: set) -> list[str]:
+    return sorted(s, key=lambda x: (re.sub(r"[\d.]", "", x), float(re.match(r"[\d.]+", x).group(0))))
+
+
+def _changed_items(old_art: dict, new_art: dict | None) -> list[dict]:
+    """바뀐 항·호만 전체 문안으로 (표시·값 비교용). [{path, marker, old, new}]"""
+    if not new_art:
+        return []
+    from .amend import marker
+    o = {tuple(it["path"]): it["norm"] for it in old_art["items"]}
+    n = {tuple(it["path"]): it["norm"] for it in new_art["items"]}
+    return [{"path": list(p), "marker": marker(list(p)).strip(), "old": o.get(p, ""), "new": n.get(p, "")}
+            for p in sorted(set(o) | set(n)) if o.get(p) != n.get(p)]
+
+
 def _jacc(a: set, b: set) -> float:
     return len(a & b) / len(a | b) if a | b else 0.0
 
@@ -170,7 +185,10 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
             low = path.startswith("의미")
             # 값 비교: 상대 조의 항 중 숫자가 가장 많이 겹치는 항과 비교
             if not deleted and new_txt and not low:   # 값 비교는 같은 제목 후보에만 (의미 유사는 주제가 달라 오경보)
-                O, N = _nums(old_txt), _nums(new_txt)
+                # 바뀐 항만 비교 (조 전체 숫자를 섞으면 「총 3회」→「최대 3회」처럼 자리만 바뀐 값이 사라져 보임)
+                diff = _changed_items(old_art, new_art)
+                O = set().union(*(_nums(d["old"]) for d in diff)) if diff else _nums(old_txt)
+                N = set().union(*(_nums(d["new"]) for d in diff)) if diff else _nums(new_txt)
                 if O != N:
                     best = max(({"p": p, "C": _nums(_item_text(a, p)), "t": _item_text(a, p)}
                                 for p in sorted({it["path"][0] for it in a["items"]})),
@@ -179,17 +197,19 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                         before, after = _jacc(O, best["C"]), _jacc(N, best["C"])
                         if after != before:
                             cat = "resolved" if after > before else "new_conflicts"
+                            pairs = [f"「{op['old']}」→「{op['new']}」" for op in c["ops"] if op["op"] == "replace" and not op.get("title")]
                             add(_item(cat, {**loc, "para": best["p"]}, regs, quote=", ".join(sorted(best["C"] & (O | N))) or a["title"],
-                                      context=best["t"][:200], path=f"{path} + 값 비교",
+                                      context=best["t"], path=f"{path} + 값 비교",
                                       target=f"{reg['name']} {c['old_label']}",
                                       reason=("값이 같아짐 (충돌 해소 후보)" if cat == "resolved" else "같던 값이 달라짐 (새 충돌 후보)")
-                                      + f": 현행 {sorted(O - N)} → 개정안 {sorted(N - O)}, 상대 {sorted(best['C'])}",
+                                      + (f": 개정 {', '.join(pairs)}" if pairs else "")
+                                      + f" / 바뀐 항의 값 현행 {_sorted_nums(O)} → 개정안 {_sorted_nums(N)}, 상대 {_sorted_nums(best['C'])}",
                                       handling="판단 가능", priority="낮음" if low else "중간",
-                                      counterpart={"old": old_txt[:200], "new": new_txt[:200]}))
+                                      counterpart={"items": diff}))
                             continue
             reason = (f"삭제된 조와 같은 주제 — 이 조가 삭제된 조에 기대는지 확인" if deleted
                       else f"같은 주제 조문 — 바뀐 내용과 맞는지 확인")
-            add(_item("review", loc, regs, quote=a["title"] or a["label"], context=_item_text(a)[:200], path=path,
+            add(_item("review", loc, regs, quote=a["title"] or a["label"], context=_item_text(a), path=path,
                       target=f"{reg['name']} {c['old_label']}", reason=reason, handling="판단 가능" if not deleted else "판단 불가",
                       priority="낮음" if low else "중간"))
 

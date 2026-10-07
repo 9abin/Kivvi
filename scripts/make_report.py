@@ -193,7 +193,7 @@ function renderCheck(k){
  <div class="note">관련 조항 표(인용받음·문서 인용), 같은 제목 조문(메타데이터), 의미 유사(보조, 낮음), 재검사로 찾았습니다. 충돌·해소는 판정이 아니라 양쪽 확인용 후보입니다.
  ${sc?`<br>시나리오 기대 결과 대조: ${sc}${miss.length?`<br><span class="warn">놓침: ${miss.join("; ")}</span>`:""}`:""}</div>
  ${Object.keys(CATN).filter(c=>by[c]).map(c=>`<h2 class="${CATC[c]||""}">${CATN[c]} (${by[c].length})</h2><div class="tw"><table><tr><th>규정·위치</th><th>문구</th><th>이유</th><th>제안</th><th>경로</th><th>우선</th></tr>
- ${by[c].map(x=>`<tr><td>${esc(x.reg_name)} ${esc(x.unit||"")} ${esc(x.article||"")}${x.para?" "+x.para+"항":""}</td><td class="q">${esc(x.quote||"")}${x.context?`<div class="mute" style="font-weight:400">${esc(x.context.slice(0,120))}</div>`:""}</td>
+ ${by[c].map(x=>`<tr><td>${esc(x.reg_name)} ${esc(x.unit||"")} ${esc(x.article||"")}${x.para?" "+x.para+"항":""}</td><td class="q">${esc(x.quote||"")}${x.context?`<div class="mute" style="font-weight:400">${esc(x.context)}</div>`:""}</td>
  <td class="ctx">${esc(x.reason)}</td><td>${x.suggest?`<span class="ok">${esc(x.suggest)}</span>`:""}</td><td class="mute">${esc(x.path)}</td><td>${esc(x.priority||"")}</td></tr>`).join("")}</table></div>`).join("")}`;
 }
 if(D.changes.length){$("#cs").onchange=renderC;}

@@ -306,11 +306,22 @@ elif page == "개정안 검토":
                     title = (f"[{state}] {x['reg_name']} {x.get('unit', '')} {x.get('article', '')}"
                              + (f" {x['para']}항" if x.get("para") else "") + f" 「{(x.get('quote') or '')[:30]}」 · {x.get('priority', '')} · {x['path']}")
                     with st.expander(title):
+                        if x.get("quote"):
+                            st.markdown(f"**문구** {x['quote'] if x['quote'].startswith('「') else '「' + x['quote'] + '」'}")
                         st.markdown(f"**이유** {x['reason']}")
                         if x.get("suggest"):
                             st.markdown(f"**참고 수정안** 「{x['quote']}」 → 「{x['suggest']}」")
-                        if x.get("counterpart"):
-                            st.markdown(f"**바뀐 조** 현행: {x['counterpart']['old']}  \n개정안: {x['counterpart']['new']}")
+                        if x.get("counterpart", {}).get("items"):
+                            # 바뀐 항만 전체 문안으로, 바뀐 부분 밑줄 (대비표와 같은 방식)
+                            from regcheck.amend import _segments
+                            st.markdown(f"**바뀐 조** ({x.get('target', '')})")
+                            rows_ = []
+                            for d in x["counterpart"]["items"]:
+                                so, sn = _segments(d["old"], d["new"])
+                                cell = lambda segs: "".join(f"<u>{html.escape(t)}</u>" if ch else html.escape(t) for t, ch in segs)  # noqa: E731
+                                rows_.append(f"<tr><td>{d['marker']} {cell(so)}</td><td>{d['marker']} {cell(sn)}</td></tr>")
+                            st.markdown('<table class="cmp"><tr><th>현 행</th><th>개 정 안</th></tr>' + "".join(rows_) + "</table>",
+                                        unsafe_allow_html=True)
                         a = article_of(x["reg_id"], x.get("article", ""), x.get("unit", "본문"))
                         q = x.get("quote", "") if x["path"] in ("인용받음", "문서 인용") else ""
                         if a:

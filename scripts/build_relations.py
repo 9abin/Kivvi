@@ -59,7 +59,7 @@ def main() -> None:
             if r.target_type == "article" and ":" in r.target:
                 treg = regs.get(r.target.split(":")[0], {})
                 art = next((a for a in treg.get("articles", []) if a["id"] == r.target), None)
-                tgt_text = f"{treg.get('name', '')} {art['label']}({art['title']}) {art['norm'][:120]}" if art else ""
+                tgt_text = f"{treg.get('name', '')} {art['label']}({art['title']}) {art['norm']}" if art else ""
             elif r.target_type == "regulation":
                 tgt_text = regs.get(r.target, {}).get("name", r.target)
             audit.append({**r.to_dict(), "src_reg_name": reg["name"], "target_text": tgt_text,
