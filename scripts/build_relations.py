@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from regcheck import runinfo  # noqa: E402
 from regcheck.relations import apply_decisions, from_edges, save  # noqa: E402
 
 OUT = ROOT / "out" / "relations"
@@ -28,15 +29,19 @@ def main() -> None:
     args = ap.parse_args()
     regs = {r["reg_id"]: r for r in (json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json"))}
     edges = [json.loads(l) for l in (ROOT / "out" / "edges" / "edges_all.jsonl").read_text(encoding="utf-8").splitlines()]
-    rels = from_edges(edges, regs)
     dec_path = ROOT / "eval" / "relation_decisions.json"
+    run = runinfo.start("relations", [ROOT / "out" / "edges" / "edges_all.jsonl", ROOT / "out" / "parsed", dec_path])
+    rels = from_edges(edges, regs)
+    for r in rels:
+        r.run = run["run_id"]
     if dec_path.exists():
         apply_decisions(rels, json.loads(dec_path.read_text(encoding="utf-8")))
     save(rels, OUT)
     c = collections.Counter((r.kind, r.confidence, r.verification) for r in rels)
     for k, v in sorted(c.items()):
         print("\t".join(k), v, sep="\t")
-    print(f"관계 {len(rels)}개 → {OUT / 'relations.jsonl'}")
+    runinfo.finish(run, [OUT / "relations.jsonl"], {"관계": len(rels)})
+    print(f"관계 {len(rels)}개 → {OUT / 'relations.jsonl'}  (실행 {run['run_id']})")
 
     if args.sample:
         # 종류별 층화 표본: 본문·별표·별지 출발만 (부칙은 '후보'라 제외)

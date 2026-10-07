@@ -39,6 +39,7 @@ class Relation:
     note: str
     src_version: str
     target_version: str
+    run: str = ""                # 실행 기록 ID (out/runs/, 역추적용)
 
     def to_dict(self) -> dict:
         return asdict(self)

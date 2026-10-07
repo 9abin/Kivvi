@@ -154,6 +154,11 @@ def main() -> None:
     ap.add_argument("--rank", type=int, default=5, help="설명구 기준 인용된 조 순위가 이보다 크면 후보")
     ap.add_argument("--llm", default="", help="후보에 덧붙일 로컬 LLM (기본: 안 씀)")
     args = ap.parse_args()
+    from regcheck import runinfo
+
+    stage1 = ROOT / "out" / "semantic" / "stage1.jsonl"
+    run = runinfo.start("semantic", [stage1, ROOT / "out" / "parsed"],
+                        models={"reranker": RERANKER, **({"llm": args.llm} if args.llm else {})}, params={"rank": args.rank})
     regs = load_regs()
     rows = [json.loads(l) for l in (ROOT / "out" / "semantic" / "stage1.jsonl").read_text(encoding="utf-8").splitlines()]
     run_reranker(rows, regs)
@@ -166,12 +171,16 @@ def main() -> None:
         run_llm([r for r in rows if r["stage2"] != "통과"], regs, args.llm)
     with (ROOT / "out" / "semantic" / "stage2.jsonl").open("w", encoding="utf-8") as f:
         for r in rows:
+            r["run"] = run["run_id"]
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     with_desc = [r for r in rows if r.get("desc")]
     cand = [r for r in rows if r["stage2"] == "대상 불일치 후보"]
     low = [r for r in rows if r["stage2"] == "확인 필요(낮음)"]
     gold = [r for r in rows if r["gold"]]
+    runinfo.finish(run, [ROOT / "out" / "semantic" / "stage2.jsonl"],
+                   {"인용": len(rows), "대상 불일치 후보": sum(r["stage2"] == "대상 불일치 후보" for r in rows),
+                    "확인 필요(낮음)": sum(r["stage2"] == "확인 필요(낮음)" for r in rows)})
     print(f"검사한 인용 {len(rows)}개, 설명구 있음 {len(with_desc)}개 (기준: 설명구 순위 > {args.rank})\n")
     print(f"■ 대상 불일치 후보 {len(cand)}개")
     for r in sorted(cand, key=lambda r: (not r["gold"], -r["desc_rank"])):
