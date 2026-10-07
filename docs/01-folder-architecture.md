@@ -22,7 +22,7 @@ MINI_CNS/
 ├─ scripts/                # parse_regs.py → extract_edges.py → eval_week1.py → build_relations.py / build_vectors.py → vector_check.py → semantic_check.py → build_findings.py → score.py (정답: make_ledger.py, import_corrections.py)
 ├─ eval/                   # 정답 원장 ledger/*.jsonl, 확인 대기 review_queue.csv, 정답셋 (week1_citations.json), 관계 표본 검수(relation_audit*.jsonl), 사람 결정(relation_decisions.json). 점검 코드는 정답을 읽지 않는다
 ├─ docker-compose.yml      # reg-db: 규정 원문 DB 로컬 사본 (pgvector:pg17, 접속 정보는 .env)
-├─ notebooks/              # 01-pipeline-walkthrough.ipynb: 지금까지 흐름을 단계별로 따라가기 (uv sync --group notebook)
+├─ notebooks/              # 01-pipeline-walkthrough.ipynb: 흐름을 단계별로 따라가기 (생성기 scripts/make_notebook.py, uv sync --group notebook)
 ├─ tests/                  # pytest
 ├─ out/                    # 생성물 (git 제외): parsed/{규정ID}.json, edges/edges.jsonl, edges/laws_all.tsv, vector/{모델}/
 ├─ data/

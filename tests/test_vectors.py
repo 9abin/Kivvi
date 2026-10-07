@@ -12,3 +12,11 @@ def test_chunks_by_hang_with_heading_and_skip_deleted():
     chunks = build_chunks([reg])
     assert [c["id"] for c in chunks] == ["9:1#0", "9:2#1", "9:2#2"]  # 삭제 조·부칙 제외
     assert chunks[1]["text"] == "테스트규정 > 제2조(정의)\n용어는 다음과 같다. 갑 을"
+
+
+def test_charter_preamble_chunks():
+    text = "윤리헌장\n제정 2024.12.06.\n우리는 다짐한다.\n하나, 정직하다.\n하나, 공정하다.\n부      칙 <2024.12.06.>\n시행한다."
+    reg = {"reg_id": "8", "name": "윤리헌장", "hierarchy": "기타", "revised": "2024-12", **to_records("8", parse(text.splitlines()))}
+    chunks = build_chunks([reg])
+    assert [c["id"] for c in chunks] == ["8:전문#0", "8:항목1#0", "8:항목2#0"]
+    assert chunks[1]["text"] == "윤리헌장 > 항목1\n하나, 정직하다."

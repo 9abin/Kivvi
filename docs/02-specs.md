@@ -6,7 +6,7 @@
 ## 환경
 
 - 내부망 가정, 로컬 LLM (미결: 후보 2~3개 테스트)
-- 임베딩: BGE-m3 (BGE-m3-ko 대비 오탐 적음, [보고서](reports/261006-1554-09-vector-index.md)). 청크 = 본문 조의 항(호·목 포함) + 「규정명 > 제N조(제목)」 접두어, 4,449개
+- 임베딩: BGE-m3 (BGE-m3-ko 대비 오탐 적음, [보고서](reports/261006-1554-09-vector-index.md)). 청크 = 본문 조의 항(호·목 포함) + 「규정명 > 제N조(제목)」 접두어, 90건 4,467개 (윤리헌장은 전문 + 「하나」 항목 5개)
 - 벡터 저장: 원본 `.npy` + 임시 Chroma (`out/vector/`). 엔진 합의 후 pgvector로 이전
 - GPU: RTX 4070 Laptop 8GB (확인). 캐시 모델: bge-m3, BGE-m3-ko, bge-reranker-v2-m3, Qwen2.5-3B-Instruct
 - RDB 엔진 (미결): PostgreSQL + pgvector 권장. 역방향 인덱스, 재귀 질의, 벡터 근사 검색을 한 DB에서 처리하고 법률 DB와 조인 가능. SQLite는 벡터 확장 별도 필요

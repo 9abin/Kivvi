@@ -46,7 +46,30 @@ def build_chunks(regs: list[dict]) -> list[dict]:
                     "hang": hang,
                     "revised": r["revised"],
                 })
+        if not r["articles"] and r.get("preamble"):
+            chunks += preamble_chunks(r)
     return chunks
+
+
+def preamble_chunks(r: dict) -> list[dict]:
+    """조문이 없는 선언문(윤리헌장)을 청크로: 전문 1개 + 「하나, …」 항목마다 1개 (김가빈 수동 청크와 같은 나눔)."""
+    from .normalize import normalize
+
+    lines = [normalize(p) for p in r["preamble"] if p.strip()]
+    intro = [p for p in lines if not p.startswith("하나")]
+    items = [p for p in lines if p.startswith("하나")]
+    parts = [("전문", intro)] + [(f"항목{n}", [p]) for n, p in enumerate(items, 1)]
+    out = []
+    for label, texts in parts:
+        if not texts:
+            continue
+        aid = f"{r['reg_id']}:{label}"
+        out.append({
+            "id": f"{aid}#0", "text": f"{r['name']} > {label}\n" + " ".join(texts),
+            "reg_id": r["reg_id"], "reg_name": r["name"], "hierarchy": r["hierarchy"],
+            "article_id": aid, "label": label, "title": "", "chapter": "", "hang": 0, "revised": r["revised"],
+        })
+    return out
 
 
 def load_model(name: str = DEFAULT_MODEL):
