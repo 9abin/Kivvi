@@ -80,6 +80,28 @@ def _renumber_ref(evidence: str, old_label: str, new_label: str | None) -> str:
     return re.sub(pat, new_label, evidence, count=1)
 
 
+def _fixed_in_draft(new_reg: dict | None, src: str, evidence: str, suggest: str) -> bool:
+    """개정안 사본에서 그 인용이 이미 새 번호로 고쳐졌나 (연쇄 수정 루프가 넣은 문장 반영 여부)."""
+    if not new_reg or not suggest:
+        return False
+    for a in new_reg["articles"]:
+        for it in a["items"]:
+            if it["id"] == src:
+                return suggest in it["norm"] and not re.search(_strict(evidence), it["norm"])
+    return False
+
+
+def _only_reference_fix(c: dict) -> bool:
+    """그 조의 변경이 번호 이동과 「"제N조…"를 "제M조…"로」 같은 인용 번호 치환뿐인가."""
+    ops = [op for op in c["ops"] if op["op"] != "renumber"]
+    ref = re.compile(r"^제\s*\d+\s*(?:조|장)")
+    return bool(ops) and all(op["op"] == "replace" and ref.match(op.get("old", "")) and ref.match(op.get("new", "")) for op in ops)
+
+
+def _strict(phrase: str) -> str:
+    return r"(?<!\d)" + re.escape(phrase) + r"(?!\d|\s*의\s*\d)"
+
+
 def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: list[dict] | None = None,
           new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None) -> list[dict]:
     """cs: out/changes/{id}/changeset.json, regs: 원문 파싱 결과(규정ID → 레코드), rels: 관련 조항 표.
@@ -96,6 +118,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
             out.append(it)
 
     changed = {c["origin"]: c for c in cs["changes"] if c["origin"]}
+    fixed = {tuple(x) for x in cs.get("fixed", [])}   # 연쇄 수정 루프가 고친 (출발 단위, 인용 문구)
     lmap = cs["label_map"]                         # origin → 새 번호 (None = 삭제)
     content_changed = {o: c for o, c in changed.items() if any(op["op"] != "renumber" for op in c["ops"])}
     inserted_labels = {c["new_label"] for c in cs["changes"] if not c["origin"]}
@@ -114,7 +137,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
             add(_item("info", loc, regs, reason="부칙의 옛 조문 언급 (경과조치·이력, 오류 제외 원칙)", handling="참고", priority="낮음", **base))
             continue
         if tgt in lmap and lmap[tgt] is None:
-            add(_item("breaks", loc, regs, reason=f"삭제된 {c['old_label']}을 근거로 듦 → 근거 소멸", handling="판단 불가",
+            add(_item("breaks", loc, regs, reason=f"삭제된 {c['old_label']}를 근거로 듦 → 근거 소멸", handling="판단 불가",
                       priority="높음", **base))
         elif tgt in lmap:
             new = lmap[tgt]
@@ -122,8 +145,13 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                    else f" 지금 {c['old_label']}은 종전 다른 조문({moved_here[c['old_label']]['old_label']})을 가리킴"
                    if c["old_label"] in moved_here else "")
             if same:
+                sug = _renumber_ref(r["evidence"], c["old_label"], new)
+                if (r["src"], r["evidence"]) in fixed or _fixed_in_draft(new_reg, r["src"], r["evidence"], sug):
+                    add(_item("info", loc, regs, reason=f"개정안에서 함께 고침 ({r['evidence']} → {sug})", handling="참고",
+                              priority="낮음", suggest=sug, **{**base, "path": "연쇄 수정 반영"}))
+                    continue
                 add(_item("breaks", loc, regs, reason=f"같은 규정 안 인용. {c['old_label']} → {new}로 옮겨짐.{now} 개정문에 함께 고쳐야 함",
-                          handling="고칠 수 있음", priority="높음", suggest=_renumber_ref(r["evidence"], c["old_label"], new), **base))
+                          handling="고칠 수 있음", priority="높음", suggest=sug, **base))
             else:
                 add(_item("review", loc, regs, reason=f"다른 규정의 인용. {c['old_label']} → {new}. 개정안 부칙에 「다른 내규와의 관계」"
                           "(종전 조문 인용을 새 조문 인용으로 본다)가 있으면 표기 정비, 없으면 깨짐", handling="판단 가능", priority="중간",
@@ -147,6 +175,8 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
     # 3) 같은 제목 + 값 비교, 4) 의미 유사
     new_arts = {a.get("_origin") or a["id"]: a for a in (new_reg or {}).get("articles", [])}
     for o, c in content_changed.items():
+        if _only_reference_fix(c):
+            continue   # 인용 번호만 고친 조(연쇄 수정)는 내용이 바뀐 게 아니므로 같은 주제·법령 대조 대상이 아님
         old_art = next(a for a in reg["articles"] if a["id"] == o)
         new_art = new_arts.get(o)
         deleted = o in lmap and lmap[o] is None

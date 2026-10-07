@@ -239,6 +239,27 @@ def _parse_body(body: list[str], jo: int, br: int) -> dict:
     return rec["articles"][0]
 
 
+def _one_pattern(old: str) -> str:
+    """조문 인용처럼 보이는 문구(제N조…)는 숫자·「의N」이 이어지는 자리에서 잘못 맞지 않게 경계를 둔다 (「제7조」가 「제7조의2」에 맞지 않게)."""
+    p = re.escape(old)
+    if re.match(r"^제\s*\d", old):
+        p = r"(?<!\d)" + p + (r"(?!\d|\s*의\s*\d)" if re.search(r"(조|항|호)$", old) else r"(?!\d)")
+    return p
+
+
+def _pairs_pattern(pairs: list[tuple[str, str]]):
+    olds = sorted({o for o, _ in pairs}, key=len, reverse=True)   # 긴 문구 먼저 (제7조제1항 > 제7조)
+    pat = re.compile("|".join(f"(?:{_one_pattern(o)})" for o in olds))
+    table = {}
+    for o, r in pairs:
+        table[o] = r
+
+    class _T(dict):
+        def __missing__(self, key):   # 경계 패턴이라 매칭 문자열이 원문과 같다
+            return table[key]
+    return pat, _T(table)
+
+
 def apply(reg: dict, ops: list[Op]) -> tuple[dict, list[dict]]:
     """규정 사본에 Op를 적용. 반환: (새 규정, 조문별 변경 기록)."""
     new = copy.deepcopy(reg)
@@ -251,20 +272,22 @@ def apply(reg: dict, ops: list[Op]) -> tuple[dict, list[dict]]:
     for op in ops:
         if op.kind == "replace":
             a = _find(arts, op.unit.jo, op.unit.br)
-            for old, rep in op.pairs:
-                if op.title:
-                    n = a["title"].count(old)
-                    if not n:
+            # 여러 쌍은 동시에 바꾼다: 「"제7조"를 "제8조"로, "제8조"를 "제9조"로」에서 새로 생긴 제8조를 다시 바꾸지 않게
+            pat, table = _pairs_pattern(op.pairs)
+            texts = [a["title"]] if op.title else [it["norm"] for it in _items_in(a, op.unit)]
+            counts = {old: sum(len(re.findall(_one_pattern(old), t)) for t in texts) for old, _ in op.pairs}
+            for old, n in counts.items():
+                if not n:
+                    if op.title:
                         raise AmendError(f'제목에 "{old}" 없음: {a["label"]}({a["title"]})')
-                    a["title"] = a["title"].replace(old, rep)
-                else:
-                    items = _items_in(a, op.unit)
-                    n = sum(it["norm"].count(old) for it in items)
-                    if not n:
-                        raise AmendError(f'"{old}" 없음: {a["label"]} {op.unit.label()} — ' + " / ".join(it["norm"][:40] for it in items[:3]))
-                    for it in items:
-                        it["norm"] = it["norm"].replace(old, rep)
-                a["_changes"].append({"op": "replace", "unit": op.unit.label(), "old": old, "new": rep, "count": n,
+                    raise AmendError(f'"{old}" 없음: {a["label"]} {op.unit.label()} — ' + " / ".join(t[:40] for t in texts[:3]))
+            if op.title:
+                a["title"] = pat.sub(lambda m: table[m.group(0)], a["title"])
+            else:
+                for it in _items_in(a, op.unit):
+                    it["norm"] = pat.sub(lambda m: table[m.group(0)], it["norm"])
+            for old, rep in op.pairs:
+                a["_changes"].append({"op": "replace", "unit": op.unit.label(), "old": old, "new": rep, "count": counts[old],
                                       "title": op.title})
         elif op.kind == "delete":
             a = _find(arts, op.unit.jo, op.unit.br)

@@ -76,3 +76,10 @@ def test_title_and_rewrite():
 def test_unreadable_sentence_stops():
     with pytest.raises(AmendError, match="해석 못함"):
         run("휴직 규정을 손본다.")
+
+
+def test_pairs_are_replaced_simultaneously_and_respect_boundaries():
+    text = "시험규정\n제1조(목적) 제7조와 제8조, 제7조의2 및 제17조를 따른다."
+    r = {"reg_id": "9", "name": "시험규정", **to_records("9", parse(text.splitlines()))}
+    new, ch = apply(r, parse_amendment('제1조 중 "제7조"를 "제8조"로, "제8조"를 "제9조"로 한다.'))
+    assert new["articles"][0]["items"][0]["norm"] == "제8조와 제9조, 제7조의2 및 제17조를 따른다."
