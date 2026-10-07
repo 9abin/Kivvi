@@ -109,7 +109,8 @@ def main() -> None:
             w.writerow([f["fid"], f["reg_name"], f["unit"], f["article"], f["para"], f["quote"], f["type"], f["method"],
                         f["note"], f["context"][:100], "", ""])
     total = {k: sum(r[k] for r in results.values()) for k in ("채점 대상", "탐지", "높음")}
-    rec = runinfo.finish(run, [qpath], {"원장별": results, "합계": total, "확인 대기": len(queue)}, where="eval")
+    rec = runinfo.finish(run, [qpath], {"원장별": results, "합계": total, "확인 대기": len(queue),
+                                         "정답 연결 finding": sorted(matched_fids)}, where="eval")
     print(f"채점 기록 → {rec.relative_to(ROOT)}  (합계 재현율 {total['탐지']}/{total['채점 대상']}, 높음 {total['높음']})")
     print(f"정답 목록 밖 결과(담당 21건 범위) {len(queue)}개 → {qpath}  (사람 확인 후 원장 추가 또는 기각)")
     print("   ", dict(collections.Counter((f["type"], f["unit"]) for f in queue)))

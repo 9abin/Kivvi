@@ -19,12 +19,12 @@ MINI_CNS/
 │  ├─ relations.py         # 관련 조항 표 (근거·출처·신뢰도·검증 상태·원문 버전), 조회
 │  └─ vectors.py           # 항 단위 청크, BGE-m3 임베딩, 검색 (uv sync --extra vector)
 │  ├─ build.py             # 메타데이터(규정ID·위계·개정일·출처) + 조문 ID → JSON
-├─ scripts/                # parse_regs.py → extract_edges.py → eval_week1.py → build_relations.py / build_vectors.py → vector_check.py → semantic_check.py → build_findings.py → score.py (정답: make_ledger.py, import_corrections.py)
-├─ eval/                   # 정답 원장 ledger/*.jsonl, 확인 대기 review_queue.csv, 정답셋 (week1_citations.json), 관계 표본 검수(relation_audit*.jsonl), 사람 결정(relation_decisions.json). 점검 코드는 정답을 읽지 않는다
+├─ scripts/                # parse_regs.py → extract_edges.py → eval_week1.py → build_relations.py / build_vectors.py → vector_check.py → semantic_check.py → build_findings.py → score.py → make_report.py (정답: make_ledger.py, import_corrections.py)
+├─ eval/                   # 정답 원장 ledger/*.jsonl, 확인 대기 review_queue.csv, 채점 기록 runs/, 정답셋 (week1_citations.json), 관계 표본 검수(relation_audit*.jsonl), 사람 결정(relation_decisions.json). 점검 코드는 정답을 읽지 않는다
 ├─ docker-compose.yml      # reg-db: 규정 원문 DB 로컬 사본 (pgvector:pg17, 접속 정보는 .env)
 ├─ notebooks/              # 01-pipeline-walkthrough.ipynb: 흐름을 단계별로 따라가기 (생성기 scripts/make_notebook.py, uv sync --group notebook)
 ├─ tests/                  # pytest
-├─ out/                    # 생성물 (git 제외): parsed/{규정ID}.json, edges/edges.jsonl, edges/laws_all.tsv, vector/{모델}/
+├─ out/                    # 생성물 (git 제외): parsed/{규정ID}.json, edges/edges.jsonl, edges/laws_all.tsv, vector/{모델}/, runs/(실행 기록), report/index.html(1차 결과 페이지)
 ├─ data/
 │  └─ 한국벤처투자_내부규정/  # 원문 90건 + 수집 목록 + 1주차 검토 결과(*_노션용.md)
 ├─ info/                   # 배경 조사 자료 (RFP, 보도자료). 기준 문서 아님
