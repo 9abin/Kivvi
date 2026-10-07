@@ -16,7 +16,7 @@
 | doing | P1 | 규정 인용 법령 목록 → 한석희 전달 (132종 `out/edges/laws_all.tsv` 생성, 전달 남음) | 박형건 | [261006-1544-08](../reports/261006-1544-08-citation-edges.md) |
 | todo | P1 | 실제 사례 정답 정리 (1주차 F·J·X·E 항목) | 박형건 | |
 | todo | P1 | `slot` 주제키 초기 목록 (금액, 기간, 횟수, 승인권자, 의결정족수) | 박형건 | |
-| doing | P0 | 정답 원장·채점 (week1 16/16, 가빈 정리본 7/7). 다음: corrections.json 155건, 확인 대기 46건 | 박형건·김가빈 | [goldset](goldset.md) |
+| doing | P0 | 정답 원장·채점 (week1 16/16, 가빈 정리본 7/7, corrections 17/23 [261007-1535-19](../reports/261007-1535-19-gabin-corrections-eval.md)). 다음: 확인 대기 22건, 부칙 정책·오탈자 결정 | 박형건·김가빈 | [goldset](goldset.md) |
 | todo | P1 | 오류 주입셋 설계·구축 (주입 유형, 위치 기록, 규모) | 확인 필요 (원본: 이민형) | [goldset](goldset.md) |
 | 외부 | P0 | 법률 DB 구축, 스냅샷 반입 | 한석희 | |
 

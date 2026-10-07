@@ -55,9 +55,19 @@ def main() -> None:
     for path in files:
         gold = load(path)
         rows = []
+        confirmed_ok = []   # 사람이 '맞음'으로 확인한 위치 — 우리가 표시하면 오탐
         for g in gold:
             if g["type"] in OUT_OF_SCOPE:
                 rows.append((g, "범위 밖", None, None))
+                continue
+            if g["type"] == "정상_확인":
+                # 같은 조의 다른 문제(오탈자 확인 vs 인용 오류)와 섞이지 않게 인용 문구가 직접 겹칠 때만 오탐
+                gq = re.sub(r"\s", "", g.get("quote", ""))
+                fp = [f for f in found if same_place(g, f) and gq and
+                      (gq in re.sub(r"\s", "", f["quote"]) or re.sub(r"\s", "", f["quote"]) in gq)]
+                for f in fp:
+                    matched_fids.add(f["fid"])
+                confirmed_ok.append((g, fp))
                 continue
             hits = [f for f in found if same_place(g, f) and f["type"] in COMPATIBLE.get(g["type"], {g["type"]})]
             for f in hits:
@@ -67,6 +77,10 @@ def main() -> None:
             res = ("탐지" if high else "탐지(낮음)") if hits else "놓침"
             rows.append((g, res, best, suggest_ok(g, best) if best else None))
         print(f"■ {path.stem}: {len(gold)}건")
+        if confirmed_ok:
+            bad = [(g, fp) for g, fp in confirmed_ok if fp]
+            print(f"   정상 확인 {len(confirmed_ok)}건 중 우리가 오류로 표시(오탐) {len(bad)}건"
+                  + "".join(f"{chr(10)}     오탐 {g['id']} {g['reg_id']} {g['article']} 「{g['quote']}」 ← {fp[0]['fid']} {fp[0]['type']}" for g, fp in bad))
         by = collections.defaultdict(lambda: [0, 0])  # [정답 수, 탐지 수, 높음 여부...]
         for g, res, f, ok in rows:
             if res == "범위 밖":
@@ -84,6 +98,7 @@ def main() -> None:
         results[path.stem] = {
             "정답": len(gold), "채점 대상": tot, "탐지": hit, "높음": sum(sum(v[2:]) for v in by.values()),
             "제안 일치": [sum(sug), len(sug)],
+            "정상 확인 오탐": [sum(1 for _, fp in confirmed_ok if fp), len(confirmed_ok)],
             "종류별": {t: {"정답": v[0], "탐지": v[1], "높음": sum(v[2:])} for t, v in sorted(by.items())},
             "항목": [{"id": g["id"], "type": g["type"], "reg_id": g["reg_id"], "article": g["article"], "quote": g["quote"],
                       "result": res, "fid": f["fid"] if f else "", "suggest_ok": ok} for g, res, f, ok in rows],

@@ -99,6 +99,10 @@ STATUS = {
 }
 
 
+def _nodot(s: str) -> str:
+    return re.sub(r"[·ㆍ・•‧]", "", s)
+
+
 # ── 규정 사전 ─────────────────────────────────────────
 class Registry:
     def __init__(self, regs: list[dict]):
@@ -107,6 +111,8 @@ class Registry:
         for r in regs:
             for key in {compact(r["name"]), compact(r["name"].removeprefix("한국벤처투자 "))}:
                 self.by_compact[key] = r["reg_id"]
+                # 가운뎃점만 다른 표기도 같은 이름 (「보수복지규정」 = 「보수·복지규정」, 가빈 C103 '맞음')
+                self.by_compact.setdefault(_nodot(key), r["reg_id"])
         self.by_compact.setdefault(compact("정관"), next((r["reg_id"] for r in regs if r["hierarchy"] == "정관"), ""))
         # 괄호 없는 규정명 매칭은 긴 이름부터 (예: '해외근무직원 보수·복지규정'이 '복지규정'보다 먼저)
         self.names_by_len = sorted(self.by_compact.items(), key=lambda kv: -len(kv[0]))
@@ -126,6 +132,8 @@ class Registry:
         key = re.sub(r"^(회사의?|당사)", "", key)
         if key in self.by_compact:
             return self.by_compact[key], "ok", ""
+        if _nodot(key) in self.by_compact:
+            return self.by_compact[_nodot(key)], "ok", ""
         best, score = "", 0.0
         for k, rid in self.by_compact.items():
             s = SequenceMatcher(None, key, k).ratio()

@@ -130,3 +130,8 @@ def test_unbracketed_generic_phrases_are_not_citations():
     es = _edges_of("가규정\n제1조(목적) 목적.\n부      칙 <2020.01.01.>\n제2조(경과조치) 개정 전 선정된 자는 개정 지침에 의한 것으로 본다. "
                    "종전 규정에 의한 호봉을 적용한다.")
     assert [e for e in es if e.target_type == "regulation"] == []
+
+
+def test_middle_dot_difference_is_same_name():
+    es = _edges_of("가규정\n제1조(목적) 해외근무직원 보수복지규정 제5조에 따른다.", ["해외근무직원 보수·복지규정\n제5조(수당) 수당."])
+    assert [e.status for e in es if e.target_type == "article"] == ["ok"]

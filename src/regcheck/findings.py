@@ -81,6 +81,27 @@ def from_semantic(rows: list[dict]) -> list[dict]:
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 
 
+def duplicate_articles(regs: dict[str, dict]) -> list[dict]:
+    """같은 조 번호가 한 규정에 두 번 이상 (예: 경영공시 관리지침 제12조 벌점 / 제12조 그 밖의 사항 — 신설 뒤 번호를 밀지 않음).
+    두 번째부터 표시한다. 조문ID가 겹쳐 인용 해석도 첫 번째로만 연결되므로 함께 알린다."""
+    out = []
+    for r in regs.values():
+        seen: dict[str, dict] = {}
+        for a in r["articles"]:
+            if a["label"] in seen:
+                first = seen[a["label"]]
+                out.append({
+                    "reg_id": r["reg_id"], "unit": "본문", "article": a["label"], "para": 0,
+                    "quote": f"{a['label']}({a['title']})", "context": a["norm"].replace(chr(10), " "),
+                    "type": "조번호_이상", "method": "rule", "suggest": "",
+                    "note": f"{a['label']}가 두 번: 「{first['title']}」 다음에 「{a['title']}」. 뒤 조문 번호를 밀지 않은 것으로 보임 (인용 해석은 첫 번째로만 연결됨)",
+                    "src_id": a["id"],
+                })
+            else:
+                seen[a["label"]] = a
+    return out
+
+
 def duplicate_paragraphs(regs: dict[str, dict]) -> list[dict]:
     """같은 조 안에서 항 번호(①②…)가 다시 나오거나 거꾸로 가는 경우. 원문 표기 문제 (원문은 고치지 않음)."""
     out = []

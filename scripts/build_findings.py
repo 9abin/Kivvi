@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from regcheck import runinfo  # noqa: E402
-from regcheck.findings import duplicate_paragraphs, from_edges, from_semantic  # noqa: E402
+from regcheck.findings import duplicate_articles, duplicate_paragraphs, from_edges, from_semantic  # noqa: E402
 
 
 def main() -> None:
@@ -26,7 +26,7 @@ def main() -> None:
     sem_runs = sorted({r["run"] for r in sem if r.get("run")})
     run = runinfo.start("findings", [ROOT / "out" / "edges" / "edges_all.jsonl", sem_path, ROOT / "out" / "parsed"],
                         params={"semantic_runs": sem_runs})
-    found = from_edges(edges) + from_semantic(sem) + duplicate_paragraphs(regs)
+    found = from_edges(edges) + from_semantic(sem) + duplicate_paragraphs(regs) + duplicate_articles(regs)
     for n, f in enumerate(found):
         f["fid"] = f"F{n:05d}"
         f["reg_name"] = regs[f["reg_id"]]["name"]
