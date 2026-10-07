@@ -27,9 +27,12 @@
 
 ```
 cd rag_pipeline
+$env:UV_PROJECT_ENVIRONMENT = ".venv"      # 저장소 안에 격리된 환경 사용
 uv sync                                    # 패키지 설치 (처음 한 번)
-uv run python run.py                       # 추출 → 청킹 → 참조 해석 → 보정 적용 → out/ 저장
-uv run python -m unittest discover tests   # 테스트
+.\.venv\Scripts\python.exe run.py          # 추출 → 청킹 → 참조 해석 → 보정 적용 → out/ 저장
+.\.venv\Scripts\python.exe -m unittest discover tests
+.\.venv\Scripts\python.exe -m streamlit run app\streamlit_app.py
+.\.venv\Scripts\python.exe -m src.eval.run # 검색 평가 (PostgreSQL 색인 필요, 약 6분)
 ```
 
 `run.py`가 하는 일:
@@ -86,3 +89,4 @@ archive/               작업 중 만든 임시 파일 보관 (실행에 쓰지 
 - `out/`은 실행할 때마다 다시 만들어집니다. 직접 수정하지 마세요.
 - `archive/`의 파일은 작업 이력입니다. 실행에 쓰이지 않습니다.
 - 외부 법령(90건 밖)을 참고하는 항목은 이 저장소에서 처리하지 않습니다(외부 DB에서 별도 작업).
+- 검색 평가 질문-정답 세트는 `eval/questions.jsonl`에 있습니다(277개, 유형·세부유형 포함). 추가·수정은 이 JSONL 파일을 직접 고칩니다. `docs/평가_라벨링.md`는 라벨링 기준과 세부유형 정의를 설명하지만, 그 문서가 말하는 **Streamlit 라벨링 화면과 오류 원장(`eval/error_ledger.jsonl`)은 이 저장소에 포함되지 않았습니다.** 별도 작업으로 가져올지 판단 중입니다.

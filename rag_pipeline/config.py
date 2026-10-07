@@ -28,6 +28,9 @@ RRF_K = 60                  # RRF 상수 (표준값)
 HYBRID_VECTOR_WEIGHT = 0.7  # 시작값. 골든셋 준비 후 조정한다
 HYBRID_KEYWORD_WEIGHT = 0.3
 RERANK_MODEL = "BAAI/bge-reranker-v2-m3"  # 첫 실행 때 내려받음
+# 리랭커 입력 앞에 "[문서명 조항]"을 붙인다. 주어가 앞 항에만 있는 항이나 "하나, 우리는…"처럼
+# 본문만으로 어느 규정인지 알 수 없는 청크를 위해서다. 임베딩·BM25 색인에는 붙이지 않는다 (재색인 불필요).
+RERANK_HEADER = True
 BM25_K1 = 1.5
 
 # 답변에 넘기는 근거 전체 글자 수 상한 (임시값, 답변 단계에서 조정)
@@ -35,6 +38,11 @@ CONTEXT_CHAR_BUDGET = 8000
 
 # 답변 생성 (OpenAI API, 키는 프로젝트 상위 폴더의 .env에 있다)
 OPENAI_MODEL = "gpt-4o-mini"
+
+# 근거 점수 구간 (리랭커 1위 점수). 임시값: 측정 질문 35개로 정했다. 평가셋을 만든 뒤 다시 본다 (답변_설계.md 3절)
+ANSWER_NONE_BELOW = 0.3     # 이보다 낮으면 "관련 내용 없음" (모델을 부르지 않음)
+ANSWER_PARTIAL_BELOW = 0.6  # 이보다 낮으면 "관련 조문만 제시" (모델을 부르지 않음)
+PARTIAL_SHOW = 3            # 애매함 구간에서 보여줄 관련 조문 수
 BM25_B = 0.75
 
 TIER_RULES = [  # 문서명 끝 글자 → 위계
