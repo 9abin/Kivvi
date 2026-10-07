@@ -32,10 +32,8 @@
 - 261007: 규정명 오인식 6종 수정 (결과 296→241, 확인 대기 46→23, 정답 그대로) → [261007-1209-17](reports/261007-1209-17-name-misreads.md)
 - 261007: RFP 벤치마킹·실행 기록 [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md), 노트북·git·로컬 DB, 검토 화면 v0 → [261007-1158-16](reports/261007-1158-16-review-screen.md)
 - 261007: 개정문 적용·대비표 [261007-1145-14](reports/261007-1145-14-amendment-compare.md), 변경안 점검 v0 → [261007-1152-15](reports/261007-1152-15-change-check.md)
-- 261007: RFP(석유공사) 벤치마킹, 실행 기록(out/runs·eval/runs), 1차 결과 페이지 → [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md)
-- 261007: 로컬 규정 DB(reg-db, 가빈 DB와 같은 계정) 준비, 읽기 전용 접속. 가빈 덤프 복원 대기 → [regulation-db-sharing](todo/regulation-db-sharing.md)
 - 261007: 정답 원장·채점 틀, 항번호 중복 점검, 제12-1조 파싱. week1 16/16, 가빈 정리본 7/7(대상 불일치는 낮음 등급) → [261007-1028-12](reports/261007-1028-12-goldset-eval.md)
-- 261007: 흐름 이해용 노트북 (134셀, 전체 청킹 절), 로컬 git 저장소
+- 261007: 로컬 규정 DB(reg-db) 준비, 가빈 덤프 복원 대기 → [regulation-db-sharing](todo/regulation-db-sharing.md)
 - 261006: 관련 조항 표·표본 검수 [261006-1744-11](reports/261006-1744-11-relations.md), 의미 검사 2단계 [261006-1603-10](reports/261006-1603-10-semantic-check.md), 벡터 색인 [261006-1554-09](reports/261006-1554-09-vector-index.md), 인용 추출·구조 검사 v0, 1주차 정답 대조 스크립트, 법령 목록 130종 → [261006-1544-08](reports/261006-1544-08-citation-edges.md)
 - 261006: 원문 추출기·조문 파서·전처리, 90건 파싱, 원문 확인 후보(결번·순서 4건, 머리말 불일치 4건), 학습 문서 `learning/261006-article-parsing.html` → [261006-1428-07](reports/261006-1428-07-article-parsing.md)
 - ~261005: 규정 90건 수집, 담당 21건 1차 검토, 외부 법령 참고 정리 (`data/한국벤처투자_내부규정/*_노션용.md`)
