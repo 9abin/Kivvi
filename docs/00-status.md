@@ -22,7 +22,7 @@
 - 조문 ID 임시안 공유·합의 (김가빈·한석희) → [261006-1428-07](reports/261006-1428-07-article-parsing.md)
 - 오류 주입셋 담당 (원본 기획: 이민형)
 - 로컬 LLM, GPU 환경, 대상 법령 범위 ([03 미결](03-product-plan.md))
-- git 원격 없음
+- git: 로컬 저장소(main, 첫 커밋 952e720). 원격 없음 → 팀 공유 위치 정하기
 
 ## 다음 액션
 1. 가빈 corrections.json 155건 받아 독립 평가 ([goldset](todo/goldset.md)), 합의: [law-db-interface](todo/law-db-interface.md)(한석희), [regulation-db-sharing](todo/regulation-db-sharing.md)(김가빈)
