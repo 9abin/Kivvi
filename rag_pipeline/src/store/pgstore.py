@@ -21,6 +21,7 @@ def _connect():
         dbname=os.environ["PG_DATABASE"],
         user=os.environ["PG_USER"],
         password=os.environ["PG_PASSWORD"],
+        connect_timeout=5,
     )
     register_vector(conn)
     return conn

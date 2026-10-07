@@ -28,6 +28,9 @@ RRF_K = 60                  # RRF 상수 (표준값)
 HYBRID_VECTOR_WEIGHT = 0.7  # 시작값. 골든셋 준비 후 조정한다
 HYBRID_KEYWORD_WEIGHT = 0.3
 RERANK_MODEL = "BAAI/bge-reranker-v2-m3"  # 첫 실행 때 내려받음
+# 리랭커 입력 앞에 "[문서명 조항]"을 붙인다. 주어가 앞 항에만 있는 항이나 "하나, 우리는…"처럼
+# 본문만으로 어느 규정인지 알 수 없는 청크를 위해서다. 임베딩·BM25 색인에는 붙이지 않는다 (재색인 불필요).
+RERANK_HEADER = True
 BM25_K1 = 1.5
 
 # 답변에 넘기는 근거 전체 글자 수 상한 (임시값, 답변 단계에서 조정)

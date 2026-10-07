@@ -20,7 +20,7 @@ from kiwipiepy import Kiwi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from config import (EMBED_MODEL, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
-                    RERANK_MODEL, RRF_K)
+                    RERANK_HEADER, RERANK_MODEL, RRF_K)
 from src.search.bm25 import BM25
 from config import CONTEXT_CHAR_BUDGET
 from src.search.exact import parse_reference
@@ -67,6 +67,7 @@ class Searcher:
         self.model = SentenceTransformer(EMBED_MODEL, device="cuda")
         self.model.half()
         self.reranker = CrossEncoder(RERANK_MODEL, device="cuda")
+        self.rerank_header = RERANK_HEADER
         self._load_index()
 
     def _load_index(self):
@@ -135,10 +136,18 @@ class Searcher:
                 for c in ranked]
 
     # 4. 리랭킹 -------------------------------------------------------------
+    def rerank_text(self, chunk_id):
+        """리랭커에 넣는 청크 글자. 머리말을 켜면 '[문서명 조항] 본문_검색' 형태가 된다."""
+        row = self.row_info[chunk_id]
+        if not self.rerank_header:
+            return row["body_search"]
+        title = self.documents.get(row["doc_id"], {}).get("title") or row["doc_id"]
+        return f"[{title} {row['article']}] {row['body_search']}"
+
     def rerank(self, text, cands):
         if not cands:
             return cands
-        pairs = [(text, self.row_info[c["chunk_id"]]["body_search"]) for c in cands]
+        pairs = [(text, self.rerank_text(c["chunk_id"])) for c in cands]
         scores = self.reranker.predict(pairs, batch_size=16)
         for c, s in zip(cands, scores):
             c["rerank"] = float(s)
