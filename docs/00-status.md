@@ -29,6 +29,7 @@
 2. 가빈 corrections.json 155건 받아 독립 평가 ([goldset](todo/goldset.md)), 합의: [law-db-interface](todo/law-db-interface.md)(한석희), [regulation-db-sharing](todo/regulation-db-sharing.md)(김가빈); 법령 목록(130종) 한석희 전달, 오류 주입으로 독립 검증, 로컬 LLM 후보 비교 ([error-rules](todo/error-rules.md))
 
 ## 최근 변경
+- 261007: 팩트체크 — 공공기관 내규 정비 문제 외부 근거(권익위·서울시·인천공항 확인, 감사원 미확인) → [261007-1523-18](reports/261007-1523-18-public-sector-factcheck.md)
 - 261007: 규정명 오인식 6종 수정 (결과 296→238, 확인 대기 46→23, 정답 그대로) → [261007-1209-17](reports/261007-1209-17-name-misreads.md)
 - 261007: RFP 벤치마킹·실행 기록 [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md), 노트북·git·로컬 DB, 검토 화면 v0 → [261007-1158-16](reports/261007-1158-16-review-screen.md)
 - 261007: 개정문 적용·대비표 [261007-1145-14](reports/261007-1145-14-amendment-compare.md), 변경안 점검 v0 → [261007-1152-15](reports/261007-1152-15-change-check.md)
