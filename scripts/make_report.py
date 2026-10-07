@@ -62,6 +62,8 @@ def main() -> None:
                   "queue": score["summary"]["확인 대기"],
                   "ledgers": {k: {x: v[x] for x in ("정답", "채점 대상", "탐지", "높음", "제안 일치", "종류별", "분포")}
                               for k, v in sorted(score["summary"]["원장별"].items(), key=lambda kv: kv[0] != "week1")}},
+        "changes": [json.loads(p.read_text(encoding="utf-8")) for p in sorted((ROOT / "out" / "changes").glob("*/changeset.json"))]
+        if (ROOT / "out" / "changes").exists() else [],
         "gold": gold_rows, "found": found, "rels": rel_rows, "names": names,
         # 단계별 최신 실행 + 이번 채점
         "runs": [{"id": v["run_id"], "step": v["step"], "code": v["code"], "models": v["models"], "inputs": v["inputs"],
@@ -101,6 +103,8 @@ th{position:sticky;top:0;background:var(--card);color:var(--mute);font-weight:60
 td.ctx{min-width:260px;max-width:420px;color:var(--mute)}.q{font-weight:600}
 .tag{display:inline-block;padding:1px 7px;border-radius:999px;background:var(--chip);font-size:12px;white-space:nowrap}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+.cmp{border-collapse:collapse;width:100%;table-layout:fixed;background:var(--card)}.cmp th,.cmp td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;width:50%;font-size:13.5px;line-height:1.7}
+.cmp th{letter-spacing:.3em;text-align:center}u{text-decoration-thickness:2px;text-underline-offset:3px;text-decoration-color:var(--acc)}
 .count{color:var(--mute);font-size:12px;margin:4px 2px}
 details{margin:6px 0}summary{cursor:pointer;color:var(--mute)}
 pre{white-space:pre-wrap;font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px}
@@ -112,6 +116,7 @@ pre{white-space:pre-wrap;font-size:12px;background:var(--card);border:1px solid 
 <div class="tabs" id="tabs"></div>
 <section class="panel" id="p-score"></section>
 <section class="panel" id="p-found"></section>
+<section class="panel" id="p-cmp"></section>
 <section class="panel" id="p-rel"></section>
 <section class="panel" id="p-run"></section>
 </div>
@@ -124,7 +129,7 @@ const t=D.score.total;
 const cards=[...Object.entries(D.stats),["정답 재현율",`${t["탐지"]}/${t["채점 대상"]}`],["그중 우선순위 높음",`${t["높음"]}/${t["채점 대상"]}`],["확인 대기(담당 21건)",D.score.queue]];
 $("#cards").innerHTML=cards.map(([k,v])=>`<div class="card"><b>${typeof v=="number"?v.toLocaleString():esc(v)}</b><span>${esc(k)}</span></div>`).join("");
 
-const TABS=[["score","정답 대조"],["found","점검 결과"],["rel","관련 조항 조회"],["run","실행 기록"]];
+const TABS=[["score","정답 대조"],["found","점검 결과"],["cmp","대비표"],["rel","관련 조항 조회"],["run","실행 기록"]];
 $("#tabs").innerHTML=TABS.map(([k,v])=>`<button data-k="${k}">${v}</button>`).join("");
 function show(k){document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.k==k));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id=="p-"+k));try{localStorage.setItem("tab",k)}catch(e){}}
 $("#tabs").onclick=e=>{if(e.target.dataset.k)show(e.target.dataset.k)};
@@ -166,6 +171,18 @@ function renderF(){
 }
 ["fs","ft","fp","fu","fr"].forEach(i=>$("#"+i).onchange=renderF);$("#fq").oninput=renderF;
 
+// 대비표
+const cell=lines=>lines.map(ln=>"<div>"+ln.map(([t,c])=>c?`<u>${esc(t)}</u>`:esc(t)).join("")+"</div>").join("");
+$("#p-cmp").innerHTML=D.changes.length?`<div class="note">개정문을 규정 <b>사본</b>에 적용한 참고 초안입니다. 원문은 바꾸지 않았고, 승인은 개정이 아닙니다. 밑줄 = 바뀐 부분. 바뀌지 않은 항·호는 (생 략)/(현행과 같음)으로 줄입니다.
+새 개정문: <code>uv run python scripts/amend.py --reg 규정명 --text "…"</code></div>
+<div class="bar"><select id="cs">${D.changes.map((c,i)=>`<option value="${i}">${esc(c.id)} · ${esc(c.reg_name)}${c.title?" · "+esc(c.title):""}</option>`).join("")}</select></div><div id="cout"></div>`:`<p class="mute">아직 없음. scripts/amend.py 로 만든다.</p>`;
+function renderC(){const c=D.changes[+$("#cs").value];const moved=Object.entries(c.label_map);
+ $("#cout").innerHTML=`<h2>「${esc(c.reg_name)}」 ${esc(c.title||c.id)}</h2>
+ <details open><summary>개정문 (${c.sentences.length}문장)</summary><pre>${esc(c.amendment)}</pre></details>
+ ${moved.length?`<div class="note">번호 변경·삭제 ${moved.length}개 조문: ${moved.slice(0,8).map(([k,v])=>esc(D.names[k.split(":")[0]]?art(k):k)+" → "+esc(v||"삭제")).join(", ")}${moved.length>8?" …":""}. 이 조문을 인용하는 곳은 다음 단계(변경안 점검)에서 찾습니다.</div>`:""}
+ <div class="tw"><table class="cmp"><tr><th>현 행</th><th>개 정 안</th></tr>${c.rows.map(r=>`<tr><td>${cell(r.old)}</td><td>${cell(r.new)}</td></tr>`).join("")}</table></div>`;}
+if(D.changes.length){$("#cs").onchange=renderC;}
+
 // 관련 조항 조회
 $("#p-rel").innerHTML=`<div class="note">조항 하나를 바꾸면 함께 봐야 할 조항입니다. 미리 계산해 둔 관련 조항 표(인용 기반)를 조회합니다. 같은 기준(값)·예외·정의-사용 관계는 아직 없습니다.</div>
 <div class="bar"><select id="rr">${Object.entries(D.names).sort((a,b)=>a[1].localeCompare(b[1])).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("")}</select>
@@ -186,7 +203,7 @@ const pre=Object.entries(D.names).find(([k,v])=>v=="인사규정");if(pre)$("#rr
 $("#p-run").innerHTML=`<div class="note">결과마다 실행 ID(run)가 붙어 있고, 어느 코드·입력·모델로 나왔는지는 아래 기록(out/runs, eval/runs)에서 찾습니다.</div>`+
  D.runs.map(r=>`<details open><summary><b>${esc(r.id)}</b> · 코드 ${esc(r.code.commit)}${r.code.uncommitted?" (미커밋)":""}</summary><pre>${esc(JSON.stringify({step:r.step,models:r.models,inputs:r.inputs,summary:r.summary},null,1))}</pre></details>`).join("");
 
-renderF();renderR();show(first);
+renderF();renderR();if(D.changes.length)renderC();show(first);
 </script></body></html>"""
 
 if __name__ == "__main__":

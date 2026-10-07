@@ -59,6 +59,12 @@
 후보 전체에 SQL 규칙 → 주제·의미가 겹치는 후보에만 LLM 비교 → finding에 발견 경로 기록.
 놓침 대비: 후보 재현율을 주입셋으로 측정하고, 같은 주제 묶음 전체 점검을 주기적으로 따로 돌린다.
 
+## 개정문 적용과 대비표 (v0)
+
+개정문을 규정 사본에 적용해 신·구조문대비표를 만든다(`regcheck.amend`, `scripts/amend.py`). 원문·규정 DB는 바꾸지 않는다.
+지원 문장: 「중 "A"를 "B"로 한다」(조·항·호·목, 제목), 「중 "A"를 삭제한다」, 「를 삭제한다」, 「를 다음과 같이 한다」(조·항), 「의 다음에 제X조를 다음과 같이 신설한다」, 「제A조부터 제B조까지를 각각 제C조부터 제D조까지로 한다」.
+못 읽거나 대상이 없으면 멈춘다. 출력 `out/changes/{id}/changeset.json`: 문장, 조문별 변경, `label_map`(원래 조문ID → 새 번호, 삭제는 null), 대비표 행. 근거: [261007-1145-14](reports/261007-1145-14-amendment-compare.md)
+
 ## RDB 테이블
 
 담당 구분은 [law-db-interface](todo/law-db-interface.md), [regulation-db-sharing](todo/regulation-db-sharing.md)에서 확정한다.
