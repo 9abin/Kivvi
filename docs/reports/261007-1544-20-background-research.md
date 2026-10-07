@@ -65,6 +65,22 @@
 - alio-mcp의 "타 기관 같은 주제 규정 비교"는 확장 아이디어로 참고(예: 다른 공공기관은 육아휴직 분할을 몇 회로 정했나). 다만 비공식 API 의존은 피한다.
 - Norm Ai의 "규정을 구조화해 에이전트로"는 아이디어 3(규정을 데이터로)의 해외 근거.
 
+## 추가: "연결·영향 분석"은 어디까지 있나 (같은 날 보강)
+| 연결 대상 | 사례 | 우리와 다른 점 |
+|---|---|---|
+| 법령 ↔ 법령 | 국가법령정보센터 위임조문·참조조문 링크, 법령체계도, 3단비교, 신구법비교 | 법령만. 링크 탐색이지 변경 시 깨짐 알림 아님 |
+| 상위법 → 하위 규범 | 강남구·강동구 자치법규 시스템 | 법령 ↔ 조례 |
+| 외부 규제 → 사내 정책·통제 | CUBE, Regology, Ascent (해외, 금융권 중심) | 시장 성숙. 단위가 규제 의무 ↔ 정책·통제, 내규 간 조문 인용 아님 |
+| 사내 정책 ↔ 통제·리스크·교육 | NAVEX, LogicManager, Riskonnect, MetricStream | 문서 단위, 사람이 매핑한 관계 |
+| 문서 안 상호참조 | Definely(계약서) | 문서 한 건 안 |
+| 법령 조문 간 누락 연결(연구) | KCI 「특례제한규정의 효력·법체계성… 자동화된 텍스트 분석」 | 법령 대상, 방법은 가까움 |
+
+**찾지 못한 것 = 우리 자리:** 한 기관의 내규 수십 개를 조문 번호 단위로 원문에서 자동 연결하고, 개정안 하나에 대해 깨지는 곳·해소·확인 필요를 찾아 연쇄 수정안까지 만들고 규칙으로 검증하는 것.
+발표 표현: "공개된 제품·연구를 조사한 범위에서는 찾지 못했다" (단정 금지 — 기관 내부 시스템은 확인 불가).
+외부 규제 → 내부 정책 매핑 시장의 존재는 영향 분석 수요가 검증됐다는 근거로 쓴다.
+
+추가 출처: [CUBE policy and controls mapping](https://cube.global/sectors/requirement/policy-and-controls-mapping), [Regology Regulatory Change Management](https://help.regology.com/en/rug/p/regulatory-change-management), [Ascent RegTech](https://www.ascentregtech.com/blog/regulatory-change-managements-achilles-heel-is-fast-execution/), [Riskonnect policy management](https://riskonnect.com/policy-management-software/), [MetricStream regulatory change management](https://www.metricstream.com/products/regulatory-change-management.htm), [국가법령정보센터 활용법(로톡)](https://www.lawtalk.co.kr/posts/77938), [KCI 특례제한규정 텍스트 분석 연구](https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART002497111)
+
 ## 출처
 - [행자부·법제처, '법령위반·유명무실' 지자체 법규 1만4천건 정비완료 (서울신문, 2015.12.28)](https://www.seoul.co.kr/news/society/2015/12/28/20151228800103)
 - [권익위 "506개 공공기관 사규 부패영향평가…위험요인 4700여건 개선" (이데일리)](https://edaily.co.kr/News/Read?mediaCodeNo=257&newsId=02473126635476736)
