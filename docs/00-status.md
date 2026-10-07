@@ -30,7 +30,7 @@
 
 ## 최근 변경
 - 261007: 가빈 corrections 155건 독립 평가 — 범위 23행 중 17 탐지(부칙 정책 제외 17/20), 정상 확인 10곳 오탐 0 → [261007-1535-19](reports/261007-1535-19-gabin-corrections-eval.md)
-- 261007: 배경 조사(문제 규모·기존 솔루션·선행 연구, 차별점 = 연쇄 영향+검증) [261007-1544-20](reports/261007-1544-20-background-research.md), 팩트체크 → [261007-1523-18](reports/261007-1523-18-public-sector-factcheck.md)
+- 261007: 배경·벤치마킹 정리(공공기관 규정 현황, KVIC 실측, 기능 비교표) [261007-1553-21](reports/261007-1553-21-landscape-benchmark.md), 배경 조사 [20](reports/261007-1544-20-background-research.md), 팩트체크 → [261007-1523-18](reports/261007-1523-18-public-sector-factcheck.md)
 - 261007: 규정명 오인식 6종 수정 (결과 296→238, 확인 대기 46→23, 정답 그대로) → [261007-1209-17](reports/261007-1209-17-name-misreads.md) / 261007: RFP 벤치마킹·실행 기록 [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md), 노트북·git·로컬 DB, 검토 화면 v0 → [261007-1158-16](reports/261007-1158-16-review-screen.md)
 - 261007: 개정문 적용·대비표 [261007-1145-14](reports/261007-1145-14-amendment-compare.md), 변경안 점검 v0 → [261007-1152-15](reports/261007-1152-15-change-check.md)
 - 261007: 정답 원장·채점 틀, 항번호 중복 점검, 제12-1조 파싱. week1 16/16, 가빈 정리본 7/7(대상 불일치는 낮음 등급) → [261007-1028-12](reports/261007-1028-12-goldset-eval.md)
