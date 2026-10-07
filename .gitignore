@@ -1,0 +1,16 @@
+data/*
+!data/.gitkeep
+*.hwp
+*.hwpx
+*.db
+*.sqlite
+~$*
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.serena/
+
+out/
+# 외부 기관 배경 자료(RFP 원본 등): 재배포 권한 불명이라 저장소에 넣지 않는다
+info/

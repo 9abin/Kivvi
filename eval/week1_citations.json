@@ -1,0 +1,136 @@
+{
+  "source": "data/한국벤처투자_내부규정/검토결과_노션용.md §C (사람 검토, 담당 21건)",
+  "note": "인용이 명시된 C항목만. expect=structural 은 인용 구조 검사로 잡혀야 하는 것, semantic 은 대상이 존재해 의미 검사가 필요한 것. F2는 최종_문제목록_노션용.md F2(퇴직금지급규정 제8조①·제8조의2① 「제5조」→제6조)에서 추가",
+  "cases": [
+    {
+      "id": "C1",
+      "src": "40209:3-0-0-0",
+      "raw": "제2조 제6호",
+      "expect": "structural",
+      "status": [
+        "missing_item"
+      ]
+    },
+    {
+      "id": "C2",
+      "src": "40209:5-4-0-0",
+      "raw": "제35조",
+      "expect": "semantic"
+    },
+    {
+      "id": "C3",
+      "src": "40209:별지제3호서식",
+      "raw": "제9조",
+      "expect": "structural",
+      "status": [
+        "title_mismatch"
+      ]
+    },
+    {
+      "id": "C5",
+      "src": "43061:2-0-0-0",
+      "raw": "제7조",
+      "expect": "semantic"
+    },
+    {
+      "id": "C7",
+      "src": "24010:24-5-0-0",
+      "raw": "휴직자의 복무관리지침",
+      "expect": "structural",
+      "status": [
+        "name_mismatch"
+      ]
+    },
+    {
+      "id": "C8",
+      "src": "24010:51-2-0-0",
+      "raw": "성희롱 예방운영지침",
+      "expect": "structural",
+      "status": [
+        "name_mismatch"
+      ]
+    },
+    {
+      "id": "C9",
+      "src": "24010:부칙29:2-0-0-0",
+      "raw": "제4조",
+      "expect": "structural",
+      "status": [
+        "missing_item"
+      ]
+    },
+    {
+      "id": "C10a",
+      "src": "23859:1-0-0-0",
+      "raw": "제42조",
+      "expect": "structural",
+      "status": [
+        "missing_article"
+      ]
+    },
+    {
+      "id": "C10b",
+      "src": "23859:1-0-0-0",
+      "raw": "제3조",
+      "expect": "structural",
+      "status": [
+        "missing_article"
+      ]
+    },
+    {
+      "id": "C11",
+      "src": "23859:4-0-2-0",
+      "raw": "6조",
+      "expect": "structural",
+      "status": [
+        "title_mismatch"
+      ]
+    },
+    {
+      "id": "C12",
+      "src": "24125:3-1-1-0",
+      "raw": "제6장",
+      "expect": "semantic"
+    },
+    {
+      "id": "C13",
+      "src": "24125:6-0-0-0",
+      "raw": "제39조의2",
+      "expect": "structural",
+      "status": [
+        "missing_article"
+      ]
+    },
+    {
+      "id": "C22",
+      "src": "23949:72-0-0-0",
+      "raw": "제128조",
+      "expect": "structural",
+      "status": [
+        "missing_article"
+      ]
+    },
+    {
+      "id": "C23",
+      "src": "41749:5-4-0-0",
+      "raw": "위임전결",
+      "expect": "structural",
+      "status": [
+        "unknown_regulation",
+        "name_mismatch"
+      ]
+    },
+    {
+      "id": "F2a",
+      "src": "24125:8-1-0-0",
+      "raw": "제5조",
+      "expect": "semantic"
+    },
+    {
+      "id": "F2b",
+      "src": "24125:8의2-1-0-0",
+      "raw": "제5조",
+      "expect": "semantic"
+    }
+  ]
+}

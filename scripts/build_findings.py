@@ -1,0 +1,40 @@
+"""점검 결과를 finding 한 형식으로 모은다.
+
+  uv run python scripts/build_findings.py            # 인용 엣지(90건) + 의미 후보(있는 범위) + 항번호 중복
+출력: out/findings/findings.jsonl
+입력: out/edges/edges_all.jsonl, out/semantic/stage2.jsonl(있으면), out/parsed/
+점검은 원문(파싱 결과)만 읽는다. 정답 원장(eval/)은 읽지 않는다.
+"""
+
+import collections
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from regcheck.findings import duplicate_paragraphs, from_edges, from_semantic  # noqa: E402
+
+
+def main() -> None:
+    regs = {r["reg_id"]: r for r in (json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json"))}
+    edges = [json.loads(l) for l in (ROOT / "out" / "edges" / "edges_all.jsonl").read_text(encoding="utf-8").splitlines()]
+    sem_path = ROOT / "out" / "semantic" / "stage2.jsonl"
+    sem = [json.loads(l) for l in sem_path.read_text(encoding="utf-8").splitlines()] if sem_path.exists() else []
+    found = from_edges(edges) + from_semantic(sem) + duplicate_paragraphs(regs)
+    for n, f in enumerate(found):
+        f["fid"] = f"F{n:05d}"
+        f["reg_name"] = regs[f["reg_id"]]["name"]
+    out = ROOT / "out" / "findings"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "findings.jsonl").write_text("\n".join(json.dumps(f, ensure_ascii=False) for f in found) + "\n", encoding="utf-8")
+    c = collections.Counter((f["method"], f["type"], f["unit"]) for f in found)
+    for k, v in sorted(c.items()):
+        print(*k, v, sep="\t")
+    sem_regs = {r["edge"]["src_reg"] for r in sem}
+    print(f"finding {len(found)}개 → {out / 'findings.jsonl'}  (의미 검사 범위: 규정 {len(sem_regs)}개)")
+
+
+if __name__ == "__main__":
+    main()
