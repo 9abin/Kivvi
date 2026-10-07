@@ -65,6 +65,10 @@
 지원 문장: 「중 "A"를 "B"로 한다」(조·항·호·목, 제목), 「중 "A"를 삭제한다」, 「를 삭제한다」, 「를 다음과 같이 한다」(조·항), 「의 다음에 제X조를 다음과 같이 신설한다」, 「제A조부터 제B조까지를 각각 제C조부터 제D조까지로 한다」.
 못 읽거나 대상이 없으면 멈춘다. 출력 `out/changes/{id}/changeset.json`: 문장, 조문별 변경, `label_map`(원래 조문ID → 새 번호, 삭제는 null), 대비표 행. 근거: [261007-1145-14](reports/261007-1145-14-amendment-compare.md)
 
+## 변경안 점검 (v0)
+
+`regcheck.change_check`, `scripts/check_change.py`. changeset 하나 → 인용받음·문서 인용(관련 조항 표), 같은 제목(메타데이터), 의미 유사(보조), 재검사로 후보 수집 → 깨짐·새 충돌 후보·해소 후보·확인 필요·법령 대조·판단 불가로 분류. 번호 이동은 같은 규정 안 인용 = 깨짐(새 번호 제안), 다른 규정 = 확인 필요(부칙 「다른 내규와의 관계」에 달림). 값 비교는 같은 제목 후보에만. 출력 `out/changes/{id}/check.json`, 시나리오(`eval/scenarios/`) 채점 포함. 근거: [261007-1152-15](reports/261007-1152-15-change-check.md)
+
 ## RDB 테이블
 
 담당 구분은 [law-db-interface](todo/law-db-interface.md), [regulation-db-sharing](todo/regulation-db-sharing.md)에서 확정한다.

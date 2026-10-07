@@ -62,8 +62,9 @@ def main() -> None:
                   "queue": score["summary"]["확인 대기"],
                   "ledgers": {k: {x: v[x] for x in ("정답", "채점 대상", "탐지", "높음", "제안 일치", "종류별", "분포")}
                               for k, v in sorted(score["summary"]["원장별"].items(), key=lambda kv: kv[0] != "week1")}},
-        "changes": [json.loads(p.read_text(encoding="utf-8")) for p in sorted((ROOT / "out" / "changes").glob("*/changeset.json"))]
-        if (ROOT / "out" / "changes").exists() else [],
+        "changes": [{**json.loads(p.read_text(encoding="utf-8")),
+                     "check": json.loads((p.parent / "check.json").read_text(encoding="utf-8")) if (p.parent / "check.json").exists() else None}
+                    for p in sorted((ROOT / "out" / "changes").glob("*/changeset.json"))] if (ROOT / "out" / "changes").exists() else [],
         "gold": gold_rows, "found": found, "rels": rel_rows, "names": names,
         # 단계별 최신 실행 + 이번 채점
         "runs": [{"id": v["run_id"], "step": v["step"], "code": v["code"], "models": v["models"], "inputs": v["inputs"],
@@ -180,7 +181,21 @@ function renderC(){const c=D.changes[+$("#cs").value];const moved=Object.entries
  $("#cout").innerHTML=`<h2>「${esc(c.reg_name)}」 ${esc(c.title||c.id)}</h2>
  <details open><summary>개정문 (${c.sentences.length}문장)</summary><pre>${esc(c.amendment)}</pre></details>
  ${moved.length?`<div class="note">번호 변경·삭제 ${moved.length}개 조문: ${moved.slice(0,8).map(([k,v])=>esc(D.names[k.split(":")[0]]?art(k):k)+" → "+esc(v||"삭제")).join(", ")}${moved.length>8?" …":""}. 이 조문을 인용하는 곳은 다음 단계(변경안 점검)에서 찾습니다.</div>`:""}
- <div class="tw"><table class="cmp"><tr><th>현 행</th><th>개 정 안</th></tr>${c.rows.map(r=>`<tr><td>${cell(r.old)}</td><td>${cell(r.new)}</td></tr>`).join("")}</table></div>`;}
+ <div class="tw"><table class="cmp"><tr><th>현 행</th><th>개 정 안</th></tr>${c.rows.map(r=>`<tr><td>${cell(r.old)}</td><td>${cell(r.new)}</td></tr>`).join("")}</table></div>
+ ${c.check?renderCheck(c.check):`<p class="mute">변경안 점검 전: uv run python scripts/check_change.py --change ${esc(c.id)}</p>`}`;}
+const CATN={breaks:"깨짐",new_conflicts:"새 충돌 후보",resolved:"해소 후보",review:"확인 필요",law_check:"법령 대조",undeterminable:"판단 불가",info:"참고",not_affected:"영향 없음이어야 함"};
+const CATC={breaks:"bad",new_conflicts:"warn",resolved:"ok",undeterminable:"warn"};
+function renderCheck(k){
+ const f=k.found, by={};f.forEach(x=>(by[x.category]=by[x.category]||[]).push(x));
+ const sc=k.score?Object.entries(k.score).filter(([c,r])=>r.length).map(([c,r])=>tag(`${CATN[c]} ${r.filter(x=>x.result=="탐지"||x.result=="통과").length}/${r.length}`,r.every(x=>x.result=="탐지"||x.result=="통과")?"ok":"warn")).join(" "):"";
+ const miss=k.score?Object.entries(k.score).flatMap(([c,r])=>r.filter(x=>x.result!="탐지"&&x.result!="통과").map(x=>`${CATN[c]}: ${esc(x.expected.reg_name||"")} ${esc(x.expected.article||"")} ${esc(x.expected.law||x.expected.reason||"")} → ${esc(x.result)}`)):[];
+ return `<h2>영향 (변경안 점검) <span class="mute">${f.filter(x=>x.category!="info").length}건</span></h2>
+ <div class="note">관련 조항 표(인용받음·문서 인용), 같은 제목 조문(메타데이터), 의미 유사(보조, 낮음), 재검사로 찾았습니다. 충돌·해소는 판정이 아니라 양쪽 확인용 후보입니다.
+ ${sc?`<br>시나리오 기대 결과 대조: ${sc}${miss.length?`<br><span class="warn">놓침: ${miss.join("; ")}</span>`:""}`:""}</div>
+ ${Object.keys(CATN).filter(c=>by[c]).map(c=>`<h2 class="${CATC[c]||""}">${CATN[c]} (${by[c].length})</h2><div class="tw"><table><tr><th>규정·위치</th><th>문구</th><th>이유</th><th>제안</th><th>경로</th><th>우선</th></tr>
+ ${by[c].map(x=>`<tr><td>${esc(x.reg_name)} ${esc(x.unit||"")} ${esc(x.article||"")}${x.para?" "+x.para+"항":""}</td><td class="q">${esc(x.quote||"")}${x.context?`<div class="mute" style="font-weight:400">${esc(x.context.slice(0,120))}</div>`:""}</td>
+ <td class="ctx">${esc(x.reason)}</td><td>${x.suggest?`<span class="ok">${esc(x.suggest)}</span>`:""}</td><td class="mute">${esc(x.path)}</td><td>${esc(x.priority||"")}</td></tr>`).join("")}</table></div>`).join("")}`;
+}
 if(D.changes.length){$("#cs").onchange=renderC;}
 
 // 관련 조항 조회
