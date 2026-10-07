@@ -25,15 +25,15 @@
 - git: 로컬 저장소(main, 첫 커밋 952e720). 원격 없음 → 팀 공유 위치 정하기
 
 ## 다음 액션
-1. 확인 대기 23건 판정(검토 화면 `uv run streamlit run app/review_app.py`) → 원장 추가, 시나리오 10~15개(사람 확인), 법령 시나리오(수작업 스냅샷)
+1. 확인 대기 26건 판정(검토 화면 `uv run streamlit run app/review_app.py`) → 원장 추가, 시나리오 10~15개(사람 확인), 법령 시나리오(수작업 스냅샷)
 2. 가빈 corrections.json 155건 받아 독립 평가 ([goldset](todo/goldset.md)), 합의: [law-db-interface](todo/law-db-interface.md)(한석희), [regulation-db-sharing](todo/regulation-db-sharing.md)(김가빈); 법령 목록(130종) 한석희 전달, 오류 주입으로 독립 검증, 로컬 LLM 후보 비교 ([error-rules](todo/error-rules.md))
 
 ## 최근 변경
-- 261007: 가빈 corrections 155건 독립 평가 — 범위 23행 중 17 탐지(부칙 정책 제외 17/20), 정상 확인 10곳 오탐 0 → [261007-1535-19](reports/261007-1535-19-gabin-corrections-eval.md)
+- 261007: 개정 이력 신호 — 독립 평가 17→20/23, 합계 43/46, 높음 30→38 → [261007-1601-22](reports/261007-1601-22-history-signal.md)
+- 261007: 가빈 corrections 독립 평가(17/23, 정상 확인 오탐 0) → [261007-1535-19](reports/261007-1535-19-gabin-corrections-eval.md)
 - 261007: 배경·벤치마킹 정리(공공기관 규정 현황, KVIC 실측, 기능 비교표) [261007-1553-21](reports/261007-1553-21-landscape-benchmark.md), 배경 조사 [20](reports/261007-1544-20-background-research.md), 팩트체크 → [261007-1523-18](reports/261007-1523-18-public-sector-factcheck.md)
 - 261007: 규정명 오인식 6종 수정 (결과 296→238, 확인 대기 46→23, 정답 그대로) → [261007-1209-17](reports/261007-1209-17-name-misreads.md) / 261007: RFP 벤치마킹·실행 기록 [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md), 노트북·git·로컬 DB, 검토 화면 v0 → [261007-1158-16](reports/261007-1158-16-review-screen.md)
-- 261007: 개정문 적용·대비표 [261007-1145-14](reports/261007-1145-14-amendment-compare.md), 변경안 점검 v0 → [261007-1152-15](reports/261007-1152-15-change-check.md)
-- 261007: 정답 원장·채점 틀, 항번호 중복 점검, 제12-1조 파싱. week1 16/16, 가빈 정리본 7/7(대상 불일치는 낮음 등급) → [261007-1028-12](reports/261007-1028-12-goldset-eval.md)
+- 261007: 개정문 적용·대비표 [261007-1145-14](reports/261007-1145-14-amendment-compare.md), 변경안 점검 v0 → [261007-1152-15](reports/261007-1152-15-change-check.md) / 261007: 정답 원장·채점 틀, 항번호 중복 점검, 제12-1조 파싱. week1 16/16, 가빈 정리본 7/7(대상 불일치는 낮음 등급) → [261007-1028-12](reports/261007-1028-12-goldset-eval.md)
 - 261007: 로컬 규정 DB(reg-db) 준비, 가빈 덤프 복원 대기 → [regulation-db-sharing](todo/regulation-db-sharing.md)
 - 261006: 관련 조항 표·표본 검수 [261006-1744-11](reports/261006-1744-11-relations.md), 의미 검사 2단계 [261006-1603-10](reports/261006-1603-10-semantic-check.md), 벡터 색인 [261006-1554-09](reports/261006-1554-09-vector-index.md), 인용 추출·구조 검사 v0, 1주차 정답 대조 스크립트, 법령 목록 130종 → [261006-1544-08](reports/261006-1544-08-citation-edges.md)
 - 261006: 원문 추출기·조문 파서·전처리, 90건 파싱, 원문 확인 후보(결번·순서 4건, 머리말 불일치 4건), 학습 문서 `learning/261006-article-parsing.html` → [261006-1428-07](reports/261006-1428-07-article-parsing.md)

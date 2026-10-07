@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from regcheck import runinfo  # noqa: E402
+from regcheck.history import merge, stale_citations  # noqa: E402
 from regcheck.findings import duplicate_articles, duplicate_paragraphs, from_edges, from_semantic  # noqa: E402
 
 
@@ -24,9 +25,13 @@ def main() -> None:
     sem_path = ROOT / "out" / "semantic" / "stage2.jsonl"
     sem = [json.loads(l) for l in sem_path.read_text(encoding="utf-8").splitlines()] if sem_path.exists() else []
     sem_runs = sorted({r["run"] for r in sem if r.get("run")})
-    run = runinfo.start("findings", [ROOT / "out" / "edges" / "edges_all.jsonl", sem_path, ROOT / "out" / "parsed"],
+    run = runinfo.start("findings", [ROOT / "out" / "edges" / "edges_all.jsonl", sem_path, ROOT / "out" / "parsed",
+                                     ROOT / "out" / "relations" / "relations.jsonl"],
                         params={"semantic_runs": sem_runs})
+    rel_path = ROOT / "out" / "relations" / "relations.jsonl"
+    rels = [json.loads(l) for l in rel_path.read_text(encoding="utf-8").splitlines()]
     found = from_edges(edges) + from_semantic(sem) + duplicate_paragraphs(regs) + duplicate_articles(regs)
+    found, hist_stats = merge(found, stale_citations(regs, rels))
     for n, f in enumerate(found):
         f["fid"] = f"F{n:05d}"
         f["reg_name"] = regs[f["reg_id"]]["name"]
@@ -37,7 +42,8 @@ def main() -> None:
     c = collections.Counter((f["method"], f["type"], f["unit"]) for f in found)
     for k, v in sorted(c.items()):
         print(*k, v, sep="\t")
-    runinfo.finish(run, [out / "findings.jsonl"], {"finding": len(found), "방법별": dict(collections.Counter(f["method"] for f in found))})
+    print("개정 이력 신호:", hist_stats)
+    runinfo.finish(run, [out / "findings.jsonl"], {"finding": len(found), "개정 이력": hist_stats, "방법별": dict(collections.Counter(f["method"] for f in found))})
     sem_regs = {r["edge"]["src_reg"] for r in sem}
     print(f"finding {len(found)}개 → {out / 'findings.jsonl'}  (의미 검사 범위: 규정 {len(sem_regs)}개)")
 
