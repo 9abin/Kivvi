@@ -39,8 +39,14 @@ MODES = ["vector", "bm25", "rrf", "rrf_rerank", "search"]
 
 
 def load_questions(path=QUESTIONS):
-    with open(path, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+    """하나 또는 여러 질문 파일을 읽어 합친다. 블라인드 세트(v2+v3)처럼 여러 파일을 한 번에
+    돌릴 때는 파일을 복사해서 합치지 않고 경로 목록을 그대로 넘긴다."""
+    paths = [path] if isinstance(path, str) else path
+    rows = []
+    for p in paths:
+        with open(p, encoding="utf-8") as f:
+            rows.extend(json.loads(line) for line in f if line.strip())
+    return rows
 
 
 def check_gold(questions):
@@ -183,8 +189,9 @@ if __name__ == "__main__":
     ap.add_argument("--mode", choices=MODES, default=None)
     ap.add_argument("--rerank-header", choices=["on", "off"], default=None,
                     help="리랭커 입력 머리말 비교용. 생략하면 config.RERANK_HEADER를 따른다")
-    ap.add_argument("--questions", default=QUESTIONS,
-                    help="질문 파일 경로. 생략하면 eval/questions.jsonl (예: eval/questions_v2.jsonl로 블라인드 질문 세트를 돌릴 수 있다)")
+    ap.add_argument("--questions", nargs="+", default=[QUESTIONS],
+                    help="질문 파일 경로 (여러 개 가능). 생략하면 eval/questions.jsonl "
+                        "(예: --questions eval/questions_v2.jsonl eval/questions_v3.jsonl)")
     args = ap.parse_args()
     header = None if args.rerank_header is None else args.rerank_header == "on"
     run([args.mode] if args.mode else MODES, rerank_header=header, questions_path=args.questions)

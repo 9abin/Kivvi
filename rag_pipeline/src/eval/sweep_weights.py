@@ -16,6 +16,7 @@
 
 주의: 3번은 리랭킹을 뺀 RRF만의 비교라서 빠르다. 최종 판단은 반드시 5번(검증용 + 리랭킹 포함)으로 한다.
 """
+import argparse
 import random
 import sys
 from collections import defaultdict
@@ -126,9 +127,17 @@ def validate(searcher, questions, vector_weight, keyword_weight, label):
 
 
 def main():
-    questions = load_questions()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--questions", nargs="+", default=None,
+                    help="질문 파일 경로 (여러 개 가능). 생략하면 eval/questions.jsonl (질문 277개). "
+                        "블라인드 세트로 다시 확인하려면: --questions eval/questions_v2.jsonl eval/questions_v3.jsonl")
+    ap.add_argument("--val-ratio", type=float, default=VAL_RATIO,
+                    help="검증용 비율. 질문이 적은 블라인드 세트는 0.3 정도를 권장한다")
+    args = ap.parse_args()
+
+    questions = load_questions(args.questions) if args.questions else load_questions()
     check_gold(questions)
-    train, val = stratified_split(questions)
+    train, val = stratified_split(questions, val_ratio=args.val_ratio)
     print(f"학습용 {len(train)}개 / 검증용 {len(val)}개 (시드 {SEED}, 검증용은 가중치를 고르는 동안 보지 않음)\n")
 
     searcher = Searcher()

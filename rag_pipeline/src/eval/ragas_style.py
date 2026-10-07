@@ -10,7 +10,8 @@ faithfulness는 이미 Generator.verify()·judge.py와 상당 부분 겹친다. 
   context_recall(문맥재현): 정답 근거(조 전체)의 핵심 내용이 검색된 근거 안에 들어 있었는가
 
 실행 (rag_pipeline 폴더에서):
-  uv run python -m src.eval.ragas_style --questions eval/questions_blind.jsonl
+  uv run python -m src.eval.ragas_style                              # 블라인드 세트(v2+v3, 기본값)
+  uv run python -m src.eval.ragas_style --questions eval/questions.jsonl --limit 20
 """
 import argparse
 import json
@@ -73,14 +74,20 @@ def context_recall(model, gold_text, retrieved_context):
     return (r or {}).get("문맥재현")
 
 
-def load_questions(path):
-    with open(path, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+def load_questions(paths):
+    rows = []
+    for p in paths:
+        with open(p, encoding="utf-8") as f:
+            rows.extend(json.loads(line) for line in f if line.strip())
+    return rows
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--questions", default=os.path.join(BASE_DIR, "eval", "questions_blind.jsonl"))
+    ap.add_argument("--questions", nargs="+", default=[
+        os.path.join(BASE_DIR, "eval", "questions_v2.jsonl"),
+        os.path.join(BASE_DIR, "eval", "questions_v3.jsonl"),
+    ], help="질문 파일 경로 (여러 개 가능). 생략하면 블라인드 세트(v2+v3)")
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
 
