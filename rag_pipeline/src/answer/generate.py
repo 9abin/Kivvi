@@ -144,21 +144,29 @@ def _parse_json_list(text):
 
 
 def parse_pairs(text, n_entries):
-    """모델이 돌려준 충돌 쌍을 검사한다. 형식이 틀리면 빈 목록을 돌려준다."""
-    raw = _parse_json_list(text) or []
+    """모델이 돌려준 충돌 쌍을 검사한다.
+
+    반환: (쌍 목록, ok). ok=False는 응답이 JSON 배열 형식이 아니었다는 뜻이다(검사 결과를 믿을 수 없음).
+    "쌍이 없음"(정상, []을 받음)과 "응답을 해석하지 못함"(비정상)을 구분해야 호출 쪽에서 경고할 수 있다.
+    """
+    raw = _parse_json_list(text)
+    if raw is None:
+        return [], False
     pairs = []
     for p in raw:
         if isinstance(p, list) and len(p) == 2 and all(isinstance(x, int) for x in p):
             a, b = sorted(p)
             if 1 <= a < b <= n_entries:
                 pairs.append((a, b))
-    return sorted(set(pairs))
+    return sorted(set(pairs)), True
 
 
 def parse_unsupported(text):
-    """모델이 돌려준 '근거 밖 문장' 목록을 검사한다. 문자열 배열이 아니면 빈 목록을 돌려준다."""
-    raw = _parse_json_list(text) or []
-    return [s for s in raw if isinstance(s, str) and s.strip()]
+    """모델이 돌려준 '근거 밖 문장' 목록을 검사한다. 반환은 parse_pairs와 같은 (목록, ok) 형태다."""
+    raw = _parse_json_list(text)
+    if raw is None:
+        return [], False
+    return [s for s in raw if isinstance(s, str) and s.strip()], True
 
 
 class Generator:
@@ -178,15 +186,30 @@ class Generator:
         return {"answer": text, "cited": cited, "warnings": warnings, "model": self.model_name}
 
     def conflicts(self, question, entries):
-        """근거 중 서로 충돌하는 조문 쌍을 찾는다. 근거가 2개 미만이면 호출하지 않는다."""
+        """근거 중 서로 충돌하는 조문 쌍을 찾는다. 근거가 2개 미만이면 호출하지 않는다.
+
+        반환: (쌍 목록, ok). 응답 형식이 틀리면 한 번 더 물어보고, 그래도 안 되면 ok=False로
+        돌려준다. 호출 쪽(pipeline.py)은 ok=False일 때 "충돌 확인 실패"를 사용자에게 경고해야 한다.
+        쌍이 없는 것으로 조용히 넘기면 실제로 충돌이 있어도 놓친다.
+        """
         if len(entries) < 2:
-            return []
+            return [], True
         user = f"질문: {question}\n\n근거:\n{format_context(entries)}"
-        return parse_pairs(self._ask(CONFLICT_PROMPT, user), len(entries))
+        pairs, ok = parse_pairs(self._ask(CONFLICT_PROMPT, user), len(entries))
+        if not ok:
+            pairs, ok = parse_pairs(self._ask(CONFLICT_PROMPT, user), len(entries))
+        return pairs, ok
 
     def verify(self, question, answer, entries):
-        """답변의 각 불릿이 인용한 근거 본문과 실제로 맞는지 확인한다. 근거 밖 문장 목록을 돌려준다."""
+        """답변의 각 불릿이 인용한 근거 본문과 실제로 맞는지 확인한다.
+
+        반환: (근거 밖 문장 목록, ok). ok=False면 모델 응답을 해석하지 못한 것이므로,
+        "검사를 통과했다"가 아니라 "검사를 못 했다"로 다뤄야 한다.
+        """
         if not entries:
-            return []
+            return [], True
         user = f"질문: {question}\n\n답변:\n{answer}\n\n근거:\n{format_context(entries)}"
-        return parse_unsupported(self._ask(VERIFY_PROMPT, user))
+        unsupported, ok = parse_unsupported(self._ask(VERIFY_PROMPT, user))
+        if not ok:
+            unsupported, ok = parse_unsupported(self._ask(VERIFY_PROMPT, user))
+        return unsupported, ok
