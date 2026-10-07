@@ -140,6 +140,9 @@ with st.sidebar:
     if not reviewer.strip():
         st.info("검토자 이름을 넣어야 결정을 저장할 수 있습니다.")
     st.caption("담당자 검토용 표시입니다. 오류 확정이 아닙니다. 원문은 바꾸지 않습니다.")
+    if st.button("데이터 다시 읽기", help="점검을 다시 돌린 뒤 (build_findings·score) 누르면 새 결과를 읽습니다. 결정 기록은 그대로입니다."):
+        load_static.clear()
+        st.rerun()
 
 
 # ---------------------------------------------------------------- 기준선 이슈

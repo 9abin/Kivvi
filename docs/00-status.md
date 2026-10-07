@@ -25,11 +25,12 @@
 - git: 로컬 저장소(main, 첫 커밋 952e720). 원격 없음 → 팀 공유 위치 정하기
 
 ## 다음 액션
-1. 확인 대기 46건 판정(검토 화면 `uv run streamlit run app/review_app.py`) → 원장 추가, 시나리오 10~15개(사람 확인), 법령 시나리오(수작업 스냅샷)
+1. 확인 대기 23건 판정(검토 화면 `uv run streamlit run app/review_app.py`) → 원장 추가, 시나리오 10~15개(사람 확인), 법령 시나리오(수작업 스냅샷)
 2. 가빈 corrections.json 155건 받아 독립 평가 ([goldset](todo/goldset.md)), 합의: [law-db-interface](todo/law-db-interface.md)(한석희), [regulation-db-sharing](todo/regulation-db-sharing.md)(김가빈); 법령 목록(130종) 한석희 전달, 오류 주입으로 독립 검증, 로컬 LLM 후보 비교 ([error-rules](todo/error-rules.md))
 
 ## 최근 변경
-- 261007: 검토 화면 v0 (기준선·개정안·현황, 결정 기록) → [261007-1158-16](reports/261007-1158-16-review-screen.md)
+- 261007: 규정명 오인식 6종 수정 (결과 296→241, 확인 대기 46→23, 정답 그대로) → [261007-1209-17](reports/261007-1209-17-name-misreads.md)
+- 261007: RFP 벤치마킹·실행 기록 [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md), 노트북·git·로컬 DB, 검토 화면 v0 → [261007-1158-16](reports/261007-1158-16-review-screen.md)
 - 261007: 개정문 적용·대비표 [261007-1145-14](reports/261007-1145-14-amendment-compare.md), 변경안 점검 v0 → [261007-1152-15](reports/261007-1152-15-change-check.md)
 - 261007: RFP(석유공사) 벤치마킹, 실행 기록(out/runs·eval/runs), 1차 결과 페이지 → [261007-1120-13](reports/261007-1120-13-rfp-benchmark-provenance.md)
 - 261007: 로컬 규정 DB(reg-db, 가빈 DB와 같은 계정) 준비, 읽기 전용 접속. 가빈 덤프 복원 대기 → [regulation-db-sharing](todo/regulation-db-sharing.md)

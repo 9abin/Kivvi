@@ -81,3 +81,46 @@ def test_history_note_and_bare_rule_abbreviation():
     es = extract_edges(r, Registry([r]))
     assert [(e.raw, e.status) for e in es if e.target_type == "article"] == [("제39조", "law_pending")]
     assert es[0].target_doc == "(약칭 미해석) 규칙"
+
+
+def _edges_of(text, others=()):
+    from regcheck.build import to_records
+    from regcheck.citations import Registry, extract_edges
+    from regcheck.parse import parse
+    regs = [{"reg_id": str(i), "name": t.splitlines()[0], "hierarchy": "규정", **to_records(str(i), parse(t.splitlines()))}
+            for i, t in enumerate([text, *others], 1)]
+    return extract_edges(regs[0], Registry(regs))
+
+
+def test_generic_phrases_are_not_citations():
+    es = _edges_of("가규정\n제1조(목적) 「퇴직금 중간정산이 명기된 규정 및 지침」을 숙지한다. 다른 「규정 내지 지침」, 「제반규정」에 따른다.")
+    assert [e for e in es if e.target_type == "regulation"] == []
+
+
+def test_trailing_alias_paren_law():
+    es = _edges_of('가규정\n제1조(목적) 「국가를 당사자로 하는 계약에 관한 법률 시행령(이하 "국가계약법 시행령"이라 한다)」에 따른다.')
+    assert [e.status for e in es] == ["law_pending"]
+
+
+def test_external_agency_rules():
+    es = _edges_of("가규정\n제1조(목적) 「중소기업청 정보보안 기본지 침」과 「공공기관 통합공시 매뉴얼, 전자문서 작성지침」을 따른다.")
+    assert {e.status for e in es} == {"external_rule"}
+
+
+def test_unbracketed_name_with_jedo_and_longest_mismatch():
+    es = _edges_of("가규정\n제1조(목적) 혁신제안제도 운영지침에 의한 포상은 제외한다.\n제2조(수당) 기타수당은 공무직 관리규정에 따라 지급한다.",
+                   ["공무직관리지침\n제1조(목적) 목적."])
+    docs = {e.target_doc for e in es}
+    assert "운영지침" not in docs and "관리규정" not in docs
+    assert "혁신제안제도 운영지침" in docs and "공무직 관리규정" in docs
+
+
+def test_addendum_amending_other_unknown_is_history():
+    es = _edges_of('가규정\n제1조(목적) 목적.\n부      칙 <2020.01.01.>\n제1조(다른 내규의 개정) 「없는출자지침」 일부를 다음과 같이 개정한다. '
+                   '제2조제1항제1호 중 "가"를 "나"로 한다.')
+    assert es and all(e.status == "addendum_history" for e in es)
+
+
+def test_article_citation_of_law_with_alias_paren():
+    es = _edges_of('가규정\n제1조(목적) 「국가를 당사자로 하는 계약에 관한 법률 시행령(이하 "국가계약법 시행령"이라 한다)」제76조제1항에 따른다.')
+    assert [e.status for e in es] == ["law_pending"]

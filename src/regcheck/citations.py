@@ -42,6 +42,16 @@ SELF_WORDS = re.compile(r"(?:^|[^가-힣])(이|본|동|같은)\s*(규정|지침|
 TRAIL_PAREN = re.compile(r"(\s*\([^()]*\))+\s*$")  # 「…법률」(이하 "법"이라 한다), …법(법률 제7633호, …)
 UNBRACKETED = re.compile(r"((?:[가-힣·]+\s?){1,4}?(?:규정|지침|규칙|강령))$")
 GENERIC = {"규정", "지침", "관련규정", "관계규정", "해당규정", "다른규정", "내부규정", "관련지침", "해당지침", "세부지침", "규칙", "제규정"}
+# 규정명이 아니라 일반 표현: 「다른 규정 내지 지침」, 「제반규정」, 「종전 규정」, 「…이 명기된 규정 및 지침」(별지 서약서)
+GENERIC_DOC = re.compile(
+    r"^(?:(?:제반|종전|개정|해당|관련|관계|각종|다른|위|동|본|이|그|현행|기존)\s*)?(?:규정|지침|규칙|내규|강령)$"
+    r"|(?:규정|지침|규칙|내규)\s*(?:및|내지|또는|과|와|이나)\s*(?:규정|지침|규칙|내규)$"
+)
+# 혼자서는 이름이 안 되는 머리말 (앞 단어가 있어야 이름): 「혁신제안제도 운영지침」의 「운영지침」
+GENERIC_HEAD = re.compile(r"^(?:운영|관리|업무|시행|세부|처리|관리운영|운영관리)(?:규정|지침|규칙)$")
+# 회사 밖 기관의 기준 (법률 DB 범위 확인 대상). 회사 내규 이름과 겹치지 않는 머리말만
+EXTERNAL_HEAD = re.compile(r"^(?:중소기업청|중소벤처기업부|국가|공공기관|공기업|정부|공무원|행정|한국거래소|코스닥|유가증권|표준)")
+EXTERNAL_NAMES = {"공시규정", "어문규정"}  # 한국거래소 공시규정, 국어 어문 규정 (문맥으로 확인)
 NOT_NAME_HEAD = re.compile(r"^(이|본|동|같은|관련|해당|다른|각|위|아래|그)(\s|$)")
 NAME_STOPWORDS = {"등", "시", "및", "또는", "당사", "회사", "전", "후", "관련", "해당", "다른", "기타", "그", "각"}
 PARTICLE_END = re.compile(r"(은|는|을|를|의|에|에서|에는|으로|로|와|과|도|만|하여|하고|하며|하는|한|할|된|되는|받은|부터|까지|고|며|서)$")
@@ -85,6 +95,7 @@ STATUS = {
     "law_pending": "법령 인용 (법률 DB 연결 대기)",
     "external_rule": "외부 법령·고시로 추정 (법률 DB 범위 확인 필요)",
     "unresolved": "대상 해석 불가",
+    "addendum_history": "부칙의 다른 내규 개정 기록 (이력, 오류 제외)",
 }
 
 
@@ -108,6 +119,9 @@ class Registry:
 
     def resolve_name(self, name: str) -> tuple[str, str, str]:
         """(reg_id, status, note)"""
+        bare = TRAIL_PAREN.sub("", name).strip() or name
+        if is_law(bare):   # 「…법률 시행령(이하 …)」처럼 괄호를 떼면 법령
+            return "", "law_pending", ""
         key = compact(name).removeprefix("한국벤처투자")
         key = re.sub(r"^(회사의?|당사)", "", key)
         if key in self.by_compact:
@@ -124,7 +138,7 @@ class Registry:
             return "", "external_rule", ""
         return "", "unknown_regulation", hint
 
-    def resolve_unbracketed(self, pre: str) -> tuple[str, str, str, str] | None:
+    def resolve_unbracketed(self, pre: str, form: bool = False) -> tuple[str, str, str, str] | None:
         """괄호 없이 앞에 붙은 규정명 후보 (예: '해외근무직원 보수복지규정', '위임전결 규정').
         (원문 이름, reg_id, status, note) | None"""
         m = UNBRACKETED.search(pre)
@@ -135,22 +149,25 @@ class Registry:
         # 일반어('당사', '이', '등')를 만나면 멈춘다. 그 앞은 규정명이 아니라 문장이다.
         cands = [words[-1]]
         for w in reversed(words[:-1]):
-            if w in NAME_STOPWORDS or NOT_NAME_HEAD.match(w) or PARTICLE_END.search(w):
+            if w in NAME_STOPWORDS or NOT_NAME_HEAD.match(w) or (PARTICLE_END.search(w) and not w.endswith(("제도", "정도", "한도"))):
                 break
             cands.append(f"{w} {cands[-1]}")
         usable = [c for c in cands if compact(c) not in GENERIC]
+        usable = [c for c in usable if not GENERIC_HEAD.match(compact(c))]
         best = None
         for c in usable:
             rid, st, note = self.resolve_name(c)
             if st == "ok":
                 return c, rid, st, note
-            if st == "name_mismatch" and best is None:
-                best = (c, rid, st, note)
+            if st == "name_mismatch":
+                best = (c, rid, st, note)   # 가장 긴 비슷한 이름 (「공무직 관리규정」 > 「관리규정」)
         if best:
             return best
         usable = [c for c in usable if len(compact(c)) >= 4]
         if usable:
-            c = usable[-1]  # 멈추기 전까지 붙인 가장 긴 이름 ('위임전결 규정')
+            # 본문: 멈추기 전까지 붙인 가장 긴 이름 ('위임전결 규정')
+            # 별지·별표: 표 칸 머리말이 앞에 붙기 쉬움 → 가장 짧은 이름 ('배정누계 통제누계 통제잔액 임직원복지규정' → '임직원복지규정')
+            c = usable[0] if form else usable[-1]
             rid, st, note = self.resolve_name(c)
             return c, rid, st, note
         return None
@@ -175,7 +192,8 @@ def is_law(name: str) -> bool:
 def looks_external(name: str) -> bool:
     """「관공서의 공휴일에 관한 규정」(대통령령), 「…부 소관 … 규정」(부처 고시)처럼 회사 내규가 아닌 이름."""
     n = compact(name)
-    return bool(re.search(r"에관한(규정|규칙)$|부소관|^(중소벤처기업부|기획재정부|고용노동부|금융위원회|행정안전부)", n))
+    return bool(re.search(r"에관한(규정|규칙|지침)$|부소관|매뉴얼|^(중소벤처기업부|기획재정부|고용노동부|금융위원회|행정안전부)", n)
+                or EXTERNAL_HEAD.match(n) or n in EXTERNAL_NAMES)
 
 
 def _aliases(reg: dict) -> dict[str, str]:
@@ -303,6 +321,7 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                 found = canon_law(q.group(1), aliases, registry.law_aliases, "")
         return found
     for src, kind, text, art in _units(reg):
+        n0 = len(edges)
         last_doc: tuple[str, str] | None = None  # (target_type, doc) — 나열 인용 상속용
         last_end = -1
         last_law = ""
@@ -360,7 +379,7 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                     if m.group(1) in ("시행령", "령") and (m3 := re.search(r"([가-힣·]+(?:법|법률))\s*시행령$", pre_s)):
                         return law(m3.group(0), last_law)
                     return law(m.group(1), last_law)
-            if hit := registry.resolve_unbracketed(pre_s):
+            if hit := registry.resolve_unbracketed(pre_s, form=kind in ("별지", "별표")):
                 if hit[1] == reg["reg_id"]:
                     return None
                 return ("regulation", hit[0])
@@ -405,6 +424,9 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
             after = text[m.end() : m.end() + 6]
             if re.match(r"\s*제\s*\d+\s*(조|장)", after):
                 continue  # 이미 조·장 인용으로 처리
+            name = TRAIL_PAREN.sub("", name).strip() or name   # 「…시행령(이하 "국가계약법 시행령"이라 한다)」
+            if GENERIC_DOC.search(compact(name)) or GENERIC_DOC.search(name):
+                continue  # 규정명이 아닌 일반 표현 (「…이 명기된 규정 및 지침」)
             if is_law(name) or name in registry.law_aliases:
                 name = law(name, last_law)[1]
                 last_law = name
@@ -423,7 +445,7 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
         for m in RE_DOC_ONLY.finditer(text):
             if "」" in text[max(0, m.start() - 2) : m.start() + 1]:
                 continue
-            hit = registry.resolve_unbracketed(m.group(1).strip())
+            hit = registry.resolve_unbracketed(m.group(1).strip(), form=kind in ("별지", "별표"))
             if not hit or hit[1] == reg["reg_id"]:
                 continue
             name, rid, st, note = hit
@@ -442,6 +464,12 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                 st, tid, note = _check_appendix(reg, kind_ch, no)
                 edges.append(Edge(src, kind, m.group(0).strip(), _context(text, m.start(), m.end()), "appendix", "",
                                   {"appx_kind": f"별{kind_ch}", "appx_no": no}, reg["reg_id"], tid, st, note))
+
+        # 부칙의 다른 내규 개정문에서 대상 내규가 공개 90건에 없으면 이력 (현재 문안의 오류가 아님, 02-specs)
+        if mo:
+            for e in edges[n0:]:
+                if e.status == "unknown_regulation" and compact(e.target_doc) == compact(mo.group(1)):
+                    e.status = "addendum_history"
     return edges
 
 
@@ -456,7 +484,7 @@ def _resolve(e: Edge, doc: tuple[str, str] | None, reg: dict, registry: Registry
         rid, st, note = registry.resolve_name(doc[1])
         if st != "ok":
             e.status, e.note, e.target_reg = st, note, rid
-            if st in ("unknown_regulation", "external_rule"):
+            if st in ("unknown_regulation", "external_rule", "law_pending"):
                 return
         target = registry.regs[rid]
     else:
