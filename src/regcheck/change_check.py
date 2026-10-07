@@ -81,7 +81,7 @@ def _renumber_ref(evidence: str, old_label: str, new_label: str | None) -> str:
 
 
 def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: list[dict] | None = None,
-          new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5) -> list[dict]:
+          new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None) -> list[dict]:
     """cs: out/changes/{id}/changeset.json, regs: 원문 파싱 결과(규정ID → 레코드), rels: 관련 조항 표.
     new_reg/registry_factory를 주면 바뀐 조의 인용을 다시 해석한다. vector=(model, Index)면 의미 유사 후보를 더한다."""
     rid = cs["reg_id"]
@@ -213,7 +213,15 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                       target=f"{reg['name']} {c['old_label']}", reason=reason, handling="판단 가능" if not deleted else "판단 불가",
                       priority="낮음" if low else "중간"))
 
-        # 법령 대조: 바뀐 조가 인용하는 법령 (삭제된 조는 대조할 문안이 없음)
+        # 법령 대조 ②: 같은 제목의 법령 조문 (법률 DB) — 인용이 없어도 같은 주제의 법정 기준과 대조 (S01 육아휴직 → 남녀고용평등법 제19조)
+        if lawdb is not None and not deleted and old_art["title"] not in GENERIC_TITLES:
+            for law, lkey, u in lawdb.same_title(old_art["title"], limit=3):
+                no, _, br = lkey.partition("의")
+                add({"category": "law_check", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": c["old_label"],
+                     "para": 0, "quote": f"{law['title']} 제{no}조" + (f"의{br}" if br else ""), "context": u.get("조문내용", "")[:400],
+                     "path": "같은 제목 법령", "target": law["title"], "priority": "중간", "handling": "판단 가능", "law": law["title"],
+                     "reason": f"바뀐 조와 제목이 같은 법령 조문 「{law['title']}」 제{no}조{'의' + br if br else ''}({u.get('조문제목')}) — 개정안이 법정 기준과 맞는지 대조"})
+        # 법령 대조 ①: 바뀐 조가 인용하는 법령 (삭제된 조는 대조할 문안이 없음)
         for r in rels:
             if not deleted and r["src_article"] == o and r["target_type"] == "law":
                 add(_item("law_check", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="나가는 인용", src=r["src"],
@@ -309,7 +317,7 @@ def score(found: list[dict], expected: dict) -> dict:
     return res
 
 
-def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5) -> list[dict]:
+def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5, lawdb=None) -> list[dict]:
     """changeset 하나 점검 (개정안 사본을 다시 만들어 재검사까지). scripts/check_change.py와 검토 화면이 같이 쓴다."""
     from .amend import apply, parse_amendment
     from .citations import Registry
@@ -319,4 +327,4 @@ def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], ve
     def factory(nr):
         return Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])
 
-    return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k)
+    return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k, lawdb=lawdb)

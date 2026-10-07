@@ -51,12 +51,16 @@ def main() -> None:
         index = Index(vdir)
         vector, models = (load_model(index.model_name), index), {"embedding": index.model_name}
 
+    from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
+    lawdb = LawDB(LAW_DB) if LAW_DB.exists() else None
+    if lawdb:
+        models["law_db"] = LAW_DB.name
     for cid in ids:
         cdir = ROOT / "out" / "changes" / cid
         cs = json.loads((cdir / "changeset.json").read_text(encoding="utf-8"))
         run = runinfo.start("check_change", [cdir / "changeset.json", ROOT / "out" / "relations" / "relations.jsonl",
                                              ROOT / "out" / "parsed"], models=models, params={"change": cid, "k": args.k})
-        found = run_check(cs, regs, rels, edges, vector=vector, k=args.k)
+        found = run_check(cs, regs, rels, edges, vector=vector, k=args.k, lawdb=lawdb)
         sc_path = ROOT / "eval" / "scenarios" / f"{cid}.json"
         result = score(found, json.loads(sc_path.read_text(encoding="utf-8"))["expected"]) if sc_path.exists() else None
         for f in found:

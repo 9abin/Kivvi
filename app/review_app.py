@@ -260,7 +260,9 @@ elif page == "개정안 검토":
                 cdir = ROOT / "out" / "changes" / cid
                 cdir.mkdir(parents=True, exist_ok=True)
                 (cdir / "changeset.json").write_text(json.dumps(cs, ensure_ascii=False, indent=1), encoding="utf-8")
-                fnd = run_check(cs, regs, rels, edges, vector=vector_backend() if use_vec else None)
+                from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
+                fnd = run_check(cs, regs, rels, edges, vector=vector_backend() if use_vec else None,
+                                lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None)
                 (cdir / "check.json").write_text(json.dumps({"id": cid, "found": fnd, "score": None}, ensure_ascii=False, indent=1),
                                                  encoding="utf-8")
                 st.session_state["change"] = cid
