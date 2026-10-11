@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,7 @@ QUESTION_FIELDS = {"q", "유형", "세부유형", "정답"}
 
 def is_indexable(row: dict[str, Any]) -> bool:
     """src/index/build.py의 is_indexed와 같은 기준. 색인되지 않은 청크는 검색 평가 정답이 될 수 없다."""
-    return row.get("상태") == "정상" and not str(row.get("id", "")).endswith("_부칙")
+    return row.get("상태") == "정상" and not re.search(r"_(부칙|별지)(_중복\d+)?$", str(row.get("id", "")))
 
 
 def non_indexed_ids(catalog: dict[str, dict[str, Any]]) -> set[str]:

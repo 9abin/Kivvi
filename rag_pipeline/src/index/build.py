@@ -10,6 +10,7 @@ import argparse
 import io
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -36,7 +37,7 @@ def load_chunks():
 
 
 def is_indexed(r):
-    return r["상태"] == "정상" and not r["id"].endswith("_부칙")
+    return r["상태"] == "정상" and not re.search(r"_(부칙|별지)(_중복\d+)?$", r["id"])
 
 
 def documents_from(rows):
@@ -54,19 +55,27 @@ def documents_from(rows):
     return list(docs.values())
 
 
-def build(limit=None, full=True):
+def build(limit=None, full=True, incremental=False):
     from sentence_transformers import SentenceTransformer  # 무거운 import는 실행 때만
 
     rows = load_chunks()
+    store = PgStore()
+    if incremental:
+        # DB에 없거나 본문이 달라진 청크만 다시 넣는다 (나머지는 임베딩을 다시 계산하지 않는다).
+        existing = store.chunk_texts()
+        stale = sorted(set(existing) - {r["id"] for r in rows})
+        if stale:
+            store.delete_chunks(stale)
+            print(f"더 이상 없는 청크 삭제: {len(stale)}개 {stale[:5]}")
+        rows = [r for r in rows if existing.get(r["id"]) != (r["본문"], r["본문_검색"], r["상태"])]
     indexed = [r for r in rows if is_indexed(r)]
     if limit:
         # 샘플: 색인 대상 중 앞부분만 쓴다. 나머지 청크는 적재하지 않는다.
         indexed = indexed[:limit]
         rows = [r for r in rows if not is_indexed(r)] + indexed
-    print(f"적재 대상: 청크 {len(rows)}개 (색인 {len(indexed)}개, 부칙·삭제 {len(rows) - len(indexed)}개)")
+    print(f"적재 대상: 청크 {len(rows)}개 (색인 {len(indexed)}개, 부칙·별지·삭제 {len(rows) - len(indexed)}개)")
 
-    store = PgStore()
-    if full and not limit:
+    if full and not limit and not incremental:
         store.truncate()
     store.upsert_documents(documents_from(rows))
     print(f"documents 적재: {len({r['고유번호'] for r in rows})}개")
@@ -122,5 +131,6 @@ def to_row(r, vec, kiwi, now):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--incremental", action="store_true", help="DB에 없거나 달라진 청크만 반영 (전체를 비우지 않음)")
     args = ap.parse_args()
-    build(limit=args.limit)
+    build(limit=args.limit, incremental=args.incremental)

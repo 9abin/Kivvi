@@ -20,7 +20,9 @@ def list_sources():
         folder, name = os.path.split(f)
         idx = folder.rsplit("_", 1)[1]
         rows.append((idx, name, f))
-    return rows
+    # 같은 고유번호에 hwp·hwpx가 있으면 함께 놓인 pdf(보조 확인용 변환본)는 원본으로 보지 않는다.
+    has_native = {idx for idx, name, _ in rows if not name.lower().endswith(".pdf")}
+    return [r for r in rows if not (r[1].lower().endswith(".pdf") and r[0] in has_native)]
 
 
 def extract_one(path):
