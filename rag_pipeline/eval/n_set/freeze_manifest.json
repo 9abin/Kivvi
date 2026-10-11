@@ -1,0 +1,14 @@
+{
+ "frozen_at": "2026-10-12",
+ "files": {
+  "n_gold_80_v5_1.jsonl": "9db754f471c7488926d968330ee6683ee8da21055ccae97ad848740ac769adc3",
+  "scoring_rules_v5_1.md": "70a640b9f4700ed5bd5ac39a8489487e1bb1084f2d8e9eecee96beca1b1b99f0"
+ },
+ "counts": {
+  "전체": 80,
+  "확정후보": 62,
+  "미확정": 18
+ },
+ "note": "N011~N080 질문 원본은 n_questions_70.jsonl, N001~N010 질문은 gold 파일의 q 필드. 이 시점까지 시스템 답변(n_prelim 포함 N001~N010 예비 실행 답)은 열람하지 않았음",
+ "after_freeze": "gold/규칙 변경 시 해당 문항은 개발용으로 표시"
+}
