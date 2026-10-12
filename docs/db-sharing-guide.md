@@ -1,4 +1,25 @@
-# 팀 공유 DB 접속 안내 (DBeaver)
+# 팀 공유 DB 안내 (DBeaver)
+
+**권장: 방법 A — Docker 이미지로 각자 PC에 띄우기** (박형건 PC·와이파이·방화벽 필요 없음). 방법 B(박형건 PC에 접속)는 아래 1~2절.
+
+## 방법 A. Docker 이미지 (각자 PC)
+
+데이터가 든 PostgreSQL 이미지 `mini-cns-db:{날짜}`를 받아 실행한다. 처음 실행 때 1~2분 동안 덤프를 복원한다.
+
+```bash
+# db/ 폴더에서. .env 파일: POSTGRES_USER=mini  POSTGRES_PASSWORD=내가정한값
+docker compose -f docker-compose.team.yml up -d
+docker logs mini-cns-db          # "[mini-cns] 준비 완료"가 보이면 끝
+```
+DBeaver: Host `localhost` · Port `15432` · Database `regulations` · 계정은 위 .env 값 (내 PC 전용이라 쓰기도 가능, 원본에는 영향 없음)
+
+새 버전을 받을 때: `docker compose -f docker-compose.team.yml down -v` → 새 태그로 `up -d` (내 PC의 이전 데이터는 지워짐)
+
+만드는 쪽(박형건): 파이프라인 → `scripts/amend_load.py` → `uv run --extra db python scripts/db_image.py --test` (덤프 → 이미지 → 임시 컨테이너로 복원 확인)
+
+## 방법 B. 박형건 PC에 접속 (같은 와이파이)
+
+- 이 PC는 WSL `networkingMode=mirrored`라 Windows 방화벽 규칙과 함께 Hyper-V 방화벽 규칙도 필요 (`New-NetFirewallHyperVRule … -LocalPorts 5432`). 이 PC에서 자기 와이파이 주소로 하는 시험은 mirrored 기본값 때문에 실패하므로 팀원 PC에서 `Test-NetConnection 192.168.0.40 -Port 5432`로 확인
 
 - 작성: 261012 박형건
 - DB: 박형건 PC의 `reg-db` (PostgreSQL 17 + pgvector). 가빈 챗봇 DB 사본(`public`) + 조항 수정 에이전트 데이터(`amend`)
