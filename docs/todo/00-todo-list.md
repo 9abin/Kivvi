@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | todo | P0 | 법률 DB 연동 형식 합의 (테이블, 조문 ID, 버전 표현, 엔진) | 박형건 ↔ 한석희 | [law-db-interface](law-db-interface.md) |
 | todo | P0 | 오류 유형별 점검 규칙 정의 (탐지 조건, 근거, 판단 불가 기준) | 박형건 | [error-rules](error-rules.md) |
-| todo | P0 | 규정 원문 DB 공유 합의 (조문 ID, 버전, 파싱 담당) | 박형건 ↔ 김가빈 | [regulation-db-sharing](regulation-db-sharing.md) |
+| doing | P0 | 규정 원문 DB 공유 합의 → 챗봇 통합 합의안으로 진행 ([합의안](../chatbot-integration-proposal.md)) | 박형건 ↔ 김가빈 | [regulation-db-sharing](regulation-db-sharing.md) |
 | doing | P0 | 규정 조문 분할 (21건·90건 파싱 완료, 김가빈 형식과 맞추기 남음) | 박형건 | [ingest-articles](ingest-articles.md) |
 | todo | P1 | 원문 확인 후보 4건 (전산업무지침 순서, 문서관리규정·보안업무지침·복지후생 결번) | 박형건 | [261006-1428-07](../reports/261006-1428-07-article-parsing.md) |
 | done | P0 | 인용 추출 v0 (21건 엣지 442, 1주차 §C 구조 검사 대상 11/11 탐지) | 박형건 | [261006-1544-08](../reports/261006-1544-08-citation-edges.md) |
@@ -58,6 +58,8 @@ PoC 표시: **필수** = `03-product-plan.md` PoC "반드시" 항목, 선택 = "
 | done | P1 | 직제 개편 시연 (명칭 39곳·16개 규정 자동, 「비상임이사」 함정 오치환 0) | [261012-0945-27-rename](../reports/261012-0945-27-rename.md) |
 | done | P1 | 자연어 요청 → 개정문 (qwen2.5:7b + 규칙, 요청 8개 중 7 성공·요청 밖 변경 0, 자작 요청) | [261012-1000-28](../reports/261012-1000-28-nl-amendment.md) |
 | doing | P1 | 학습 문서 작성 완료 `docs/learning/261012-amendment-agent.html` (개정문·대비표·변경안 점검·이력·법령·루프·자연어, 퀴즈 6). 남은 것: 박형건 퀴즈 결과 기록 | |
+| doing | P0 | **다음** 챗봇 통합: 권한형 개정 기능, 가빈 DB와 스키마 분리·`chunk_id` 공통 키 (ID 대응 99.2%). 합의 → 덤프 복원·`amend` 스키마 → 앱 연결 | [chatbot-integration](chatbot-integration.md) |
+| todo | P0 | 파서: 항 기호가 앞 항에 붙어 합쳐짐 29키(자금세탁 업무지침 등), 문서관리규정 제45·50조 누락 | [261012-1500-29](../reports/261012-1500-29-chatbot-integration.md) |
 | todo | P0 | **다음** 발표 자료 (현황 → KVIC 실측 → 사례 → 벤치마킹 → 시연 → 평가·한계) | |
 
 ## 3주차 (10.18~10.20)

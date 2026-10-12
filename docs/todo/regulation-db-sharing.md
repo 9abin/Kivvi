@@ -25,6 +25,8 @@ finding과 챗봇 답변이 같은 조문을 가리켜야 연결된다. 개정�
 - 261006: TODO 생성
 - 261007: 가빈 DB 접속 정보 받음(.env). 가빈 PC의 localhost라 이 PC에서 직접 접속 불가 → 이 PC에 같은 계정의 빈 DB(reg-db, pgvector:pg17)를 띄움. 접속·읽기 전용·보정 칸 차단 확인. **덤프 대기** (`docker exec db-pg pg_dump -U rag_reg -Fc regulations > regulations.dump`)
 
+- 261012: 팀 방향이 챗봇 통합으로 바뀜 → 합의 항목을 [합의안](../chatbot-integration-proposal.md)으로 확장, 진행은 [chatbot-integration](chatbot-integration.md)
+
 ## 막힌 점 / 필요한 것
 - 법률 DB 엔진([law-db-interface](law-db-interface.md))과 같은 엔진을 쓰면 규정 ↔ 법령 조인이 쉬움. 세 명이 함께 정하는 편이 낫다.
 - 261007: 가빈 저장소 sql/schema.sql 확인 — documents(doc_id, title, tier, revision, source_url, file_name), chunks(chunk_id, doc_id, article, status, is_indexed, body, body_search, body_tokens, corrections_note, cites, embedding vector(1024) BGE-m3, …). 읽기 금지 칸 확정: body_search·corrections_note·cites·body_tokens(보정본 기반 여부 확인 필요). 데이터 덤프는 아직 이 PC에 없음
