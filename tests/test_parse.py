@@ -101,3 +101,35 @@ def test_hyphen_branch_article():
     r = parse("지침\n제12조(관리) 관리한다.\n제12-1조(태블릿) ① 태블릿을 관리한다.\n② 반납한다.".splitlines())
     assert [a.label for a in r.articles] == ["제12조", "제12조의1"]
     assert r.articles[1].title == "태블릿"
+
+
+def test_inline_next_paragraph_marker_is_split():
+    # 자금세탁행위 방지 업무지침 제15조: 「…하여야 한다.② …」가 한 줄
+    p = parse(["제15조(위험평가) ① 위험을 평가하여야 한다.② 위험을 반영하여야 한다. ③ 등급을 산정한다."])
+    items = p.articles[0].items
+    assert [i.path[0] for i in items] == [1, 2, 3]
+    assert items[0].text.endswith("한다.")
+
+
+def test_inline_marker_kept_when_not_next_number():
+    # 「제1항 ②」처럼 본문 속 기호이거나 다음 번호가 아니면 나누지 않는다
+    p = parse(["제3조(준용) ① 제2조를 준용한다.④ 표기는 그대로 둔다."])
+    assert [i.path[0] for i in p.articles[0].items] == [1]
+
+
+def test_inline_items_and_marker_after_list_are_split():
+    # 자금세탁행위 방지 업무지침 제15조②: 호 번호와 다음 항이 한 줄에 이어짐
+    p = parse(["제15조(위험평가) ① 평가한다.② 다음 각 호의 위험을 반영하여야 한다.1. 국가위험2. 고객고유위험3. 상품 위험 등③ 등급을 산정한다."])
+    assert [i.path[:2] for i in p.articles[0].items] == [(1, 0), (2, 0), (2, 1), (2, 2), (2, 3), (3, 0)]
+    assert p.articles[0].items[3].text == "고객고유위험"
+
+
+def test_inline_number_without_list_is_kept():
+    p = parse(["제5조(요율) 요율은 연 2. 5퍼센트로 한다."])
+    assert len(p.articles[0].items) == 1
+
+
+def test_marker_listed_after_comma_is_kept():
+    # 내규관리규정 제15조: 「항은 ①, ② 등과 같이 … 표시한다」
+    p = parse(["제15조(항) ① 항은 ①, ② 등과 같이 표시한다.", "  ② 호는 1., 2.과 같이 표시한다."])
+    assert [i.path[0] for i in p.articles[0].items] == [1, 2]

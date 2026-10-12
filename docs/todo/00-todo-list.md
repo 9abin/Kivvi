@@ -59,7 +59,7 @@ PoC 표시: **필수** = `03-product-plan.md` PoC "반드시" 항목, 선택 = "
 | done | P1 | 자연어 요청 → 개정문 (qwen2.5:7b + 규칙, 요청 8개 중 7 성공·요청 밖 변경 0, 자작 요청) | [261012-1000-28](../reports/261012-1000-28-nl-amendment.md) |
 | doing | P1 | 학습 문서 작성 완료 `docs/learning/261012-amendment-agent.html` (개정문·대비표·변경안 점검·이력·법령·루프·자연어, 퀴즈 6). 남은 것: 박형건 퀴즈 결과 기록 | |
 | doing | P0 | **다음** 챗봇 통합: 권한형 개정 기능, 가빈 DB와 스키마 분리·`chunk_id` 공통 키 (ID 대응 99.2%). 합의 → 덤프 복원·`amend` 스키마 → 앱 연결 | [chatbot-integration](chatbot-integration.md) |
-| todo | P0 | 파서: 항 기호가 앞 항에 붙어 합쳐짐 29키(자금세탁 업무지침 등), 문서관리규정 제45·50조 누락 | [261012-1500-29](../reports/261012-1500-29-chatbot-integration.md) |
+| done | P0 | 파서: hwpx 머리말 속 본문 손실(문서관리규정 제45·50조), 한 줄에 붙은 항·호 분리(3개 규정 24개 조). 채점 그대로, 가빈과 항 차이 29→3 | [261012-1525-30-parser-inline-paras](../reports/261012-1525-30-parser-inline-paras.md) |
 | todo | P0 | **다음** 발표 자료 (현황 → KVIC 실측 → 사례 → 벤치마킹 → 시연 → 평가·한계) | |
 
 ## 3주차 (10.18~10.20)

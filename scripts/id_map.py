@@ -61,7 +61,7 @@ def main() -> None:
             continue
         art_key = key.rsplit("_", 1)[0] if key.endswith("항") else key
         kind = ("부칙" if "_부칙" in key else "삭제 조" if c["status"] == "삭제" else "조문 없는 문서" if not c["article"]
-                else "우리 파서가 항을 합침" if art_key in our_articles else "항 번호 차이")
+                else "같은 조, 항 나눔 차이" if art_key in our_articles else "항 번호 차이")
         if kind != "부칙":
             miss.append((key, "가빈만", kind))
     out = ROOT / "out" / "id_map"

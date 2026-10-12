@@ -69,6 +69,48 @@ def _decode_para_text(body: bytes) -> str:
     return struct.pack(f"<{len(kept)}H", *kept).decode("utf-16le", errors="replace")
 
 
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _hwpx_paras(xml: str) -> list[str]:
+    """문단(hp:p)을 문서 순서대로. 표 칸·쪽 머리말처럼 문단 안에 든 문단은 바깥 문단을 끊고 따로 한 줄씩 낸다.
+    정규식(<hp:p>.*?</hp:p>)은 머리말·꼬리말 안쪽 문단의 끝 태그에서 멈춰 바깥 문단 본문을 통째로 잃었다 (문서관리규정 제45조 등)."""
+    import xml.etree.ElementTree as ET
+
+    out: list[str] = []
+
+    def walk_p(p) -> None:
+        buf: list[str] = []
+
+        def visit(el) -> None:
+            tag = _local(el.tag)
+            if tag == "t":
+                buf.append("".join(el.itertext()))
+                return
+            if tag == "p":
+                out.append("".join(buf))
+                buf.clear()
+                walk_p(el)
+                return
+            for ch in el:
+                visit(ch)
+
+        for ch in p:
+            visit(ch)
+        out.append("".join(buf))
+
+    def walk(el) -> None:
+        for ch in el:
+            if _local(ch.tag) == "p":
+                walk_p(ch)
+            else:
+                walk(ch)
+
+    walk(ET.fromstring(xml))
+    return [s for s in out if s.strip()]
+
+
 def extract_hwpx(path: Path) -> list[str]:
     paras: list[str] = []
     with zipfile.ZipFile(path) as z:
@@ -77,11 +119,7 @@ def extract_hwpx(path: Path) -> list[str]:
             key=lambda n: int(re.search(r"\d+", n.rsplit("/", 1)[1]).group()),
         )
         for name in names:
-            xml = z.read(name).decode("utf-8")
-            for p in re.findall(r"<hp:p[ >].*?</hp:p>", xml, re.S):
-                text = "".join(re.findall(r"<hp:t(?: [^>]*)?>(.*?)</hp:t>", p, re.S))
-                text = re.sub(r"<[^>]+>", "", text)
-                paras.append(_unescape(text))
+            paras.extend(_hwpx_paras(z.read(name).decode("utf-8")))
     return paras
 
 

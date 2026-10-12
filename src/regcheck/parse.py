@@ -90,11 +90,48 @@ def _amend_notes(text: str) -> list[str]:
     return [m.group(0) for m in RE_AMEND.finditer(text)]
 
 
+# 앞 글자가 쉼표·기호 나열(「항은 ①, ② 등과 같이」, 내규관리규정 제15조)이면 나누지 않는다
+RE_INLINE_PARA = re.compile(rf"(?<=[^\s제\d,、{CIRCLED}“\"'])\s*(?=[{CIRCLED[1:]}]\s+[가-힣「“\"(])")
+RE_INLINE_ITEM = re.compile(r"(?<=[가-힣)」”.:])\s*(?=(\d{1,2})\.\s*[가-힣「“\"(])")
+
+
+def _split_inline_paras(lines: list[str]) -> list[str]:
+    """줄 안에 붙은 다음 항 기호·호 번호를 줄로 나눈다 (자금세탁행위 방지 업무지침: 「…하여야 한다.② …」, 「…위험 등③ …」,
+    「…반영하여야 한다.1. 국가위험2. 고객고유위험」).
+    지금까지 나온 번호의 바로 다음 번호일 때만 나눈다. 호는 그 항에 「각 호」가 있을 때만. 「제1항 ②」·「2.5%」 같은 본문 속 기호는 그대로 둔다."""
+    out: list[str] = []
+    para = item = 0
+    lists = False   # 지금 항이 「다음 각 호」로 목록을 여는가
+    for line in lines:
+        if m := RE_PARA.match(line):
+            para, item, lists = CIRCLED.index(m.group(1)) + 1, 0, False
+        elif m := RE_ITEM.match(line):
+            item = int(m.group(1))
+        rest = line
+        while True:
+            lists = lists or "각 호" in rest or "각호" in rest
+            cuts = [(m.start(), "p") for m in RE_INLINE_PARA.finditer(rest)
+                    if m.start() > 0 and CIRCLED.index(rest[m.end()]) + 1 == max(para, 1) + 1]
+            cuts += [(m.start(), "i") for m in RE_INLINE_ITEM.finditer(rest)
+                     if m.start() > 0 and lists and int(m.group(1)) == item + 1]
+            if not cuts:
+                break
+            cut, kind = min(cuts)
+            out.append(rest[:cut])
+            rest = rest[cut:].lstrip()
+            if kind == "p":
+                para, item, lists = CIRCLED.index(rest[0]) + 1, 0, False
+            else:
+                item += 1
+        out.append(rest)
+    return out
+
+
 def _split_items(lines: list[str]) -> list[Item]:
     """조문의 첫 줄(제목 뒤 본문)부터 항·호·목을 나눈다."""
     items: list[Item] = []
     para = item = sub = 0
-    for line in lines:
+    for line in _split_inline_paras(lines):
         if m := RE_PARA.match(line):
             para, item, sub = CIRCLED.index(m.group(1)) + 1, 0, 0
             body = m.group(2)
