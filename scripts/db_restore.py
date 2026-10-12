@@ -32,6 +32,8 @@ def main() -> None:
         sys.exit(f"파일 없음: {dump}")
     e = load_env()
     user, db = e["PG_USER"], e["PG_DATABASE"]
+    # amend 뷰가 public.chunks를 참조하면 --clean이 표를 못 지워 옛 데이터가 남는다 → 먼저 지우고, 복원 뒤 amend_load.py가 다시 만든다
+    subprocess.run(["docker", "exec", CONTAINER, "psql", "-U", user, "-d", db, "-c", "DROP VIEW IF EXISTS amend.v_chunk_unmatched"])
     run(["docker", "cp", str(dump), f"{CONTAINER}:/tmp/restore.dump"])
     if dump.suffix == ".sql":
         run(["docker", "exec", CONTAINER, "psql", "-U", user, "-d", db, "-v", "ON_ERROR_STOP=1", "-f", "/tmp/restore.dump"])
@@ -40,7 +42,7 @@ def main() -> None:
         subprocess.run(["docker", "exec", CONTAINER, "pg_restore", "-U", user, "-d", db,
                         "--clean", "--if-exists", "--no-owner", "--no-privileges", "/tmp/restore.dump"])
     run(["docker", "exec", CONTAINER, "rm", "/tmp/restore.dump"])
-    print("복원 끝. 확인: uv run --extra db python scripts/db_check.py")
+    print("복원 끝. 다음: uv run --extra db python scripts/amend_load.py (amend 뷰·권한 다시 만들기) → scripts/db_check.py")
 
 
 if __name__ == "__main__":
