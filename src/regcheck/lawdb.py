@@ -31,8 +31,11 @@ ABBR = {
     "벤처투자법": "벤처투자 촉진에 관한 법률",
     "이해충돌방지법": "공직자의 이해충돌 방지법",
     "테러자금금지법": "공중 등 협박목적 및 대량살상무기확산을 위한 자금조달행위의 금지에 관한 법률",
+    "국가계약법": "국가를 당사자로 하는 계약에 관한 법률",
+    "지방계약법": "지방자치단체를 당사자로 하는 계약에 관한 법률",
 }
-# 법령 이름이 바뀐 경우 (옛 이름 → 지금 이름). 지금 이름이 법률 DB에 있는 것만. 규정이 옛 이름을 쓰면 「법령명_변경」 신호 (261012 점검)
+# 법령 이름이 바뀐 경우 (옛 이름 → 지금 이름). 바로 전 이름은 법률 DB 기본정보의 「이전법령명」에서 자동으로 읽고,
+# 그보다 앞 이름(두 번 이상 바뀜)만 여기 적는다. 규정이 옛 이름을 쓰면 「법령명_변경」 신호 (261012 점검)
 RENAMED = {
     "행정업무의 효율적 운영에 관한 규정": "행정업무의 운영 및 혁신에 관한 규정",   # 2023.10 개정
     "소프트웨어산업 진흥법": "소프트웨어 진흥법",                                   # 2020.12 시행
@@ -68,16 +71,25 @@ class LawDB:
             text = amend.get("개정문내용") if isinstance(amend, dict) else None
             flat = "\n".join(x for row in (text or []) for x in (row if isinstance(row, list) else [row]) if isinstance(x, str))
             law = {"id": did, "title": api or req, "시행일": info.get("시행일자"), "공포일": info.get("공포일자"),
-                   "구분": info.get("제개정구분"), "개정문": flat, "조문": units}
+                   "구분": info.get("제개정구분"), "개정문": flat, "조문": units, "이전법령명": info.get("이전법령명") or ""}
             for t in (req, api):
                 if t:
                     out.setdefault(norm(t), law)
         return out
 
+    @cached_property
+    def previous_names(self) -> dict[str, str]:
+        """옛 법령명(정규화) → 지금 법령명. 법률 DB 「이전법령명」 + RENAMED"""
+        out = {norm(k): v for k, v in RENAMED.items()}
+        for law in self.laws.values():
+            if law["이전법령명"] and norm(law["이전법령명"]) not in self.laws:
+                out.setdefault(norm(law["이전법령명"]), law["title"])
+        return out
+
     def find(self, name: str, aliases: dict[str, str] | None = None) -> dict | None:
         """이름 → 법령. 그대로, 규정 약칭 사전, 일반 약칭, 「약칭 + 시행령·시행규칙」 순서로 찾는다."""
         aliases = aliases or {}
-        renamed = {norm(k): v for k, v in RENAMED.items()}
+        renamed = self.previous_names
         for cand in (name, aliases.get(name, ""), ABBR.get(norm(name), ""), renamed.get(norm(name), "")):
             if cand and norm(cand) in self.laws:
                 return self.laws[norm(cand)]
@@ -145,7 +157,7 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
             stats["법령 없음"] += 1
             continue
         stats["법령 연결"] += 1
-        new_name = {norm(k): v for k, v in RENAMED.items()}.get(norm(e["target_doc"]))
+        new_name = db.previous_names.get(norm(e["target_doc"]))
         if new_name and (e["src"], "renamed", new_name) not in seen:
             seen.add((e["src"], "renamed", new_name))
             stats["법령명 변경"] = stats.get("법령명 변경", 0) + 1
