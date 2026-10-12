@@ -15,6 +15,7 @@ TEXT_DIR = os.path.join(OUT_DIR, "text")
 MANUAL_CHUNKS = os.path.join(MANUAL_DIR, "manual_chunks.jsonl")   # 조문 없는 문서 등 수동 청크
 CORRECTIONS = os.path.join(MANUAL_DIR, "corrections.json")        # 확정된 보정 목록 (사람 확정 후 기록)
 ANNEX_OVERRIDES = os.path.join(MANUAL_DIR, "annex_overrides.json")  # 추출이 깨진 별표를 원본 표로 복원한 글 (별표 ID → 본문)
+LAW_DB = os.path.join(MANUAL_DIR, "law_rag.sqlite3")  # 외부 법령 원문 (법률·시행령·시행규칙 232건). 없으면 외부 인용 연결을 건너뜀
 
 # HWP 추출 시 사용할 Python (olefile 설치 필요)
 HWP_SUBPROCESS_PYTHON = None  # None이면 현재 실행 중인 Python 사용

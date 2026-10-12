@@ -10,8 +10,9 @@ import json
 import os
 import sys
 
-from config import OUT_DIR
+from config import LAW_DB, OUT_DIR
 from src.chunk.articles import DUP_NUMBERING, build_chunks
+from src.citations.law_lookup import resolve_external
 from src.citations.refs import resolve_citations, review_old_references
 from src.corrections import store as corrections
 from src.corrections.store import validate, check_pairs
@@ -25,7 +26,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 def write_outputs(rows, aliases, stat):
     os.makedirs(OUT_DIR, exist_ok=True)
     review = [[r["id"], r["문서명"], c["원문"], c.get("대상") or "", c["상태"]]
-              for r in rows for c in r["cites"] if c["상태"] not in ("정상연결", "외부")]
+              for r in rows for c in r["cites"] if c["상태"] not in ("정상연결", "외부", "외부연결")]
     with io.open(os.path.join(OUT_DIR, "chunks.jsonl"), "w", encoding="utf-8") as f:
         f.write("\n".join(json.dumps(r, ensure_ascii=False) for r in rows))
     with io.open(os.path.join(OUT_DIR, "aliases.json"), "w", encoding="utf-8") as f:
@@ -54,6 +55,9 @@ def main(argv):
     texts = {idx: io.open(os.path.join(OUT_DIR, "text", idx + ".txt"), encoding="utf-8").read() for idx in meta}
     rows = build_chunks(meta, texts)
     rows, aliases, stat = resolve_citations(rows, {idx: m["문서명"] for idx, m in meta.items()})
+    if os.path.exists(LAW_DB):
+        rows, n_ext = resolve_external(rows, LAW_DB)
+        print("외부 법령 인용 연결:", n_ext, "건")
     rows, applied = apply_search_text(rows, corrections.load())  # 확정된 오탈자만 검색 텍스트에 반영
     print("확정 오탈자 정정 적용:", len(applied), "건")
     rows, ref_applied = apply_reference_corrections(rows, corrections.load())

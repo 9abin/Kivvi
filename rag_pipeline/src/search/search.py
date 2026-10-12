@@ -32,7 +32,7 @@ RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
 UNROUTED_PENALTY = 0.3  # 문서 고르기에서 빠진 규정의 리랭크 점수에 곱하는 값
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
-CITE_OK_STATUS = ("정상연결", "정정 확정")  # 실제 대상 청크가 있는 인용만 따라간다
+CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
 
 # 키워드 질의에서 뺄 형태소 태그: 조사, 어미, 문장부호
 _SKIP_TAGS = ("J", "E", "SF", "SP", "SS", "SE", "SO")
@@ -208,7 +208,8 @@ class Searcher:
         return picked
 
     def _cited(self, hit):
-        """청크의 cites 중 실제 대상이 있는 것을 1단계만 따라간다. 대상이 부칙·삭제여도 상태를 붙인다."""
+        """청크의 cites 중 실제 대상이 있는 것을 1단계만 따라간다. 대상이 부칙·삭제여도 상태를 붙인다.
+        외부연결(법령, law_lookup.py)은 내부 chunk_id가 아니라 cites에 이미 저장된 본문을 그대로 쓴다."""
         targets = []
         for c in self.row_info.get(hit["chunk_id"], {}).get("cites") or []:
             if c.get("대상") and c.get("상태") in CITE_OK_STATUS and c["대상"] != hit["chunk_id"]:
@@ -217,9 +218,16 @@ class Searcher:
                 break
         if not targets:
             return []
-        found = {r["chunk_id"]: r for r in self.store.get([t["대상"] for t in targets])}
+        internal = [t for t in targets if t["상태"] != "외부연결"]
+        found = {r["chunk_id"]: r for r in self.store.get([t["대상"] for t in internal])} if internal else {}
         out = []
         for t in targets:
+            if t["상태"] == "외부연결":
+                out.append({"chunk_id": t["대상"], "doc_id": t["대상"], "문서명": t.get("법령명"),
+                           "위계": "외부법령", "개정표기": None, "출처URL": None, "article": "제" + t["대상"].split("_")[-1] + "조",
+                           "조문상태": "현행", "body": t.get("외부본문", ""), "정정안내": None,
+                           "인용원문": t["원문"], "연결상태": t["상태"]})
+                continue
             r = found.get(t["대상"])
             if r:
                 entry = self._entry(r)

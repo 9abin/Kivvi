@@ -102,18 +102,18 @@ def resolve_citations(rows, names):
         own = r["고유번호"]
         text = normalize_brackets(r["본문"])
         cites = []
-        last_kind, last_target, last_end = None, None, -1
+        last_kind, last_target, last_law_name, last_end = None, None, None, -1
         for m in REF.finditer(text):
             if _in_history_note(text, m.start()):
                 continue
             pre = text[max(0, m.start() - 200):m.start()]
             n, k, h = m.group(1), m.group(2), m.group(3)
-            kind, target = None, None
+            kind, target, law_name = None, None, None
             between = text[last_end:m.start()] if last_end >= 0 else None
             # 나열 이어받기: 사이에 쉼표·'및'·'또는'과 호·목·항 표기(제2호, 가목 등)만 있을 때
             if last_kind and between is not None and re.fullmatch(
                     r"(?:\s|,|、|및|또는|제\d+(?:호|항)(?:[가-하]목)?|\d+호|[가-하]목)*", between):
-                kind, target = last_kind, last_target  # 나열 참조는 앞 대상을 이어받음
+                kind, target, law_name = last_kind, last_target, last_law_name  # 나열 참조는 앞 대상을 이어받음
             else:
                 hit = None
                 for ali, tgt in aliases.get(own, {}).items():
@@ -141,7 +141,7 @@ def resolve_citations(rows, names):
                 if hit is not None and not str(hit).startswith("외부:"):
                     kind, target = "내부문서", hit
                 elif hit is not None:
-                    kind = "외부"
+                    kind, law_name = "외부", str(hit)[3:]
                 elif SELF_WORD.search(pre[-20:]):
                     kind, target = "내부", own
                 elif LAW_NAME.search(pre[-40:]) and not _is_corpus_name(pre, norm):
@@ -161,10 +161,13 @@ def resolve_citations(rows, names):
                 t, st = None, "미해결(약칭)"
             if r["id"].endswith("_부칙") and st in ("확인필요(대상없음)", "미해결(약칭)"):
                 st = "옛 규정 참조(검토 완료)"
-            last_kind, last_target = kind, (target if kind != "외부" else None)
+            last_kind, last_target, last_law_name = kind, (target if kind != "외부" else None), law_name
             last_end = m.end()
             stat[st] += 1
-            cites.append({"대상": t, "유형": kind, "원문": m.group(0), "상태": st})
+            entry = {"대상": t, "유형": kind, "원문": m.group(0), "상태": st}
+            if law_name:
+                entry["법령명"] = law_name
+            cites.append(entry)
         r["cites"] = cites
     return rows, aliases, stat
 
