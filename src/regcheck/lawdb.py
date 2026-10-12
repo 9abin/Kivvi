@@ -30,6 +30,12 @@ ABBR = {
     "개인정보보호법": "개인정보 보호법",
     "벤처투자법": "벤처투자 촉진에 관한 법률",
     "이해충돌방지법": "공직자의 이해충돌 방지법",
+    "테러자금금지법": "공중 등 협박목적 및 대량살상무기확산을 위한 자금조달행위의 금지에 관한 법률",
+}
+# 법령 이름이 바뀐 경우 (옛 이름 → 지금 이름). 지금 이름이 법률 DB에 있는 것만. 규정이 옛 이름을 쓰면 「법령명_변경」 신호 (261012 점검)
+RENAMED = {
+    "행정업무의 효율적 운영에 관한 규정": "행정업무의 운영 및 혁신에 관한 규정",   # 2023.10 개정
+    "소프트웨어산업 진흥법": "소프트웨어 진흥법",                                   # 2020.12 시행
 }
 
 
@@ -71,7 +77,8 @@ class LawDB:
     def find(self, name: str, aliases: dict[str, str] | None = None) -> dict | None:
         """이름 → 법령. 그대로, 규정 약칭 사전, 일반 약칭, 「약칭 + 시행령·시행규칙」 순서로 찾는다."""
         aliases = aliases or {}
-        for cand in (name, aliases.get(name, ""), ABBR.get(norm(name), "")):
+        renamed = {norm(k): v for k, v in RENAMED.items()}
+        for cand in (name, aliases.get(name, ""), ABBR.get(norm(name), ""), renamed.get(norm(name), "")):
             if cand and norm(cand) in self.laws:
                 return self.laws[norm(cand)]
         m = re.match(r"^(.*?)\s*(시행령|시행규칙)$", name or "")
@@ -129,7 +136,8 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
     stats = {"법령 인용": 0, "법령 연결": 0, "조문 연결": 0, "법령 없음": 0, "조 없음": 0}
     out, seen = [], set()
     for e in edges:
-        if e["status"] not in ("law_pending", "external_rule") or e["src_kind"] != "본문":
+        # 본문과 별표·별지 (표 안 「…법률 제7조제1항제1호」도 법령 인용, 261012). 부칙은 옛 문구라 제외
+        if e["status"] not in ("law_pending", "external_rule") or e["src_kind"] not in ("본문", "별표", "별지"):
             continue
         stats["법령 인용"] += 1
         law = db.find(e["target_doc"], aliases)
@@ -137,13 +145,29 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
             stats["법령 없음"] += 1
             continue
         stats["법령 연결"] += 1
+        new_name = {norm(k): v for k, v in RENAMED.items()}.get(norm(e["target_doc"]))
+        if new_name and (e["src"], "renamed", new_name) not in seen:
+            seen.add((e["src"], "renamed", new_name))
+            stats["법령명 변경"] = stats.get("법령명 변경", 0) + 1
+            out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
+                        "type": "법령명_변경", "priority": "높음", "suggest": new_name, "law": law["title"],
+                        "note": f"「{e['target_doc']}」은 지금 「{law['title']}」(시행 {fmt(_d8(law['시행일']))})로 이름이 바뀜 — 법령명 정비 필요"})
         key, u = db.article(law, e["raw"])
         if not key:
             continue
         aid = e["src"].split("-")[0]
-        if aid not in arts:
-            continue
-        r, a = arts[aid]
+        if e["src_kind"] == "본문":
+            if aid not in arts:
+                continue
+            r, a = arts[aid]
+        else:   # 별표·별지: 조가 없으니 그 별표·별지의 개정 표시(<신설 2025.04.17.>), 없으면 규정 마지막 개정일과 비교
+            r, a = regs.get(e["src"].split(":")[0]), None
+            if not r:
+                continue
+            ap = next((x for x in r.get("appendices", []) if x["id"] == e["src"]), None)
+            marks = [(int(y), int(m), int(d)) for y, m, d in re.findall(r"(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})", (ap or {}).get("title") or "")]
+            rev = re.match(r"(\d{4})-(\d{2})(?:-(\d{2}))?", r.get("revised") or "")
+            appx_last = max(marks) if marks else ((int(rev[1]), int(rev[2]), int(rev[3] or 1)) if rev else None)
         base = {**locate(e["src"]), "quote": e["raw"], "context": e["context"], "method": "law_db", "suggest": "",
                 "src_id": e["src"], "law": law["title"], "law_article": f"제{key.replace('의', '조의') if '의' in key else key + '조'}"}
         if not u:
@@ -152,9 +176,9 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
                         "note": f"「{law['title']}」(시행 {fmt(_d8(law['시행일']))})에 {base['law_article']}가 없음 — 삭제·이동 또는 오기"})
             continue
         stats["조문 연결"] += 1
-        ev = [d for d, _ in article_events(a)]
+        ev = [d for d, _ in article_events(a)] if a else []
         rb, _ = regulation_dates(r)
-        last = max(ev) if ev else rb
+        last = (max(ev) if ev else rb) if a else appx_last
         moved = u.get("조문이동이전", "000000") not in ("000000", "", None) or u.get("조문이동이후", "000000") not in ("000000", "", None)
         changed = u.get("조문변경여부") == "Y"
         when = _d8(u.get("조문시행일자")) or _d8(law["시행일"])
