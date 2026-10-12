@@ -215,3 +215,34 @@ GRANT USAGE ON SEQUENCE amend.decision_log_seq_seq TO amend_builder;
 -- loader: 공포본 적재 (public 쓰기). amend는 손대지 않음
 GRANT USAGE ON SCHEMA public TO loader;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO loader;
+
+-- team_ro: 팀 공유 조회 (DBeaver). 가빈 표·우리 표 모두 읽기만. 로그인 계정은 scripts/db_team_account.py가 만든다
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'team_ro') THEN CREATE ROLE team_ro NOLOGIN; END IF;
+END $$;
+GRANT USAGE ON SCHEMA public, amend TO team_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO team_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA amend TO team_ro;
+
+-- 설명 (DBeaver 표·칸 목록에 보인다) ------------------------------------------
+COMMENT ON SCHEMA amend IS '조항 수정 에이전트(박형건) 작업 데이터. 가빈 챗봇 표(public)는 읽기만 한다. 정의: sql/amend_schema.sql';
+COMMENT ON TABLE amend.chunk_detail IS '항·호·목 단위 원문 (우리 파서). chunk_id = 같은 내용의 가빈 청크';
+COMMENT ON COLUMN amend.chunk_detail.item_id IS '규정:조[의가지]-항-호-목 (예 24024:4-1-0-0)';
+COMMENT ON COLUMN amend.chunk_detail.occ IS '같은 ID가 다시 나온 순번. 원문 항 번호 중복(⑤⑤)만 1 이상';
+COMMENT ON COLUMN amend.chunk_detail.chunk_id IS '가빈 public.chunks.chunk_id (대응 못 하면 비어 있음)';
+COMMENT ON COLUMN amend.chunk_detail.chunk_match IS '같음 / 단일 항 조 / 가빈 조 단위';
+COMMENT ON TABLE amend.article_version IS '공포 시점별 조문 사본 (지금은 현행본 1벌). 대비표·과거 재현용';
+COMMENT ON TABLE amend.edge IS '관련 조항 표 = 그래프 간선. src(인용하는 항) → target(조·별표·규정·법령). "누가 나를 인용하나"는 target으로 조회';
+COMMENT ON COLUMN amend.edge.check_status IS 'ok 정상 / missing_article 대상 조 없음 / law_pending 법령(법률 DB 대조) / external_rule 외부 기준 / deleted_target 삭제된 조 …';
+COMMENT ON COLUMN amend.edge.src_version IS '인용 쪽 규정의 개정일 (개정 미반영 신호)';
+COMMENT ON TABLE amend.finding IS '기준선 점검 결과 (오류 후보). 판정이 아니라 담당자 검토용';
+COMMENT ON COLUMN amend.finding.review_key IS '사람 결정과 잇는 고정 키 (fid는 실행마다 바뀜)';
+COMMENT ON COLUMN amend.finding.method IS 'rule 규칙 / semantic 의미 비교 / law_db 법률 DB / history 개정 이력';
+COMMENT ON TABLE amend.changeset IS '개정안. 상태 초안→검토→승인→공포(또는 기각). 승인은 개정이 아님';
+COMMENT ON TABLE amend.impact IS '개정안의 영향 (변경안 점검·연쇄 수정 결과)';
+COMMENT ON COLUMN amend.impact.category IS 'breaks 깨짐 / new_conflicts 새 충돌 / resolved 해소 / review 확인 필요 / law_check 법령 대조 / undeterminable 판단 불가 / info 참고';
+COMMENT ON TABLE amend.decision_log IS '사람 결정 기록. 덧붙이기만 (고치거나 지우면 트리거가 거부)';
+COMMENT ON VIEW amend.v_inbound IS '이 조를 인용하는 곳 (인용 1건 = 1행). 챗봇 청크로: WHERE ''24184_제7조_1항'' = ANY(target_chunks)';
+COMMENT ON VIEW amend.v_chunk_open_change IS '진행 중 개정안이 걸린 가빈 청크 (챗봇 "개정 검토 중" 배지)';
+COMMENT ON VIEW amend.v_chunk_unmatched IS '가빈 청크와 대응 안 된 우리 항 (가빈 재적재 후 확인)';
+COMMENT ON VIEW amend.v_decision_state IS '결정 열쇠별 현재 상태 (마지막 기록)';

@@ -22,7 +22,8 @@ MINI_CNS/
 │  ├─ build.py             # 메타데이터(규정ID·위계·개정일·출처) + 조문 ID → JSON
 ├─ scripts/                # parse_regs.py → extract_edges.py → eval_week1.py → build_relations.py / build_vectors.py → vector_check.py → semantic_check.py → build_findings.py → score.py → make_report.py, 개정 초안: amend.py → check_change.py (정답: make_ledger.py, import_corrections.py)
 ├─ eval/                   # 정답 원장 ledger/*.jsonl, 확인 대기 review_queue.csv, 검토 결정 review_log.jsonl(덧붙이기만), 채점 기록 runs/, 정답셋 (week1_citations.json), 관계 표본 검수(relation_audit*.jsonl), 사람 결정(relation_decisions.json). 점검 코드는 정답을 읽지 않는다
-├─ sql/amend_schema.sql   # amend 스키마 (개정 작업 표·뷰·역할). 적재: scripts/amend_load.py
+├─ sql/amend_schema.sql   # amend 스키마 (개정 작업 표·뷰·역할·설명). 적재: scripts/amend_load.py
+├─ docs/db-sharing-guide.md # 팀 공유 DB 접속 (DBeaver, 읽기 전용 계정: scripts/db_team_account.py → .env.team)
 ├─ docker-compose.yml      # reg-db: 규정 원문 DB 로컬 사본 (pgvector:pg17, 접속 정보는 .env)
 ├─ app/                    # review_app.py: 검토 화면 (uv run streamlit run app/review_app.py, uv sync --group app)
 ├─ notebooks/              # 01-pipeline-walkthrough.ipynb: 흐름을 단계별로 따라가기 (생성기 scripts/make_notebook.py, uv sync --group notebook)
