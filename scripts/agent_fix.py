@@ -2,6 +2,7 @@
 
   uv run python scripts/agent_fix.py --change S03                         # out/changes/S03/changeset.json
   uv run python scripts/agent_fix.py --reg 직제규정 --text "…" --id C001  # 새 개정문
+  uv run python scripts/agent_fix.py --request "인사규정 육아휴직 분할 횟수를 3회로 늘려줘" --id N1   # 자연어 (로컬 LLM이 개정문 초안)
 출력: out/changes/{id}/package.json, package.html (개정문 최종본·대비표·함께 개정안·부칙 초안·질의서·법령 대조)
 참고 초안이다. 원문·규정 DB는 바꾸지 않는다.
 """
@@ -82,11 +83,22 @@ def main() -> None:
     ap.add_argument("--reg")
     ap.add_argument("--text")
     ap.add_argument("--id", default="draft")
+    ap.add_argument("--request", help="자연어 요청 (로컬 LLM이 개정문을 쓰고 적용기로 검증)")
+    ap.add_argument("--model", default="qwen2.5:7b")
     args = ap.parse_args()
     regs = {r["reg_id"]: r for r in (json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json"))}
     rels = [json.loads(l) for l in (ROOT / "out" / "relations" / "relations.jsonl").read_text(encoding="utf-8").splitlines()]
     edges = [json.loads(l) for l in (ROOT / "out" / "edges" / "edges_all.jsonl").read_text(encoding="utf-8").splitlines()]
-    if args.change:
+    if args.request:
+        from regcheck.nl import draft
+        res = draft(regs, args.request, model=args.model)
+        for t in res.get("tries", []):
+            print("  LLM 초안:", t["output"].replace("\n", " / ")[:160], ("→ 적용기 오류: " + t["error"]) if t["error"] else "→ 적용 성공")
+        if not res.get("ok"):
+            sys.exit("개정문을 만들지 못함 — 요청을 더 구체적으로 (규정명·조) 적어 주세요")
+        cid, cs = args.id, res["changeset"]
+        cs["id"], cs["title"] = cid, args.request
+    elif args.change:
         cid = args.change
         cs = json.loads((ROOT / "out" / "changes" / cid / "changeset.json").read_text(encoding="utf-8"))
     elif args.reg and args.text:
