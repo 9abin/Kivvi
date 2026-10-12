@@ -144,3 +144,11 @@ def test_quoted_alias_and_effective_note():
     m = RE_ALIAS.search(normalize("제정한 ‘전산업무규정’(이하 “규정”이라 한다)에서 위임된 사항"))
     assert m and m.group(1).strip() == "전산업무규정" and m.group(2) == "규정"
     assert RE_EFFECTIVE_NOTE.search("본부장으로 본다. [시행일 : 2021.09.01.] 제16조")
+
+
+def test_contract_law_name_keeps_leading_word():
+    # 「국가를 당사자로 하는 계약에 관한 법률 시행령」의 「국가를」을 조사로 보고 지우면 지방계약법 시행령과 구분이 안 된다
+    from regcheck.citations import LAW_LEAD_GARBAGE
+    assert LAW_LEAD_GARBAGE.sub("", "국가를 당사자로 하는 계약에 관한 법률 시행령") == "국가를 당사자로 하는 계약에 관한 법률 시행령"
+    assert LAW_LEAD_GARBAGE.sub("", "지방자치단체를 당사자로 하는 계약에 관한 법률") == "지방자치단체를 당사자로 하는 계약에 관한 법률"
+    assert LAW_LEAD_GARBAGE.sub("", "이 지침은 감사규정") == "감사규정"

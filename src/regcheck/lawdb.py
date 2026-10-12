@@ -35,6 +35,10 @@ ABBR = {
     "지방계약법": "지방자치단체를 당사자로 하는 계약에 관한 법률",
     "퇴직급여보장법": "근로자퇴직급여 보장법",
 }
+# 내규가 법령 이름을 틀리게 쓴 경우 (정식 이름 → 연결은 하되 「법령명_오기」로 알림). 글자 차이가 커서 close_title로 못 잡는 것만
+MISNAMED = {
+    "여성폭력기본법": "여성폭력방지기본법",   # 성희롱·성폭력 예방 운영지침 제3조
+}
 # 법령 이름이 바뀐 경우 (옛 이름 → 지금 이름). 바로 전 이름은 법률 DB 기본정보의 「이전법령명」에서 자동으로 읽고,
 # 그보다 앞 이름(두 번 이상 바뀜)만 여기 적는다. 규정이 옛 이름을 쓰면 「법령명_변경」 신호 (261012 점검)
 RENAMED = {
@@ -94,7 +98,8 @@ class LawDB:
         aliases = aliases or {}
         renamed = self.previous_names
         name = re.sub(r"\s*\(이하[^)]*\)\s*$", "", name or "").strip()   # 「…시행령(이하 "국가계약법 시행령"이라 한다)」
-        for cand in (name, aliases.get(name, ""), ABBR.get(norm(name), ""), renamed.get(norm(name), "")):
+        misnamed = {norm(k): v for k, v in MISNAMED.items()}
+        for cand in (name, aliases.get(name, ""), ABBR.get(norm(name), ""), renamed.get(norm(name), ""), misnamed.get(norm(name), "")):
             if cand and norm(cand) in self.laws:
                 return self.laws[norm(cand)]
         # 앞이 잘린 이름(「금품 등 수수의 금지에 관한 법률」): 정확히 한 법령의 끝부분과 같을 때만 (12자 이상)
@@ -188,6 +193,13 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
                             "note": f"법률 DB에 「{e['target_doc']}」은 없고 「{close}」가 거의 같음 — 오기인지 확인"})
             continue
         stats["법령 연결"] += 1
+        wrong = {norm(k): v for k, v in MISNAMED.items()}.get(norm(e["target_doc"]))
+        if wrong and (e["src"], "typo", wrong) not in seen:
+            seen.add((e["src"], "typo", wrong))
+            stats["법령명 오기 의심"] = stats.get("법령명 오기 의심", 0) + 1
+            out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
+                        "type": "법령명_오기", "priority": "중간", "suggest": law["title"],
+                        "note": f"정식 이름은 「{law['title']}」 — 법령명 확인"})
         new_name = db.previous_names.get(norm(e["target_doc"]))
         if new_name and (e["src"], "renamed", new_name) not in seen:
             seen.add((e["src"], "renamed", new_name))

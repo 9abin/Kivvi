@@ -58,7 +58,7 @@ ipconfig                                                    # 무선 LAN IPv4 �
 | `public` (가빈) | `documents` 90, `chunks` 4,810 | 규정 문서, 조·항 청크(벡터 포함). **점검 코드는 `body_search`·`corrections_note`·`cites`·`body_tokens`를 읽지 않는다** (보정본) |
 | `amend` (박형건) | `chunk_detail` 7,382 | 항·호·목 원문 + 가빈 `chunk_id` 대응 |
 | | `edge` 1,884 | 관련 조항 표 (그래프 간선) |
-| | `finding` 268 | 점검 결과 (오류 후보) |
+| | `finding` 279 | 점검 결과 (오류 후보) |
 | | `changeset`·`impact` | 개정안과 영향 (S01~S03) |
 | | `article_version`, `decision_log` | 조문 사본, 사람 결정 기록 |
 | | 뷰 `v_inbound`, `v_chunk_open_change`, `v_chunk_unmatched`, `v_decision_state` | 인용받는 곳, 개정 진행 중 청크, 대응 확인, 결정 상태 |

@@ -18,7 +18,7 @@
 | **우리 DB (reg-db)** — 박형건 PC 안에서 | `localhost:5432` | `regulations` | `rag_reg` | `.env` (`PG_PASSWORD`) | 관리자 |
 | **우리 DB (reg-db)** — 팀원이 DBeaver로 | `192.168.0.40:5432` | `regulations` | `mini_cns_team` | `.env.team` (`TEAM_PASSWORD`) | 조회 전용 |
 | 가빈 DB 원본 | `192.168.0.84:5432` | `regulations` | `rag_reg` | `.env`와 같은 값 | 우리는 읽기만 (접속하려면 가빈 PC 방화벽 필요) |
-| 법률 DB (한석희) | 파일 `data/law_rag.sqlite3` | — | — | — | 읽기 전용 (SQLite, DBeaver에서 파일로 연다) |
+| 법률 DB (한석희) | 파일 `data/law_rag.sqlite3` (261012 수집본, 법령 284 / 이전본 `law_rag.20261007.sqlite3`) | — | — | — | 읽기 전용 (SQLite, DBeaver에서 파일로 연다) |
 
 우리 DB 안의 스키마: `public` = 가빈 챗봇 사본 (규정 90, 청크 4,810 — 261012 16:26 가빈 수정본, 덤프 `data/external/gabin/regulations_261012b.dump`) · `amend` = 우리 결과 (관계 1,884, 점검 결과 256, 항·호·목 7,382)
 
