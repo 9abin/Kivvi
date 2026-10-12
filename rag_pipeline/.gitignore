@@ -6,3 +6,13 @@
 __pycache__/
 *.pyc
 
+backups/
+
+# 외부 법령 DB (131MB, 팀원이 따로 전달하는 바이너리라 git에 안 올림)
+data/manual/law_rag.sqlite3
+
+# N-set 평가 실행 기록 (결과 파일, 코드 아님)
+eval/n_set/runs/
+
+# 평가 검수 artifact용 임시 export
+review_data.json
