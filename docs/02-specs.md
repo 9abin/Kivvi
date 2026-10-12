@@ -76,6 +76,8 @@
 
 ## RDB 테이블
 
+**현재 구현 (261012)**: 아래 설계 중 ①원문·②관계·④점검 계층을 가빈 규정 DB 안 `amend` 스키마로 구현 (`sql/amend_schema.sql`, 로컬 사본, 합의 전). 가빈 표(`public.documents`·`chunks`)는 읽기만, 공통 키는 가빈 `chunk_id`, 역할 4개 → [261012-1540-31-amend-schema](reports/261012-1540-31-amend-schema.md), [합의안](chatbot-integration-proposal.md). ③의미 계층(`slot`·`term`·`embedding`)과 법률 DB 표는 아직 파일·SQLite.
+
 담당 구분은 [law-db-interface](todo/law-db-interface.md), [regulation-db-sharing](todo/regulation-db-sharing.md)에서 확정한다.
 
 ### ① 원문 계층

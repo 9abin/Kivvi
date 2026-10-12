@@ -23,7 +23,8 @@ RE_APPENDIX = re.compile(
     r"^\s*(?:■[^\[]*)?[\[【<]\s*(별\s*표|별\s*지)\s*([^\]】>]*)[\]】>]\s*(.*)$"
 )
 RE_PARA = re.compile(rf"^\s*([{CIRCLED}])\s*(.*)$")
-RE_ITEM = re.compile(r"^\s*(\d+)\s*\.\s*(.*)$")
+# 「40.0%」 같은 표 칸 숫자는 호가 아니다 (근무평정시행지침 제20조): 마침표 바로 뒤가 숫자면 제외
+RE_ITEM = re.compile(r"^\s*(\d+)\s*\.(?!\d)\s*(.*)$")
 MOK = "가나다라마바사아자차카타파하"
 RE_SUBITEM = re.compile(rf"^\s*([{MOK}])\s*\.\s*(.*)$")
 RE_AMEND = re.compile(

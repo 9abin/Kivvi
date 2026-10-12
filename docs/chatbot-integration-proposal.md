@@ -24,7 +24,7 @@ regulations (PostgreSQL + pgvector)
 └─ law     (한석희, 나중에 SQLite에서 이전)
 ```
 
-- 서로의 스키마에는 쓰지 않는다. `amend`는 `public.documents.doc_id`, `public.chunks.chunk_id`를 외래키로 참조만 한다.
+- 서로의 스키마에는 쓰지 않는다. `amend`는 `public.chunks.chunk_id`를 칸으로만 참조한다 — **외래키는 걸지 않는다** (가빈이 `--clean`으로 다시 적재할 때 막히지 않게). 대응 확인은 뷰 `amend.v_chunk_unmatched`. (261012 구현에서 변경)
 - 가빈 표에는 칸을 추가하지 않는다. 필요한 것은 `amend` 쪽에 둔다.
 
 ## 3. 합의할 항목
@@ -34,7 +34,7 @@ regulations (PostgreSQL + pgvector)
 | ① | 공통 키 | **가빈 `chunk_id`** (`23234_제5조_2항`)를 공통 키로. 우리 호·목 단위 ID(`23234:5-2-0-0`)는 `amend.chunk_detail`에서 `chunk_id`를 참조 | 항이 하나뿐인 조의 이름 규칙 (아래 4절) |
 | ② | 인용 관계 | `public.chunks.cites`(JSON)는 챗봇용으로 그대로. 영향 분석은 `amend.edge` 표(대상 칸에 색인 → "누가 나를 인용하나" 조회) | `cites.대상`과 `edge.target`이 다를 때 어느 쪽을 화면에 보일지 |
 | ③ | 벡터 | 운영: 가빈 HNSW 색인 하나를 같이 씀 (둘 다 BGE-m3·1024·항 단위). 평가: 우리 벡터 따로 (가빈 벡터는 `body_search` 보정본에서 만들어 정답이 섞임) | `embedding_model`, `indexed_at` 갱신 규칙 |
-| ④ | 권한 | DB 역할 3개 — `chatbot_ro`: public 읽기 / `editor`: public 읽기 + amend 쓰기, `decision_log`는 INSERT만 / `loader`: 공포본 적재. 지금 "팀원 전원 전체 권한"(가빈 DB_스키마 12.1)은 개발 DB에만 | 앱 로그인·역할 확인 위치 |
+| ④ | 권한 | DB 역할 4개 — `chatbot_ro`: public 읽기 + 배지 뷰 / `editor`: public·amend 읽기, 개정안·영향 쓰기, `decision_log`는 INSERT만 / `amend_builder`: 우리 파이프라인 적재(public 쓰기 불가) / `loader`: 공포본 적재. 로컬 사본에서 구현·시험 완료 ([31](reports/261012-1540-31-amend-schema.md)). 지금 "팀원 전원 전체 권한"(가빈 DB_스키마 12.1)은 개발 DB에만 | 앱 로그인·역할 확인 위치 |
 | ⑤ | 버전 | 가빈 표는 현행본만. 공포 시점별 사본은 `amend.article_version`에 (대비표·과거 재현·"개정 검토 중" 배지에 필요) | 적재 때 바뀐 청크만 다시 임베딩할지, 전체를 다시 할지 |
 | ⑥ | 화면 | Streamlit 멀티페이지 앱 하나: 질의응답(가빈) / 개정안 작성·검토(박형건). 답변의 인용 조항 → `chunk_id`를 넘겨 개정 페이지로 | 앱 저장소를 어디에 둘지 (가빈 저장소에 페이지 추가 제안) |
 | ⑦ | 읽기 금지 칸 | 점검 코드는 `body_search`, `corrections_note`, `cites`, `body_tokens`를 읽지 않는다 (사람 보정이 반영돼 평가가 무의미해짐). 화면 표시에는 써도 됨 | `body_tokens`가 보정본에서 만들어졌는지 |

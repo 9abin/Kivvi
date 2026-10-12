@@ -30,7 +30,9 @@ def load_env(path: Path = ROOT / ".env") -> dict[str, str]:
     return {**env, **{k: v for k, v in os.environ.items() if k.startswith("PG_")}}
 
 
-def connect():
+def connect(write: bool = False):
+    """기본은 읽기 전용. write=True는 amend 스키마 적재(scripts/amend_load.py)에서만 쓴다 — 적재는 amend_builder 역할로 해서
+    public(가빈 표) 쓰기는 DB 권한으로 막힌다."""
     import psycopg
 
     e = load_env()
@@ -40,8 +42,9 @@ def connect():
         # Windows + localhost에서 GSS 암호화 협상으로 접속이 멈추는 경우가 있어 끈다 (로컬 Docker DB라 불필요)
         gssencmode="disable", connect_timeout=10,
     )
-    conn.execute("SET default_transaction_read_only = on")
-    conn.commit()
+    if not write:
+        conn.execute("SET default_transaction_read_only = on")
+        conn.commit()
     return conn
 
 

@@ -133,3 +133,9 @@ def test_marker_listed_after_comma_is_kept():
     # 내규관리규정 제15조: 「항은 ①, ② 등과 같이 … 표시한다」
     p = parse(["제15조(항) ① 항은 ①, ② 등과 같이 표시한다.", "  ② 호는 1., 2.과 같이 표시한다."])
     assert [i.path[0] for i in p.articles[0].items] == [1, 2]
+
+
+def test_decimal_cell_is_not_item():
+    # 근무평정시행지침 제20조 표: 「40.0%」를 40호로 읽지 않는다
+    p = parse(["제20조(가중치) ① 가중치는 아래와 같다.", "40.0%", "60.0% 실장"])
+    assert [i.path for i in p.articles[0].items] == [(1, 0, 0)]
