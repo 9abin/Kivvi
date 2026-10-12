@@ -33,12 +33,15 @@ ABBR = {
     "테러자금금지법": "공중 등 협박목적 및 대량살상무기확산을 위한 자금조달행위의 금지에 관한 법률",
     "국가계약법": "국가를 당사자로 하는 계약에 관한 법률",
     "지방계약법": "지방자치단체를 당사자로 하는 계약에 관한 법률",
+    "퇴직급여보장법": "근로자퇴직급여 보장법",
 }
 # 법령 이름이 바뀐 경우 (옛 이름 → 지금 이름). 바로 전 이름은 법률 DB 기본정보의 「이전법령명」에서 자동으로 읽고,
 # 그보다 앞 이름(두 번 이상 바뀜)만 여기 적는다. 규정이 옛 이름을 쓰면 「법령명_변경」 신호 (261012 점검)
 RENAMED = {
     "행정업무의 효율적 운영에 관한 규정": "행정업무의 운영 및 혁신에 관한 규정",   # 2023.10 개정
     "소프트웨어산업 진흥법": "소프트웨어 진흥법",                                   # 2020.12 시행
+    "민원사무처리에 관한 법률": "민원 처리에 관한 법률",                             # 2015 전부개정 (DB에 이전법령명 기록 없음)
+    "전자거래기본법": "전자문서 및 전자거래 기본법",                                 # 2012 (DB에 이전법령명 기록 없음)
 }
 
 
@@ -90,15 +93,36 @@ class LawDB:
         """이름 → 법령. 그대로, 규정 약칭 사전, 일반 약칭, 「약칭 + 시행령·시행규칙」 순서로 찾는다."""
         aliases = aliases or {}
         renamed = self.previous_names
+        name = re.sub(r"\s*\(이하[^)]*\)\s*$", "", name or "").strip()   # 「…시행령(이하 "국가계약법 시행령"이라 한다)」
         for cand in (name, aliases.get(name, ""), ABBR.get(norm(name), ""), renamed.get(norm(name), "")):
             if cand and norm(cand) in self.laws:
                 return self.laws[norm(cand)]
+        # 앞이 잘린 이름(「금품 등 수수의 금지에 관한 법률」): 정확히 한 법령의 끝부분과 같을 때만 (12자 이상)
+        key = norm(name)
+        if len(key) >= 12:
+            tails = {law["id"]: law for k, law in self.laws.items() if k.endswith(key) and k != key}
+            if len(tails) == 1:
+                return next(iter(tails.values()))
         m = re.match(r"^(.*?)\s*(시행령|시행규칙)$", name or "")
         if m and m.group(1):
             base = aliases.get(m.group(1)) or ABBR.get(norm(m.group(1))) or m.group(1)
             if norm(base + m.group(2)) in self.laws:
                 return self.laws[norm(base + m.group(2))]
         return None
+
+    def close_title(self, name: str, cutoff: float = 0.95) -> str | None:
+        """찾지 못한 이름과 거의 같은 법령명 (오기 의심용, 글자 한두 개 차이). 연결에는 쓰지 않는다."""
+        from difflib import SequenceMatcher
+
+        key = norm(re.sub(r"\s*\(이하[^)]*\)\s*$", "", name or ""))
+        if len(key) < 8:
+            return None
+        best, score = None, 0.0
+        for k, law in self.laws.items():
+            sc = SequenceMatcher(None, key, k).ratio()
+            if sc > score:
+                best, score = law["title"], sc
+        return best if score >= cutoff else None
 
     def same_title(self, title: str, limit: int = 5) -> list[tuple[dict, str, dict]]:
         """조문 제목이 같은 법령 조문 [(법령, 조 키, 조문)] — 변경안 점검의 법령 대조 후보 (예: 육아휴직 → 남녀고용평등법 제19조)"""
@@ -155,6 +179,13 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
         law = db.find(e["target_doc"], aliases)
         if not law:
             stats["법령 없음"] += 1
+            close = db.close_title(e["target_doc"])
+            if close and (e["src"], "typo", close) not in seen and e["src_kind"] in ("본문", "별표", "별지"):
+                seen.add((e["src"], "typo", close))
+                stats["법령명 오기 의심"] = stats.get("법령명 오기 의심", 0) + 1
+                out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
+                            "type": "법령명_오기", "priority": "중간", "suggest": close,
+                            "note": f"법률 DB에 「{e['target_doc']}」은 없고 「{close}」가 거의 같음 — 오기인지 확인"})
             continue
         stats["법령 연결"] += 1
         new_name = db.previous_names.get(norm(e["target_doc"]))

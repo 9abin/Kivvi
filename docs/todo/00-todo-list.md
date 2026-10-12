@@ -19,6 +19,7 @@
 | doing | P0 | 정답 원장·채점 (week1 16/16, 가빈 정리본 7/7, corrections 17/23 [261007-1535-19](../reports/261007-1535-19-gabin-corrections-eval.md)). 다음: 확인 대기 22건, 부칙 정책·오탈자 결정 | 박형건·김가빈 | [goldset](goldset.md) |
 | todo | P1 | 오류 주입셋 설계·구축 (주입 유형, 위치 기록, 규모) | 확인 필요 (원본: 이민형) | [goldset](goldset.md) |
 | 외부 | P0 | 법률 DB 구축, 스냅샷 반입 | 한석희 | |
+| 외부 | P1 | 법률 DB 추가 수집 (법령 약 27종, 핵심: 공익신고자 보호법·특정범죄신고자 등 보호법) — 요청 문서 전달 대기 | 한석희 | [law-db-collect-request](law-db-collect-request.md) |
 
 ## 2주차 (10.11~10.17)
 
