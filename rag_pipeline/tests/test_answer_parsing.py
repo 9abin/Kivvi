@@ -142,6 +142,18 @@ class AssembleSectionsTests(unittest.TestCase):
         )
         self.assertIn("확인되지 않습니다", assemble_sections(raw))
 
+    def test_generic_fallback_in_the_middle_of_a_multi_item_answer_is_kept(self):
+        """여러 항목을 한 번에 물은 질문에서, 한 항목만 근거가 없을 때 그 항목 뒤에 이어지는
+        문장을 끝 문구로 착각해 지우면 안 된다 (답변_설계.md 규칙 16과 함께 생긴 사례)."""
+        raw = (
+            "세부:\n"
+            "- 육아휴직은 무급이다 [1]\n"
+            "결론: 육아휴직은 무급입니다 [1]. 복지포인트에 대한 내용은 확인되지 않습니다. "
+            "담당 부서에 확인해 주세요. 출산축하금은 200만원입니다 [2]."
+        )
+        out = assemble_sections(raw)
+        self.assertIn("출산축하금은 200만원입니다 [2].", out)
+
     def test_has_bullets(self):
         self.assertTrue(has_bullets("결론\n\n- 불릿 [1]"))
         self.assertFalse(has_bullets("불릿 없는 답변"))
