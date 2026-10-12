@@ -34,6 +34,8 @@ def _eul(word: str) -> str:
 def _ro(word: str) -> str:
     if not word:
         return "로"
+    if word[-1].isdigit():   # 숫자는 읽는 소리로: 영·삼·육은 「으로」, 일·칠·팔(ㄹ)과 받침 없는 수는 「로」
+        return "으로" if word[-1] in "036" else "로"
     code = ord(word[-1]) - 0xAC00
     if 0 <= code <= 11171 and code % 28 not in (0, 8):   # 받침이 있고 ㄹ이 아니면 「으로」
         return "으로"
