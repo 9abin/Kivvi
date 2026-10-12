@@ -15,6 +15,15 @@ import sqlite3
 
 ARTICLE_KEY = re.compile(r"제(\d+)조(?:\s*의\s*(\d+))?")
 
+# 내부규정이 법령 DB의 정식 명칭과 다르게 쓰는 경우(약칭, 오탈자). 실제로 그 법이 법령 DB에
+# 있는 것을 확인한 경우만 넣는다(2026.10.12). 없는 법을 여기 넣어도 조 번호가 안 맞으면
+# 그대로 "외부"로 남으므로 틀린 연결이 생기진 않지만, 확인 안 된 추측은 넣지 않는다.
+LAW_ALIASES = {
+    "개보법": "개인정보 보호법",
+    "개인정보 보호법률": "개인정보 보호법",
+    "부패방지 및 국민권익위위원회의 설치와 운영에 관한 법률": "부패방지 및 국민권익위원회의 설치와 운영에 관한 법률",
+}
+
 
 def _norm(s):
     return re.sub(r"\s+", "", s or "")
@@ -48,7 +57,9 @@ def article_key(ref_text):
 
 def resolve(law_name, ref_text, titles, chunks):
     """(document_id, 조번호, 본문) 또는 매칭 실패 시 None."""
-    doc_id = titles.get(_norm(law_name))
+    base, sep, after = law_name.partition(" 시행령")
+    base = LAW_ALIASES.get(base, base)
+    doc_id = titles.get(_norm(base + sep + after))
     if not doc_id:
         return None
     key = article_key(ref_text)

@@ -25,6 +25,13 @@ LAW_NAME = re.compile(r"(?:[가-힣]{2,}(?:법|령|규칙)|법률|시행령|시�
 DEF_TAIL = re.compile(ALIAS.pattern + r"\s*$")
 HISTORY_WORDS = ("이동", "종전")
 
+# "동법"·"같은 법"은 문서가 정의한 1글자 약칭("법")이 아니라 바로 앞에서 쓴 법령을 가리킨다.
+# 이 체크를 약칭 사전 조회보다 먼저 해야, "(이하 "법"이라 한다)"로 정의된 그 문서의 법과
+# 전혀 다른 "동법"(예: 다른 법을 가리킴)이 섞이지 않는다.
+SAME_LAW = re.compile(r"(?<![가-힣])(?:동법|같은\s*법)\s*$")
+# "영"·"시행령"이 바로 앞에 있으면 법 자체가 아니라 그 법의 시행령을 가리킨다.
+DECREE_WORD = re.compile(r"(?<![가-힣])(?:시행령|영)\s*$")
+
 
 def _in_history_note(text, pos):
     """pos가 대괄호 개정 이력([… 이동 …]) 안에 있으면 True"""
@@ -65,9 +72,14 @@ def build_aliases(rows, names):
             if cand:
                 d[ali] = norm[max(cand, key=len)]
                 continue
-            q = re.findall(r"「([^」]+)」", pre)
-            if q:
-                d[ali] = "외부:" + q[-1].strip()
+            qm = list(re.finditer(r"「([^」]+)」", pre))
+            if qm:
+                name = qm[-1].group(1).strip()
+                # "「X법」(이하 "법"이라 한다) 및 같은 법 시행령(이하 "영"이라 한다)"처럼, 괄호 뒤부터
+                # 이 약칭 정의 앞까지에 "시행령"이 있으면 법이 아니라 그 시행령을 가리키는 약칭이다.
+                if re.search(r"시행령", pre[qm[-1].end():]):
+                    name += " 시행령"
+                d[ali] = "외부:" + name
         if d:
             aliases[idx] = d
     return aliases, norm
@@ -116,16 +128,21 @@ def resolve_citations(rows, names):
                 kind, target, law_name = last_kind, last_target, last_law_name  # 나열 참조는 앞 대상을 이어받음
             else:
                 hit = None
-                for ali, tgt in aliases.get(own, {}).items():
-                    if pre.rstrip().endswith(ali):
-                        hit = tgt
-                        break
+                if SAME_LAW.search(pre) and last_law_name:
+                    hit = "외부:" + last_law_name  # "동법"·"같은 법" = 바로 앞에서 쓴 법령
+                if hit is None:
+                    for ali, tgt in aliases.get(own, {}).items():
+                        if pre.rstrip().endswith(ali):
+                            hit = tgt
+                            break
                 if hit is None:
                     dm = DEF_TAIL.search(pre)
                     if dm:
                         ali = re.sub(r"[「」]", "", dm.group(1)).strip()
                         hit = aliases.get(own, {}).get(ali, "외부:" + ali)
-                bm = re.search(r"「([^」]+)」\s*(?:제\d+조[^「」]{0,40})?$", pre)
+                # 뒤쪽 괄호 없는 구간이 다음 호(목록 항목, "\n2." 등)로 넘어가면 끊어서,
+                # 앞 호의 법령명이 뒤 호의 다른 참조에 잘못 이어붙지 않게 한다.
+                bm = re.search(r"「([^」]+)」\s*(?:제\d+조(?:(?!\n\s*\d+[.)])[^「」]){0,40})?$", pre)
                 if hit is None and bm:
                     nm = re.sub(r"\s+", "", bm.group(1))
                     hit = norm.get(nm, "외부:" + bm.group(1))
@@ -138,6 +155,23 @@ def resolve_citations(rows, names):
                     cand = [nm for nm in norm if pc.endswith(nm)]
                     if cand:
                         hit = norm[max(cand, key=len)]
+                # 여기까지 못 찾았고 바로 앞이 "영"/"시행령"이면, 그 표기를 뗀 글로 다시 한 번
+                # 시도한다(법 자체가 아니라 그 법의 시행령을 가리키는 경우). 문서가 이미 "영"을
+                # 약칭으로 정의해 둔 경우는 위에서 먼저 잡히므로 여기까지 오지 않는다.
+                decree_m = DECREE_WORD.search(pre) if hit is None else None
+                if decree_m:
+                    pre_law = pre[:decree_m.start()]
+                    if SAME_LAW.search(pre_law) and last_law_name:
+                        hit = "외부:" + last_law_name
+                    if hit is None:
+                        bm2 = re.search(
+                            r"「([^」]+)」\s*(?:제\d+조(?:(?!\n\s*\d+[.)])[^「」]){0,40})?$", pre_law)
+                        if bm2:
+                            nm = re.sub(r"\s+", "", bm2.group(1))
+                            if nm not in norm:  # 내부 문서의 시행령은 없으므로 외부 법령만 인정
+                                hit = "외부:" + bm2.group(1)
+                if hit is not None and decree_m and str(hit).startswith("외부:") and not str(hit).endswith(" 시행령"):
+                    hit = "외부:" + str(hit)[3:] + " 시행령"
                 if hit is not None and not str(hit).startswith("외부:"):
                     kind, target = "내부문서", hit
                 elif hit is not None:
