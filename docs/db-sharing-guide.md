@@ -49,7 +49,7 @@ ipconfig                                                    # 무선 LAN IPv4 �
 SELECT src_reg, src_label, evidence, context FROM amend.v_inbound WHERE target = '24184:7';
 
 -- 챗봇 청크 하나에 걸린 점검 결과
-SELECT type, quote, suggest, note FROM amend.finding WHERE chunk_id = '24024_제19조_1항';
+SELECT type, quote, suggest, note FROM amend.finding WHERE chunk_id = '24024_제37조_1항';
 
 -- 규정별 점검 결과 수
 SELECT d.title, count(*) FROM amend.finding f JOIN public.documents d ON d.doc_id = f.reg_id GROUP BY 1 ORDER BY 2 DESC;
