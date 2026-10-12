@@ -59,6 +59,7 @@ PoC 표시: **필수** = `03-product-plan.md` PoC "반드시" 항목, 선택 = "
 | done | P1 | 자연어 요청 → 개정문 (qwen2.5:7b + 규칙, 요청 8개 중 7 성공·요청 밖 변경 0, 자작 요청) | [261012-1000-28](../reports/261012-1000-28-nl-amendment.md) |
 | doing | P1 | 학습 문서 작성 완료 `docs/learning/261012-amendment-agent.html` (개정문·대비표·변경안 점검·이력·법령·루프·자연어, 퀴즈 6). 남은 것: 박형건 퀴즈 결과 기록 | |
 | doing | P0 | **다음** 챗봇 통합: 덤프 복원·파서 수정·`amend` 스키마(로컬) 완료. 남은 것: 가빈 합의 → 본체 적용, 검토 화면을 `amend.decision_log`로, 챗봇 청크 → 개정 화면 | [chatbot-integration](chatbot-integration.md) |
+| done | P0 | 전체 점검(`scripts/audit.py`): 구조·그래프를 원문과 대조, 우리 결함 9종 수정. 남은 것: 파이프라인 한 번에 돌리기, 의미 검사 경계 후보 안정화 | [261012-1555-32-full-audit](../reports/261012-1555-32-full-audit.md) |
 | done | P0 | 파서: hwpx 머리말 속 본문 손실(문서관리규정 제45·50조), 한 줄에 붙은 항·호 분리(3개 규정 24개 조). 채점 그대로, 가빈과 항 차이 29→3 | [261012-1525-30-parser-inline-paras](../reports/261012-1525-30-parser-inline-paras.md) |
 | todo | P0 | **다음** 발표 자료 (현황 → KVIC 실측 → 사례 → 벤치마킹 → 시연 → 평가·한계) | |
 

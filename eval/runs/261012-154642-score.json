@@ -1,0 +1,1865 @@
+{
+ "run_id": "261012-154642-score",
+ "step": "score",
+ "at": "2026-10-12T15:46:42",
+ "code": {
+  "commit": "2dfcb8e",
+  "uncommitted": true
+ },
+ "inputs": {
+  "out/findings/findings.jsonl": "f38400ca0891",
+  "eval/ledger/corrections.jsonl": "28a0871bd751",
+  "eval/ledger/gabin_doc.jsonl": "4249ff242be7",
+  "eval/ledger/week1.jsonl": "332338871a50"
+ },
+ "models": {},
+ "params": {
+  "ledger": "전체",
+  "findings_runs": [
+   "261012-154642-findings"
+  ]
+ },
+ "outputs": {
+  "eval/review_queue.csv": "6a45fb5c3b26"
+ },
+ "summary": {
+  "원장별": {
+   "corrections": {
+    "정답": 152,
+    "채점 대상": 23,
+    "탐지": 20,
+    "높음": 17,
+    "제안 일치": [
+     5,
+     8
+    ],
+    "정상 확인 오탐": [
+     0,
+     10
+    ],
+    "종류별": {
+     "인용_대상불일치": {
+      "정답": 14,
+      "탐지": 13,
+      "높음": 10
+     },
+     "인용_대상없음": {
+      "정답": 5,
+      "탐지": 3,
+      "높음": 3
+     },
+     "조번호_이상": {
+      "정답": 1,
+      "탐지": 1,
+      "높음": 1
+     },
+     "항번호_중복": {
+      "정답": 3,
+      "탐지": 3,
+      "높음": 3
+     }
+    },
+    "항목": [
+     {
+      "id": "C001",
+      "type": "인용_대상불일치",
+      "reg_id": "23536",
+      "article": "제2조",
+      "quote": "제39조의2",
+      "result": "탐지",
+      "fid": "F00008",
+      "suggest_ok": null
+     },
+     {
+      "id": "C002",
+      "type": "인용_대상불일치",
+      "reg_id": "23949",
+      "article": "제72조",
+      "quote": "제128조",
+      "result": "탐지",
+      "fid": "F00047",
+      "suggest_ok": null
+     },
+     {
+      "id": "C003",
+      "type": "인용_대상불일치",
+      "reg_id": "55120",
+      "article": "제26조",
+      "quote": "제19조제2항",
+      "result": "탐지(낮음)",
+      "fid": "F00234",
+      "suggest_ok": false
+     },
+     {
+      "id": "C004",
+      "type": "인용_대상불일치",
+      "reg_id": "23492",
+      "article": "제7조",
+      "quote": "제13조제2항",
+      "result": "탐지(낮음)",
+      "fid": "F00137",
+      "suggest_ok": true
+     },
+     {
+      "id": "C099",
+      "type": "인용_대상없음",
+      "reg_id": "23859",
+      "article": "제1조",
+      "quote": "제42조의2",
+      "result": "탐지",
+      "fid": "F00044",
+      "suggest_ok": null
+     },
+     {
+      "id": "O001",
+      "type": "항번호_중복",
+      "reg_id": "24002",
+      "article": "제9조",
+      "quote": "",
+      "result": "탐지",
+      "fid": "F00236",
+      "suggest_ok": null
+     },
+     {
+      "id": "O002",
+      "type": "항번호_중복",
+      "reg_id": "23482",
+      "article": "제9조",
+      "quote": "",
+      "result": "탐지",
+      "fid": "F00235",
+      "suggest_ok": null
+     },
+     {
+      "id": "O003",
+      "type": "항번호_중복",
+      "reg_id": "23482",
+      "article": "제9조",
+      "quote": "",
+      "result": "탐지",
+      "fid": "F00235",
+      "suggest_ok": null
+     },
+     {
+      "id": "T001",
+      "type": "오탈자",
+      "reg_id": "23234",
+      "article": "제4조",
+      "quote": "「한국벤처투자 정관」 에서 정하는 사항",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T002",
+      "type": "오탈자",
+      "reg_id": "23234",
+      "article": "제19조",
+      "quote": "적극행정 면책 처리 하는 등",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T004",
+      "type": "오탈자",
+      "reg_id": "23245",
+      "article": "제23조",
+      "quote": "처분요구서가 접수된 날로 부터 기산한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T005-1",
+      "type": "오탈자",
+      "reg_id": "23245",
+      "article": "제23조",
+      "quote": "(별지 제6호서식)",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T005-2",
+      "type": "오탈자",
+      "reg_id": "23245",
+      "article": "제24조",
+      "quote": "(별지 제6호서식)",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T007",
+      "type": "오탈자",
+      "reg_id": "23250",
+      "article": "제32조",
+      "quote": "전문기관(한국인터넷진흥원)에에 적극 협조",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T008",
+      "type": "오탈자",
+      "reg_id": "23250",
+      "article": "제44조",
+      "quote": "영상정보처리기 운영상의",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T009",
+      "type": "오탈자",
+      "reg_id": "23250",
+      "article": "제44조",
+      "quote": "「영상정보처리기기   관리 및 운영지침」",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T010",
+      "type": "오탈자",
+      "reg_id": "23250",
+      "article": "제42조",
+      "quote": "다음과 협력과 노력을 기울여야 한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T011",
+      "type": "오탈자",
+      "reg_id": "23250",
+      "article": "제40조",
+      "quote": "준수 하여야 한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T012",
+      "type": "오탈자",
+      "reg_id": "23250",
+      "article": "제32조",
+      "quote": "제공을 중지  하여야 한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T013",
+      "type": "오탈자",
+      "reg_id": "23250",
+      "article": "제16조",
+      "quote": "개보법 대통령령으로 정하는 방법",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T016",
+      "type": "오탈자",
+      "reg_id": "23368",
+      "article": "제3조",
+      "quote": "「개인정보 보호 및 관리지침」",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T019",
+      "type": "오탈자",
+      "reg_id": "23382",
+      "article": "제12조",
+      "quote": "불성시공시로 인하여",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T020",
+      "type": "오탈자",
+      "reg_id": "23382",
+      "article": "제12조",
+      "quote": "별표2에서 정한기준에 따라",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T021",
+      "type": "오탈자",
+      "reg_id": "23382",
+      "article": "제7조",
+      "quote": "「공공기관의 통합공시에 관한 기준」 기준에서 정한 항목을",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T023",
+      "type": "오탈자",
+      "reg_id": "23386",
+      "article": "제1조",
+      "quote": "이 지침은 2007년 8월   일부터 시행한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T024",
+      "type": "오탈자",
+      "reg_id": "23386",
+      "article": "제2조",
+      "quote": "⌜국가를 당사자로 하는 계약에 관한 법률」이 정하는 바에 의한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T026",
+      "type": "오탈자",
+      "reg_id": "23386",
+      "article": "제3조",
+      "quote": "용역,공사,물품구매",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T027",
+      "type": "오탈자",
+      "reg_id": "23386",
+      "article": "제4조의2",
+      "quote": "다만, 이경우에는",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T028",
+      "type": "오탈자",
+      "reg_id": "23386",
+      "article": "제5조",
+      "quote": "그 계약의 모든과정(준공·납품이후)직·간접적으로",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T029",
+      "type": "오탈자",
+      "reg_id": "23386",
+      "article": "제7조",
+      "quote": "입찰보증금을 내도록 하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T030-1",
+      "type": "오탈자",
+      "reg_id": "43558",
+      "article": "제4조",
+      "quote": "공무직 관리규정",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T030-2",
+      "type": "오탈자",
+      "reg_id": "43558",
+      "article": "제5조",
+      "quote": "공무직 관리규정",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T030-3",
+      "type": "오탈자",
+      "reg_id": "43558",
+      "article": "제9조",
+      "quote": "공무직 관리규정",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T031",
+      "type": "오탈자",
+      "reg_id": "43558",
+      "article": "제2조",
+      "quote": "제9조 1항에도 불구",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T033-1",
+      "type": "오탈자",
+      "reg_id": "52636",
+      "article": "제2조",
+      "quote": "이 규정에서 사용하는 용어의 정의는…",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T033-2",
+      "type": "오탈자",
+      "reg_id": "52636",
+      "article": "제3조",
+      "quote": "이 규정에서 사용하는 용어의 정의는…",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T034",
+      "type": "오탈자",
+      "reg_id": "23411",
+      "article": "제9조의2",
+      "quote": "제9조2(동점자의 순위)",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T035-1",
+      "type": "오탈자",
+      "reg_id": "55089",
+      "article": "제11조",
+      "quote": "의심되는거래",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T035-2",
+      "type": "오탈자",
+      "reg_id": "55089",
+      "article": "제14조",
+      "quote": "의심되는거래",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T035-3",
+      "type": "오탈자",
+      "reg_id": "55089",
+      "article": "제14조",
+      "quote": "의심되는거래",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T036",
+      "type": "오탈자",
+      "reg_id": "47164",
+      "article": "제8조",
+      "quote": "공공기록물법 시행령 제17조부터 제19조에 따라",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T037",
+      "type": "오탈자",
+      "reg_id": "47164",
+      "article": "제16조",
+      "quote": "기록관은 제15조 따라 인수한 기록물을",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T039",
+      "type": "오탈자",
+      "reg_id": "39141",
+      "article": "제21조",
+      "quote": "1.법령, 공고ㆍ고시,",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T042",
+      "type": "오탈자",
+      "reg_id": "23438",
+      "article": "제30조",
+      "quote": "동조 제1항의 절차를 거처 1회에 한해 가능하다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T043",
+      "type": "오탈자",
+      "reg_id": "23438",
+      "article": "제30조",
+      "quote": "법률고문을 선정하는 경우또는 해외VC 글로벌 펀드",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T044",
+      "type": "오탈자",
+      "reg_id": "23438",
+      "article": "제35조",
+      "quote": "선정심의회의 결의를 거처 계약을 해지할 수 있다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T045",
+      "type": "오탈자",
+      "reg_id": "23438",
+      "article": "제3조",
+      "quote": "『변호사법』에 따른 변호사",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T047",
+      "type": "오탈자",
+      "reg_id": "24002",
+      "article": "제9조",
+      "quote": "①②②",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T048",
+      "type": "오탈자",
+      "reg_id": "23441",
+      "article": "제7조",
+      "quote": "➃",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T049",
+      "type": "오탈자",
+      "reg_id": "23441",
+      "article": "제11조",
+      "quote": "매 2년 6월 30일을 기준으로 하여 정기점검을 실시한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T052",
+      "type": "오탈자",
+      "reg_id": "23459",
+      "article": "제2조",
+      "quote": "「민원처리에 관한 법률」",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T053",
+      "type": "오탈자",
+      "reg_id": "23470",
+      "article": "제4조",
+      "quote": "[개정 2018.07.02.02]",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T054",
+      "type": "오탈자",
+      "reg_id": "23470",
+      "article": "제8조",
+      "quote": "<개정 2013.10.11.,, 2017.05.17., 2022.10.14.>",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T055",
+      "type": "오탈자",
+      "reg_id": "23470",
+      "article": "제9조",
+      "quote": "제③항의 부적절 사용자라 함은",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T056",
+      "type": "오탈자",
+      "reg_id": "23470",
+      "article": "제11조",
+      "quote": "[별지 제1호 서식]에 작성하여 인사담당부사에 보고한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T057",
+      "type": "오탈자",
+      "reg_id": "36676",
+      "article": "제4조",
+      "quote": "법령상 근거 조합에 따라",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T058",
+      "type": "오탈자",
+      "reg_id": "36676",
+      "article": "제5조",
+      "quote": "자료를 대여할 수 한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T065-1",
+      "type": "오탈자",
+      "reg_id": "36676",
+      "article": "제4조",
+      "quote": "보관하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T065-2",
+      "type": "오탈자",
+      "reg_id": "36676",
+      "article": "제5조",
+      "quote": "보관하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T066-1",
+      "type": "인용_대상불일치",
+      "reg_id": "23245",
+      "article": "제4조",
+      "quote": "제4조",
+      "result": "탐지",
+      "fid": "F00111",
+      "suggest_ok": true
+     },
+     {
+      "id": "T066-2",
+      "type": "인용_대상불일치",
+      "reg_id": "23245",
+      "article": "제6조",
+      "quote": "제4조",
+      "result": "탐지",
+      "fid": "F00112",
+      "suggest_ok": true
+     },
+     {
+      "id": "T066-3",
+      "type": "인용_대상불일치",
+      "reg_id": "23245",
+      "article": "제9조",
+      "quote": "제4조",
+      "result": "탐지",
+      "fid": "F00238",
+      "suggest_ok": null
+     },
+     {
+      "id": "T066-4",
+      "type": "인용_대상불일치",
+      "reg_id": "23245",
+      "article": "제17조",
+      "quote": "제4조",
+      "result": "탐지",
+      "fid": "F00239",
+      "suggest_ok": null
+     },
+     {
+      "id": "T067",
+      "type": "인용_대상불일치",
+      "reg_id": "23245",
+      "article": "제20조",
+      "quote": "제8조",
+      "result": "탐지",
+      "fid": "F00240",
+      "suggest_ok": null
+     },
+     {
+      "id": "T068",
+      "type": "인용_대상불일치",
+      "reg_id": "23245",
+      "article": "제23조",
+      "quote": "제16조",
+      "result": "탐지",
+      "fid": "F00114",
+      "suggest_ok": true
+     },
+     {
+      "id": "T069",
+      "type": "인용_대상불일치",
+      "reg_id": "23245",
+      "article": "제33조",
+      "quote": "제21조",
+      "result": "탐지",
+      "fid": "F00115",
+      "suggest_ok": true
+     },
+     {
+      "id": "T070",
+      "type": "조번호_이상",
+      "reg_id": "23382",
+      "article": "제12조",
+      "quote": "",
+      "result": "탐지",
+      "fid": "F00237",
+      "suggest_ok": null
+     },
+     {
+      "id": "P001",
+      "type": "오탈자",
+      "reg_id": "23476",
+      "article": "제11조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P002",
+      "type": "오탈자",
+      "reg_id": "23970",
+      "article": "제29조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P003",
+      "type": "오탈자",
+      "reg_id": "23492",
+      "article": "제2조",
+      "quote": "]]",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P004",
+      "type": "오탈자",
+      "reg_id": "23482",
+      "article": "제10조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P005",
+      "type": "오탈자",
+      "reg_id": "23482",
+      "article": "제14조",
+      "quote": "납부 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P006",
+      "type": "오탈자",
+      "reg_id": "23513",
+      "article": "제57조",
+      "quote": "중지 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P007",
+      "type": "인용_대상불일치",
+      "reg_id": "23536",
+      "article": "제1조",
+      "quote": "제21조",
+      "result": "탐지",
+      "fid": "F00139",
+      "suggest_ok": false
+     },
+     {
+      "id": "P008",
+      "type": "오탈자",
+      "reg_id": "23545",
+      "article": "제8조",
+      "quote": "진행 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P009",
+      "type": "오탈자",
+      "reg_id": "48440",
+      "article": "제14조",
+      "quote": "참여 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P010",
+      "type": "오탈자",
+      "reg_id": "38931",
+      "article": "제14조",
+      "quote": "위혐요인",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P011",
+      "type": "오탈자",
+      "reg_id": "38931",
+      "article": "제18조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P012",
+      "type": "오탈자",
+      "reg_id": "38931",
+      "article": "제18조",
+      "quote": "의뢰 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P013",
+      "type": "오탈자",
+      "reg_id": "23583",
+      "article": "제14조",
+      "quote": "지급 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P015",
+      "type": "오탈자",
+      "reg_id": "40071",
+      "article": "제5조",
+      "quote": "개최 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P016",
+      "type": "오탈자",
+      "reg_id": "40071",
+      "article": "제16조",
+      "quote": "부분공개 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P017",
+      "type": "오탈자",
+      "reg_id": "23596",
+      "article": "제10조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P018",
+      "type": "오탈자",
+      "reg_id": "23596",
+      "article": "제10조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P019",
+      "type": "오탈자",
+      "reg_id": "23596",
+      "article": "제18조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P020",
+      "type": "오탈자",
+      "reg_id": "24024",
+      "article": "제41조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P021",
+      "type": "오탈자",
+      "reg_id": "24024",
+      "article": "제47조",
+      "quote": "포상 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P022",
+      "type": "오탈자",
+      "reg_id": "51970",
+      "article": "제12조",
+      "quote": "제한 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P023",
+      "type": "오탈자",
+      "reg_id": "51970",
+      "article": "제13조",
+      "quote": "관리 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P024",
+      "type": "오탈자",
+      "reg_id": "23661",
+      "article": "제8조의3",
+      "quote": "실시 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P025",
+      "type": "오탈자",
+      "reg_id": "23661",
+      "article": "제8조의4",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P026",
+      "type": "오탈자",
+      "reg_id": "49684",
+      "article": "제6조",
+      "quote": "고용계약 계약",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P027",
+      "type": "오탈자",
+      "reg_id": "49684",
+      "article": "제6조",
+      "quote": "해지사유에 해당 한 때",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P028",
+      "type": "오탈자",
+      "reg_id": "50971",
+      "article": "제6조",
+      "quote": "위탁 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P029",
+      "type": "오탈자",
+      "reg_id": "50971",
+      "article": "제10조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P030",
+      "type": "오탈자",
+      "reg_id": "50971",
+      "article": "제10조",
+      "quote": "통제 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P031",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제12조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P032",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제12조",
+      "quote": "협의 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P033",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제14조",
+      "quote": "실시 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P034",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제21조",
+      "quote": "강구 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P035",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제25조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P036",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제25조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P037",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제25조",
+      "quote": "정보안담당관",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P038",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제32조",
+      "quote": "보안설정 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P039",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제38조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P040",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제41조",
+      "quote": "완전삭제 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P041",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제47조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P042",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제48조",
+      "quote": "사용 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P043",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제48조",
+      "quote": "원천차단 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P044",
+      "type": "오탈자",
+      "reg_id": "23753",
+      "article": "제49조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P045",
+      "type": "오탈자",
+      "reg_id": "23773",
+      "article": "제2조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P046",
+      "type": "오탈자",
+      "reg_id": "23773",
+      "article": "제4조",
+      "quote": "지급 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P047",
+      "type": "오탈자",
+      "reg_id": "44998",
+      "article": "제3조",
+      "quote": "2023.03.29..",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P048",
+      "type": "오탈자",
+      "reg_id": "44998",
+      "article": "제11조",
+      "quote": "중간점검 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P049",
+      "type": "오탈자",
+      "reg_id": "40209",
+      "article": "제13조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P050",
+      "type": "오탈자",
+      "reg_id": "48441",
+      "article": "제8조",
+      "quote": "관리 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P051",
+      "type": "오탈자",
+      "reg_id": "23890",
+      "article": "제9조",
+      "quote": "관리 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P052",
+      "type": "오탈자",
+      "reg_id": "24010",
+      "article": "제30조",
+      "quote": "아니된다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P053",
+      "type": "오탈자",
+      "reg_id": "54959",
+      "article": "제10조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P054",
+      "type": "오탈자",
+      "reg_id": "54959",
+      "article": "제15조",
+      "quote": "하여야한다",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P055",
+      "type": "오탈자",
+      "reg_id": "23926",
+      "article": "제5조",
+      "quote": "2021.08.26..",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P056",
+      "type": "오탈자",
+      "reg_id": "23926",
+      "article": "제48조",
+      "quote": "관리 하여야",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P058",
+      "type": "오탈자",
+      "reg_id": "23940",
+      "article": "제15조",
+      "quote": "추진 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P059",
+      "type": "오탈자",
+      "reg_id": "23940",
+      "article": "제16조",
+      "quote": "발굴 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P060",
+      "type": "오탈자",
+      "reg_id": "23940",
+      "article": "제17조",
+      "quote": "추진 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P061",
+      "type": "오탈자",
+      "reg_id": "23940",
+      "article": "제19조",
+      "quote": "제공 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P062",
+      "type": "오탈자",
+      "reg_id": "23949",
+      "article": "제24조",
+      "quote": "사용 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P063",
+      "type": "오탈자",
+      "reg_id": "23949",
+      "article": "제38조",
+      "quote": "현금화 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P064",
+      "type": "오탈자",
+      "reg_id": "23949",
+      "article": "제67조",
+      "quote": "변경 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P065",
+      "type": "오탈자",
+      "reg_id": "41749",
+      "article": "제4조",
+      "quote": "집행 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P066",
+      "type": "오탈자",
+      "reg_id": "41749",
+      "article": "제4조",
+      "quote": "집행 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "P067",
+      "type": "오탈자",
+      "reg_id": "41749",
+      "article": "제6조",
+      "quote": "집행 할 수",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T005-2-1",
+      "type": "오탈자",
+      "reg_id": "23245",
+      "article": "제23조",
+      "quote": "(별지 제6호서식)",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T005-2-2",
+      "type": "오탈자",
+      "reg_id": "23245",
+      "article": "제24조",
+      "quote": "(별지 제6호서식)",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T033-2-1",
+      "type": "오탈자",
+      "reg_id": "52636",
+      "article": "제2조",
+      "quote": "이 규정에서 사용하는 용어의 정의는…",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "T033-2-2",
+      "type": "오탈자",
+      "reg_id": "52636",
+      "article": "제3조",
+      "quote": "이 규정에서 사용하는 용어의 정의는…",
+      "result": "범위 밖",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "C100",
+      "type": "인용_대상없음",
+      "reg_id": "23492",
+      "article": "제2조",
+      "quote": "제39조의2",
+      "result": "탐지",
+      "fid": "F00005",
+      "suggest_ok": null
+     },
+     {
+      "id": "C101",
+      "type": "인용_대상없음",
+      "reg_id": "24125",
+      "article": "제6조",
+      "quote": "제39조의2",
+      "result": "탐지",
+      "fid": "F00061",
+      "suggest_ok": null
+     },
+     {
+      "id": "C102",
+      "type": "인용_대상불일치",
+      "reg_id": "23438",
+      "article": "제33조",
+      "quote": "제25조제1항",
+      "result": "탐지(낮음)",
+      "fid": "F00131",
+      "suggest_ok": false
+     },
+     {
+      "id": "C104",
+      "type": "인용_대상없음",
+      "reg_id": "23623",
+      "article": "제2조",
+      "quote": "제4조제1항제14호",
+      "result": "놓침",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "C105",
+      "type": "인용_대상불일치",
+      "reg_id": "24184",
+      "article": "",
+      "quote": "제22조의3제1항",
+      "result": "놓침",
+      "fid": "",
+      "suggest_ok": null
+     },
+     {
+      "id": "C106",
+      "type": "인용_대상없음",
+      "reg_id": "25336",
+      "article": "제1조",
+      "quote": "제5조",
+      "result": "놓침",
+      "fid": "",
+      "suggest_ok": null
+     }
+    ],
+    "분포": {
+     "위계": {
+      "지침": 117,
+      "규정": 35
+     },
+     "단위": {
+      "본문": 141,
+      "부칙": 7,
+      "별지": 4
+     },
+     "서로 다른 규정": 54
+    }
+   },
+   "gabin_doc": {
+    "정답": 7,
+    "채점 대상": 7,
+    "탐지": 7,
+    "높음": 5,
+    "제안 일치": [
+     1,
+     3
+    ],
+    "정상 확인 오탐": [
+     0,
+     0
+    ],
+    "종류별": {
+     "인용_대상불일치": {
+      "정답": 3,
+      "탐지": 3,
+      "높음": 1
+     },
+     "인용_대상없음": {
+      "정답": 2,
+      "탐지": 2,
+      "높음": 2
+     },
+     "항번호_중복": {
+      "정답": 2,
+      "탐지": 2,
+      "높음": 2
+     }
+    },
+    "항목": [
+     {
+      "id": "G01",
+      "type": "인용_대상불일치",
+      "reg_id": "23536",
+      "article": "제1조",
+      "quote": "제21조",
+      "result": "탐지",
+      "fid": "F00139",
+      "suggest_ok": false
+     },
+     {
+      "id": "G02",
+      "type": "인용_대상없음",
+      "reg_id": "23536",
+      "article": "제2조",
+      "quote": "제39조의2",
+      "result": "탐지",
+      "fid": "F00008",
+      "suggest_ok": null
+     },
+     {
+      "id": "G03",
+      "type": "인용_대상불일치",
+      "reg_id": "23492",
+      "article": "제7조",
+      "quote": "제13조제2항",
+      "result": "탐지(낮음)",
+      "fid": "F00137",
+      "suggest_ok": true
+     },
+     {
+      "id": "G04",
+      "type": "인용_대상불일치",
+      "reg_id": "55120",
+      "article": "제26조",
+      "quote": "제19조제2항",
+      "result": "탐지(낮음)",
+      "fid": "F00234",
+      "suggest_ok": false
+     },
+     {
+      "id": "G05",
+      "type": "인용_대상없음",
+      "reg_id": "23949",
+      "article": "제72조",
+      "quote": "제128조",
+      "result": "탐지",
+      "fid": "F00047",
+      "suggest_ok": null
+     },
+     {
+      "id": "G06",
+      "type": "항번호_중복",
+      "reg_id": "24002",
+      "article": "제9조",
+      "quote": "②",
+      "result": "탐지",
+      "fid": "F00236",
+      "suggest_ok": null
+     },
+     {
+      "id": "G07",
+      "type": "항번호_중복",
+      "reg_id": "23482",
+      "article": "제9조",
+      "quote": "⑤",
+      "result": "탐지",
+      "fid": "F00235",
+      "suggest_ok": null
+     }
+    ],
+    "분포": {
+     "위계": {
+      "지침": 4,
+      "규정": 3
+     },
+     "단위": {
+      "본문": 7
+     },
+     "서로 다른 규정": 6
+    }
+   },
+   "week1": {
+    "정답": 16,
+    "채점 대상": 16,
+    "탐지": 16,
+    "높음": 16,
+    "제안 일치": [
+     2,
+     5
+    ],
+    "정상 확인 오탐": [
+     0,
+     0
+    ],
+    "종류별": {
+     "규정명_불일치": {
+      "정답": 3,
+      "탐지": 3,
+      "높음": 3
+     },
+     "인용_대상불일치": {
+      "정답": 7,
+      "탐지": 7,
+      "높음": 7
+     },
+     "인용_대상없음": {
+      "정답": 5,
+      "탐지": 5,
+      "높음": 5
+     },
+     "인용_제목불일치": {
+      "정답": 1,
+      "탐지": 1,
+      "높음": 1
+     }
+    },
+    "항목": [
+     {
+      "id": "C1",
+      "type": "인용_대상없음",
+      "reg_id": "40209",
+      "article": "제3조",
+      "quote": "제2조 제6호",
+      "result": "탐지",
+      "fid": "F00088",
+      "suggest_ok": null
+     },
+     {
+      "id": "C2",
+      "type": "인용_대상불일치",
+      "reg_id": "40209",
+      "article": "제5조",
+      "quote": "제35조",
+      "result": "탐지",
+      "fid": "F00205",
+      "suggest_ok": true
+     },
+     {
+      "id": "C3",
+      "type": "인용_대상불일치",
+      "reg_id": "40209",
+      "article": "별지제3호서식",
+      "quote": "제9조",
+      "result": "탐지",
+      "fid": "F00089",
+      "suggest_ok": null
+     },
+     {
+      "id": "C5",
+      "type": "인용_대상불일치",
+      "reg_id": "43061",
+      "article": "제2조",
+      "quote": "제7조",
+      "result": "탐지",
+      "fid": "F00209",
+      "suggest_ok": false
+     },
+     {
+      "id": "C7",
+      "type": "규정명_불일치",
+      "reg_id": "24010",
+      "article": "제24조",
+      "quote": "휴직자의 복무관리지침",
+      "result": "탐지",
+      "fid": "F00050",
+      "suggest_ok": null
+     },
+     {
+      "id": "C8",
+      "type": "규정명_불일치",
+      "reg_id": "24010",
+      "article": "제51조",
+      "quote": "성희롱 예방운영지침",
+      "result": "탐지",
+      "fid": "F00051",
+      "suggest_ok": null
+     },
+     {
+      "id": "C9",
+      "type": "인용_대상불일치",
+      "reg_id": "24010",
+      "article": "제2조",
+      "quote": "제4조",
+      "result": "탐지",
+      "fid": "F00052",
+      "suggest_ok": null
+     },
+     {
+      "id": "C10a",
+      "type": "인용_대상없음",
+      "reg_id": "23859",
+      "article": "제1조",
+      "quote": "제42조",
+      "result": "탐지",
+      "fid": "F00044",
+      "suggest_ok": null
+     },
+     {
+      "id": "C10b",
+      "type": "인용_대상없음",
+      "reg_id": "23859",
+      "article": "제1조",
+      "quote": "제3조",
+      "result": "탐지",
+      "fid": "F00044",
+      "suggest_ok": null
+     },
+     {
+      "id": "C11",
+      "type": "인용_제목불일치",
+      "reg_id": "23859",
+      "article": "제4조",
+      "quote": "6조",
+      "result": "탐지",
+      "fid": "F00046",
+      "suggest_ok": null
+     },
+     {
+      "id": "C12",
+      "type": "인용_대상불일치",
+      "reg_id": "24125",
+      "article": "제3조",
+      "quote": "제6장",
+      "result": "탐지",
+      "fid": "F00187",
+      "suggest_ok": true
+     },
+     {
+      "id": "C13",
+      "type": "인용_대상없음",
+      "reg_id": "24125",
+      "article": "제6조",
+      "quote": "제39조의2",
+      "result": "탐지",
+      "fid": "F00061",
+      "suggest_ok": null
+     },
+     {
+      "id": "C22",
+      "type": "인용_대상없음",
+      "reg_id": "23949",
+      "article": "제72조",
+      "quote": "제128조",
+      "result": "탐지",
+      "fid": "F00047",
+      "suggest_ok": null
+     },
+     {
+      "id": "C23",
+      "type": "규정명_불일치",
+      "reg_id": "41749",
+      "article": "제5조",
+      "quote": "위임전결",
+      "result": "탐지",
+      "fid": "F00090",
+      "suggest_ok": null
+     },
+     {
+      "id": "F2a",
+      "type": "인용_대상불일치",
+      "reg_id": "24125",
+      "article": "제8조",
+      "quote": "제5조",
+      "result": "탐지",
+      "fid": "F00188",
+      "suggest_ok": false
+     },
+     {
+      "id": "F2b",
+      "type": "인용_대상불일치",
+      "reg_id": "24125",
+      "article": "제8조의2",
+      "quote": "제5조",
+      "result": "탐지",
+      "fid": "F00189",
+      "suggest_ok": false
+     }
+    ],
+    "분포": {
+     "위계": {
+      "지침": 5,
+      "규정": 11
+     },
+     "단위": {
+      "본문": 14,
+      "별지": 1,
+      "부칙": 1
+     },
+     "서로 다른 규정": 7
+    }
+   }
+  },
+  "합계": {
+   "채점 대상": 46,
+   "탐지": 43,
+   "높음": 38
+  },
+  "확인 대기": 36,
+  "정답 연결 finding": [
+   "F00005",
+   "F00006",
+   "F00008",
+   "F00044",
+   "F00045",
+   "F00046",
+   "F00047",
+   "F00050",
+   "F00051",
+   "F00052",
+   "F00053",
+   "F00061",
+   "F00088",
+   "F00089",
+   "F00090",
+   "F00111",
+   "F00112",
+   "F00114",
+   "F00115",
+   "F00131",
+   "F00137",
+   "F00139",
+   "F00187",
+   "F00188",
+   "F00189",
+   "F00205",
+   "F00207",
+   "F00209",
+   "F00234",
+   "F00235",
+   "F00236",
+   "F00237",
+   "F00238",
+   "F00239",
+   "F00240"
+  ]
+ }
+}

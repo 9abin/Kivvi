@@ -10,13 +10,16 @@ import re
 from dataclasses import asdict, dataclass, field
 
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+# 원문에 ① 대신 쓰인 닮은 문자: 「ⓛ」(동그라미 l, 인사규정 제19조·여비규정 제8조), 딩뱃 「➀~➉」(도서관리지침 제7조 「➃」)
+LOOKALIKE = str.maketrans({"ⓛ": "①", **{chr(0x2780 + i): CIRCLED[i] for i in range(10)}, **{chr(0x278A + i): CIRCLED[i] for i in range(10)}})
 
 RE_CHAPTER = re.compile(r"^\s*제\s*(\d+)\s*(장|절)\s*(.*)$")
 # 조문 시작은 「제N조(제목)」 또는 「제N조 삭제」만 인정한다. 「제N조에 따라 …」로 시작하는 이어지는 줄을 막기 위함.
 RE_ARTICLE = re.compile(
     # 가지번호 표기 세 가지: 제8조의2 / 제9조2(…) / 제12-1조(…)  → 모두 (조, 가지)로 읽는다
     r"^\s*제\s*(\d+)\s*(?:-\s*(\d+)\s*)?조(?:\s*의\s*(\d+)|(\d+)(?=\s*[(（]))?"
-    r"\s*(?:\(([^)]*)\)|（([^）]*)）|(?=[(<\[]?\s*삭\s*제))\s*(.*)$"
+    # 제목 안의 괄호 한 겹은 허용: 「제19조(휴(무)일 대체)」 (복무규정)
+    r"\s*(?:\(((?:[^()]|\([^()]*\))*)\)|（([^）]*)）|(?=[(<\[]?\s*삭\s*제))\s*(.*)$"
 )
 RE_ADDENDUM = re.compile(r"^\s*[<\[【]?\s*부\s*칙\s*[>\]】]?\s*(?:[<\[(（]\s*([^>\])）]*)\s*[>\])）])?\s*(.*)$")
 RE_APPENDIX = re.compile(
@@ -26,7 +29,8 @@ RE_PARA = re.compile(rf"^\s*([{CIRCLED}])\s*(.*)$")
 # 「40.0%」 같은 표 칸 숫자는 호가 아니다 (근무평정시행지침 제20조): 마침표 바로 뒤가 숫자면 제외
 RE_ITEM = re.compile(r"^\s*(\d+)\s*\.(?!\d)\s*(.*)$")
 MOK = "가나다라마바사아자차카타파하"
-RE_SUBITEM = re.compile(rf"^\s*([{MOK}])\s*\.\s*(.*)$")
+# 목 본문이 비면 목이 아니다: 「…실시한」 다음 줄로 넘어간 「다.」 (정보보안관리지침 제15조)
+RE_SUBITEM = re.compile(rf"^\s*([{MOK}])\s*\.\s*(\S.*)$")
 RE_AMEND = re.compile(
     r"[<\[]\s*(?:(개정|신설|삭제|전문개정|본조신설|제목개정)\s*)?"
     r"((?:\d{4}\s*\.\s*\d{1,2}\s*\.\s*\d{0,2}\.?\s*,?\s*)+)(?:\s*(개정|신설|삭제))?\s*[>\]]"
@@ -171,6 +175,7 @@ def _make_article(m: re.Match, body_lines: list[str], chapter: str) -> Article:
 
 
 def parse(lines: list[str]) -> ParsedRegulation:
+    lines = [l.translate(LOOKALIKE) for l in lines]
     # 1) 머리: 첫 장·조·부칙 전까지
     start = next(
         (i for i, l in enumerate(lines) if RE_CHAPTER.match(l) or RE_ARTICLE.match(l) or RE_ADDENDUM.match(l)),

@@ -3,6 +3,8 @@
   uv run python scripts/extract_edges.py          # 담당 21건을 출발점으로 (대상 해석은 90건 전체 기준)
   uv run python scripts/extract_edges.py --all
 결과: out/edges/edges.jsonl, out/edges/_status.tsv, out/edges/laws.tsv
+      --all이면 edges_all.jsonl·laws_all.tsv에도 쓴다 (관련 조항 표·점검 결과·변경안 점검이 읽는 90건 기준 파일).
+      예전에는 edges_all.jsonl을 손으로 복사해 두어, 재파싱 뒤에도 하류가 옛 인용을 읽었다 (261012 점검에서 발견).
 """
 
 import argparse
@@ -66,6 +68,9 @@ def main() -> None:
     (OUT / "laws.tsv").write_text(
         "법령명\t인용 수\t인용 규정 수\t다른 표기\n" + "\n".join("\t".join(map(str, r)) for r in law_rows), encoding="utf-8"
     )
+    if args.all:
+        (OUT / "edges_all.jsonl").write_text((OUT / "edges.jsonl").read_text(encoding="utf-8"), encoding="utf-8")
+        (OUT / "laws_all.tsv").write_text((OUT / "laws.tsv").read_text(encoding="utf-8"), encoding="utf-8")
     print("\n".join(rows))
     print(f"\n엣지 {len(edges)}개, 법령명 {len(laws)}종 → {OUT}")
 

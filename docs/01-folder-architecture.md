@@ -34,7 +34,7 @@ MINI_CNS/
 └─ 기획서/                  # 제출용 기획서 (docx)
 ```
 
-DB: `docker compose up -d` → `scripts/db_restore.py 덤프` → `uv run --extra db python scripts/db_check.py` → `scripts/amend_load.py` (amend 스키마)
+DB: `docker compose up -d` → `scripts/db_restore.py 덤프` → `uv run --extra db python scripts/db_check.py` → `scripts/amend_load.py` (amend 스키마). 전체 점검: `scripts/audit.py` (구조·그래프를 원문과 대조)
 실행: `uv sync` → `uv run pytest` → `scripts/parse_regs.py --all` → `scripts/extract_edges.py [--all]` → `scripts/eval_week1.py`.
 점검·DB 적재 모듈은 엔진 합의 후 `src/regcheck/` 아래에 추가한다.
 

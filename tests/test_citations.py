@@ -135,3 +135,12 @@ def test_unbracketed_generic_phrases_are_not_citations():
 def test_middle_dot_difference_is_same_name():
     es = _edges_of("가규정\n제1조(목적) 해외근무직원 보수복지규정 제5조에 따른다.", ["해외근무직원 보수·복지규정\n제5조(수당) 수당."])
     assert [e.status for e in es if e.target_type == "article"] == ["ok"]
+
+
+def test_quoted_alias_and_effective_note():
+    # 전산업무지침: ‘전산업무규정’(이하 “규정”이라 한다) → 「규정 제4조」는 전산업무규정 / [시행일 : …] 제16조는 인용 아님
+    from regcheck.citations import RE_ALIAS, RE_EFFECTIVE_NOTE
+    from regcheck.normalize import normalize
+    m = RE_ALIAS.search(normalize("제정한 ‘전산업무규정’(이하 “규정”이라 한다)에서 위임된 사항"))
+    assert m and m.group(1).strip() == "전산업무규정" and m.group(2) == "규정"
+    assert RE_EFFECTIVE_NOTE.search("본부장으로 본다. [시행일 : 2021.09.01.] 제16조")

@@ -24,17 +24,20 @@ RE_HANG_ONLY = re.compile(r"(?<![조\d])\s제\s*(?P<hang>\d+)\s*항")
 RE_QUOTED = re.compile(r"「([^」]{2,60})」")
 # 약칭 정의: 「개인정보 보호법」(이하 '「개보법」'), 「…법률」(이하 "법"이라 한다), …시행령(이하 "영"이라 함)
 RE_ALIAS = re.compile(
-    r'(「[^」]+」|[가-힣·\s]{2,40}?(?:법|법률|시행령|시행규칙|규정|지침|규칙|정관))\s*'
+    # 이름을 따옴표로 감싼 정의도: ‘전산업무규정’(이하 “규정”이라 한다) (전산업무지침 제1조)
+    r"""['"]?(「[^」]+」|[가-힣·\s]{2,40}?(?:법|법률|시행령|시행규칙|규정|지침|규칙|정관))['"]?\s*"""
     r"\(이하\s*['\"]?「?([^'\"」)]{1,20})」?['\"]?\s*(?:(?:이)?라\s*(?:한다|함))?\s*\)"
 )
+RE_EFFECTIVE_NOTE = re.compile(r"\[\s*시행일\s*:?[^\]]*\]\s*제\s*\d+\s*조(?:\s*의\s*\d+)?(?:\s*제?\s*\d+\s*항)?")
 RE_HISTORY = re.compile(r"[\[<(][^\]>)]{0,200}?(?:에서\s*이동|종전|조문이동|본조신설)[^\]>)]{0,200}[\]>)]")
 LAW_PLACEHOLDER = re.compile(r"^(법|영|시행령|동법|동령|동\s*법|같은\s*법|위\s*법률|같은\s*법\s*시행령|동법\s*시행령)$")
 LAW_LEAD_GARBAGE = re.compile(r"^(?:(?:및|또는|그|등|이|본)\s+|(?!같은\s)[가-힣]+(?:은|는|을|를|며|고|서|면)\s+)+")
 # 별표는 번호 없이도 인용(「별표에 따른」), 별지는 번호나 '서식'이 있어야 서식 인용으로 본다 (「별지 영수지」 제외)
 RE_APPX = re.compile(
-    r"별\s*(표)\s*(?:제\s*)?(\d+)?"
-    r"|별\s*(지)\s*(?:제\s*(\d+)\s*호|(\d+))?\s*(?=서식)"
-    r"|별\s*(지)\s*제\s*(\d+)\s*호"
+    # 가지번호까지: 「별표5의 2」(여비규정), 「별지 제1-9호」(근무평정시행지침), 「별지 제2호의2서식」 — 본번호만 보면 다른 별표에 연결된다 (261012 점검)
+    r"별\s*(?P<k1>표)\s*(?:제\s*)?(?:(?P<n1>\d+)(?:\s*(?:의|-)\s*(?P<b1>\d+))?)?"
+    r"|별\s*(?P<k2>지)\s*(?:제\s*(?P<n2>\d+)(?:\s*-\s*(?P<b2>\d+))?\s*호(?:\s*의\s*(?P<b3>\d+))?|(?P<n3>\d+))?\s*(?=서식)"
+    r"|별\s*(?P<k3>지)\s*제\s*(?P<n4>\d+)(?:\s*-\s*(?P<b4>\d+))?\s*호(?:\s*의\s*(?P<b5>\d+))?"
 )
 LAWISH = ("법", "법률", "시행령", "시행규칙", "령")
 # '임직원행동강령'의 '동강령'이 '동 강령'(같은 강령)으로 잡히지 않도록 앞 글자가 한글이면 제외
@@ -280,17 +283,18 @@ def _check_article(reg: dict, ref: dict) -> tuple[str, str, str]:
     return "ok", art["id"], art["title"]
 
 
-def _check_appendix(reg: dict, kind: str, no: int | None) -> tuple[str, str, str]:
+def _check_appendix(reg: dict, kind: str, no: int | None, br: int = 0) -> tuple[str, str, str]:
     cands = [x for x in reg["appendices"] if x["kind"] == f"별{kind}"]
     if not cands:
         return "missing_appendix", "", f"{reg['name']}에 별{kind} 없음"
     if no is None:
         return "ok", cands[0]["id"], ""
     for x in cands:
-        nums = re.findall(r"\d+", x["number"]) or ["1"]
-        if int(nums[0]) == no:
+        nums = [int(v) for v in re.findall(r"\d+", x["number"])] or [1]
+        if nums[0] == no and (nums[1] if len(nums) > 1 else 0) == br:
             return "ok", x["id"], x["title"]
-    return "missing_appendix", "", f"{reg['name']}에 별{kind} {no} 없음 (있는 것: {', '.join(x['number'] or '번호없음' for x in cands)})"
+    want = f"{no}" + (f"의{br}" if br else "")
+    return "missing_appendix", "", f"{reg['name']}에 별{kind} {want} 없음 (있는 것: {', '.join(x['number'] or '번호없음' for x in cands)})"
 
 
 # ── 추출 ─────────────────────────────────────────────
@@ -342,6 +346,8 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
 
         # 개정 이력 표기: [제11조에서 이동, 종전 제13조는 제15조로 이동], [본조신설, 종전 …] — 옛 번호라 인용이 아니다
         history_spans = [(h.start(), h.end()) for h in RE_HISTORY.finditer(text)]
+        # 시행일 표시 「[시행일 : 2021.09.01.] 제16조」의 조는 그 시행일이 적용되는 조를 적은 것이라 인용이 아니다
+        history_spans += [(h.start(), h.end()) for h in RE_EFFECTIVE_NOTE.finditer(text)]
 
         def in_history(pos: int) -> bool:
             return any(s < pos < e for s, e in history_spans)
@@ -460,18 +466,35 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
             edges.append(Edge(src, kind, name, _context(text, m.start(), m.end()), "regulation", name, {},
                               rid, rid if st == "ok" else "", st, note))
 
-        # 3) 별표·별지 인용 (자기 규정)
-        if kind == "본문":
+        # 3) 별표·별지 인용 — 자기 규정, 다른 규정(「징계지침」 별표 2, 차량관리지침 별지 제2호 서식), 법령(「…시행령」 별표 1)
+        #    예전에는 앞에 다른 문서 이름이 있으면 건너뛰어(조문 인용 쪽에서 다룬다고 적었으나 실제로는 처리 안 됨) 관계에서 빠졌다 (261012 점검)
+        if kind in ("본문", "부칙"):
             for m in RE_APPX.finditer(text):
-                pre = text[max(0, m.start() - 30) : m.start()]
-                if re.search(r"「[^」]+」\s*$", pre) or registry.name_suffix(pre.rstrip()):
-                    continue  # 다른 규정의 별표 (조문 인용 쪽에서 다룸)
-                kind_ch = m.group(1) or m.group(3) or m.group(6)
-                num = m.group(2) or m.group(4) or m.group(5) or m.group(7)
+                if any(s <= m.start() < e for s, e in spans):
+                    continue
+                kind_ch = m["k1"] or m["k2"] or m["k3"]
+                num = m["n1"] or m["n2"] or m["n3"] or m["n4"]
                 no = int(num) if num else None
-                st, tid, note = _check_appendix(reg, kind_ch, no)
-                edges.append(Edge(src, kind, m.group(0).strip(), _context(text, m.start(), m.end()), "appendix", "",
-                                  {"appx_kind": f"별{kind_ch}", "appx_no": no}, reg["reg_id"], tid, st, note))
+                br = int(m["b1"] or m["b2"] or m["b3"] or m["b4"] or m["b5"] or 0)
+                raw, ctx = m.group(0).strip(), _context(text, m.start(), m.end())
+                ref = {"appx_kind": f"별{kind_ch}", "appx_no": no, **({"appx_br": br} if br else {})}
+                doc = doc_before(m.start())
+                if doc and doc[0] == "skip":
+                    continue
+                if doc is None:
+                    st, tid, note = _check_appendix(reg, kind_ch, no, br)
+                    edges.append(Edge(src, kind, raw, ctx, "appendix", "", ref, reg["reg_id"], tid, st, note))
+                elif doc[0] == "law":
+                    edges.append(Edge(src, kind, raw, ctx, "law", doc[1], ref, status="law_pending"))
+                elif doc[0] == "external":
+                    edges.append(Edge(src, kind, raw, ctx, "regulation", doc[1], ref, status="external_rule"))
+                else:
+                    rid, st, note = registry.resolve_name(doc[1])
+                    if st == "ok":
+                        st, tid, note = _check_appendix(registry.regs[rid], kind_ch, no, br)
+                    else:
+                        tid = ""
+                    edges.append(Edge(src, kind, raw, ctx, "appendix", doc[1], ref, rid, tid, st, note))
 
         # 부칙의 다른 내규 개정문에서 대상 내규가 공개 90건에 없으면 이력 (현재 문안의 오류가 아님, 02-specs)
         if mo:

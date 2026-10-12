@@ -107,12 +107,17 @@ def build(folder: Path, sources: dict[str, str] | None = None) -> dict:
     name, reg_id = folder.name.rsplit("_", 1)
     src = next(p for p in sorted(folder.iterdir()) if p.suffix.lower() in SOURCE_EXTS)
     lines = extract(src)
-    parsed = parse(lines)
     # 머리말(목차 번호 + 문서명) 줄은 본문이 아니지만, 다른 규정명이 들어간 경우가 있어 원문 확인용으로 남긴다
     body_start = next(
         (i for i, l in enumerate(lines) if RE_CHAPTER.match(l) or RE_ARTICLE.match(l) or RE_ADDENDUM.match(l)),
         len(lines),
     )
+    # 본문 중간의 쪽 머리말(「4-3-3. 도서관리지침」)은 앞 항의 이어지는 줄로 붙으므로 뺀다.
+    # 목차 번호에 하이픈이 있고 이름이 이 문서와 같을 때, 또는 줄 전체가 이 문서 이름일 때만 (「1. …」 같은 호 줄은 건드리지 않음)
+    lines = lines[:body_start] + [l for l in lines[body_start:]
+                                  if not (re.match(r"^\s*\d+-\d+", l) and (h := index_header(l)) and compact(h) == compact(name))
+                                  and compact(l) != compact(name)]   # 이름만 있는 머리말 (「정보보안관리지침」)
+    parsed = parse(lines)
     headers = sorted({h for l in lines[:body_start] if (h := index_header(l))})
     header_mismatch = [h for h in headers if compact(h) != compact(name)]
     return {

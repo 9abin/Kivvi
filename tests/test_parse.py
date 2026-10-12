@@ -139,3 +139,22 @@ def test_decimal_cell_is_not_item():
     # 근무평정시행지침 제20조 표: 「40.0%」를 40호로 읽지 않는다
     p = parse(["제20조(가중치) ① 가중치는 아래와 같다.", "40.0%", "60.0% 실장"])
     assert [i.path for i in p.articles[0].items] == [(1, 0, 0)]
+
+
+def test_title_with_inner_parentheses():
+    # 복무규정 제19조(휴(무)일 대체)
+    p = parse(["제19조(휴(무)일 대체) ① 회사는 휴(무)일을 대체할 수 있다."])
+    assert p.articles[0].title == "휴(무)일 대체"
+    assert p.articles[0].items[0].text.startswith("회사는")
+
+
+def test_lookalike_paragraph_marks():
+    # 인사규정 제19조 「ⓛ」, 도서관리지침 제7조 「➃」
+    p = parse(["제19조(기준) ⓛ 환산한다.", "  ② 산입하지 아니한다.", "  ③ 연장할 수 있다. ➃ 초과할 수 있다."])
+    assert [i.path[0] for i in p.articles[0].items] == [1, 2, 3, 4]
+
+
+def test_wrapped_da_is_not_mok():
+    # 정보보안관리지침 제15조: 「…익일에 실시한」 + 다음 줄 「다.」
+    p = parse(["제15조(진단) ① 익일에 실시한", "다.", "  ② 보안진단을 한다."])
+    assert [i.path for i in p.articles[0].items] == [(1, 0, 0), (2, 0, 0)]
