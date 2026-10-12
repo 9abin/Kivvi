@@ -1,6 +1,6 @@
 # 팀 공유 DB 안내 (DBeaver)
 
-**권장: 방법 A — Docker 이미지로 각자 PC에 띄우기** (박형건 PC·와이파이·방화벽 필요 없음). 방법 B(박형건 PC에 접속)는 아래 1~2절.
+**권장: 방법 B — 박형건 PC에 DBeaver로 접속** (팀원은 DBeaver만 있으면 됨, 261012 와이파이 주소로 접속 확인). 팀원용 한 장 안내: https://claude.ai/artifact/CqqnKy39Ty39Q4KJhRmAAg · 방법 A(Docker 이미지)는 박형건 PC 없이 써야 할 때.
 
 ## 방법 A. Docker 이미지 (각자 PC)
 
@@ -19,7 +19,9 @@ DBeaver: Host `localhost` · Port `15432` · Database `regulations` · 계정은
 
 ## 방법 B. 박형건 PC에 접속 (같은 와이파이)
 
-- 이 PC는 WSL `networkingMode=mirrored`라 Windows 방화벽 규칙과 함께 Hyper-V 방화벽 규칙도 필요 (`New-NetFirewallHyperVRule … -LocalPorts 5432`). 이 PC에서 자기 와이파이 주소로 하는 시험은 mirrored 기본값 때문에 실패하므로 팀원 PC에서 `Test-NetConnection 192.168.0.40 -Port 5432`로 확인
+- 이 PC는 WSL `networkingMode=mirrored`라 Windows 방화벽 규칙(`MINI CNS reg-db 5432`)과 Hyper-V 방화벽 규칙(`New-NetFirewallHyperVRule -Name MINI-CNS-5432 … -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -LocalPorts 5432`)이 둘 다 필요
+- 이 PC에서 자기 와이파이 주소로 시험하려면 `~/.wslconfig`의 `[experimental] hostAddressLoopback=true` + `wsl --shutdown` (261012 적용, 백업 `.wslconfig.bak-261012`). WSL을 다시 시작하면 `docker compose up -d`로 reg-db를 다시 켠다 (재시작 정책 없음)
+- 다 쓴 뒤: `Remove-NetFirewallRule -DisplayName "MINI CNS reg-db 5432"`, `Remove-NetFirewallHyperVRule -Name MINI-CNS-5432`
 
 - 작성: 261012 박형건
 - DB: 박형건 PC의 `reg-db` (PostgreSQL 17 + pgvector). 가빈 챗봇 DB 사본(`public`) + 조항 수정 에이전트 데이터(`amend`)
