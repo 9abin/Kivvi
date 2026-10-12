@@ -2,3 +2,8 @@
 .env
 .env.*
 !.env.example
+
+# setup-agent.sh가 받아오는 개인용 에이전트 설정 (팀 공용 저장소에 올리지 않음)
+/AGENTS.md
+/CLAUDE.md
+/.github/

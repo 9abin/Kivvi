@@ -21,6 +21,7 @@ from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from config import (EMBED_MODEL, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
                     RERANK_HEADER, RERANK_MODEL, RRF_K)
+from src.search import glossary, synonyms
 from src.search.bm25 import BM25
 from config import CONTEXT_CHAR_BUDGET
 from src.search.exact import parse_reference
@@ -29,8 +30,9 @@ from src.store.pgstore import PgStore
 CANDIDATES = 50         # 방식별로 합치기 전 가져올 후보 수
 RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
+UNROUTED_PENALTY = 0.3  # 문서 고르기에서 빠진 규정의 리랭크 점수에 곱하는 값
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
-CITE_OK_STATUS = ("정상연결", "정정 확정")  # 실제 대상 청크가 있는 인용만 따라간다
+CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
 
 # 키워드 질의에서 뺄 형태소 태그: 조사, 어미, 문장부호
 _SKIP_TAGS = ("J", "E", "SF", "SP", "SS", "SE", "SO")
@@ -68,6 +70,11 @@ class Searcher:
         self.model.half()
         self.reranker = CrossEncoder(RERANK_MODEL, device="cuda")
         self.rerank_header = RERANK_HEADER
+        self.synonym_table = synonyms.load()
+        self.glossary = glossary.load()
+        self.glossary_filter = True  # 후보 단계 제외 (전후 비교를 위해 끌 수 있다)
+        self.last_glossary_excluded = []
+        self.last_hint = ""
         self._load_index()
 
     def _load_index(self):
@@ -120,12 +127,16 @@ class Searcher:
         return [{"chunk_id": cid, **self.row_info[cid]} for cid, _ in pairs]
 
     # 3. 결합 ---------------------------------------------------------------
-    def fuse(self, vec_hits, key_hits):
+    def fuse(self, vec_hits, key_hits, vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT,
+             extra=()):
+        """가중 RRF로 합친다. 가중치 인자는 기본값이 config.py 값이라 평소 호출은 그대로 동작한다.
+        가중치를 바꿔가며 비교할 때만(src/eval/sweep_weights.py) 인자로 넘긴다.
+        extra: 다른 질의(바꿔 쓴 질문)의 (이름, 후보 목록, 가중치) 목록. 같은 방식으로 점수를 더한다."""
         score = defaultdict(float)
         info = {}
         origin = defaultdict(set)
-        for name, hits, weight in (("벡터", vec_hits, HYBRID_VECTOR_WEIGHT),
-                                   ("키워드", key_hits, HYBRID_KEYWORD_WEIGHT)):
+        for name, hits, weight in (("벡터", vec_hits, vector_weight),
+                                   ("키워드", key_hits, keyword_weight), *extra):
             for rank, h in enumerate(hits, start=1):
                 cid = h["chunk_id"]
                 score[cid] += weight / (RRF_K + rank)
@@ -152,6 +163,18 @@ class Searcher:
         for c, s in zip(cands, scores):
             c["rerank"] = float(s)
         return sorted(cands, key=lambda c: c["rerank"], reverse=True)
+
+    def _demote_unrouted(self, ranked, routed_titles):
+        """질문이 다루는 업무 영역의 규정으로 모델이 고른 문서(routed_titles) 밖의 청크는 리랭크 점수를 깎는다.
+        리랭커가 '보증금', '계약' 같은 같은 단어만 보고 다른 영역의 규정(사택 지침)을 1위에 올리는 일을 줄이려는 것이다.
+        완전히 빼지 않는 이유: 문서 고르기가 정답 규정을 놓칠 때가 있다(실측 74%만 모두 포함)."""
+        ids = {d for d, v in self.documents.items() if v.get("title") in set(routed_titles)}
+        if not ids:
+            return ranked
+        for c in ranked:
+            if c["doc_id"] not in ids and c.get("rerank") is not None:
+                c["rerank"] *= UNROUTED_PENALTY
+        return sorted(ranked, key=lambda c: c.get("rerank") or 0, reverse=True)
 
     # 5. 확장 ---------------------------------------------------------------
     def _entry(self, h, status=None):
@@ -185,7 +208,8 @@ class Searcher:
         return picked
 
     def _cited(self, hit):
-        """청크의 cites 중 실제 대상이 있는 것을 1단계만 따라간다. 대상이 부칙·삭제여도 상태를 붙인다."""
+        """청크의 cites 중 실제 대상이 있는 것을 1단계만 따라간다. 대상이 부칙·삭제여도 상태를 붙인다.
+        외부연결(법령, law_lookup.py)은 내부 chunk_id가 아니라 cites에 이미 저장된 본문을 그대로 쓴다."""
         targets = []
         for c in self.row_info.get(hit["chunk_id"], {}).get("cites") or []:
             if c.get("대상") and c.get("상태") in CITE_OK_STATUS and c["대상"] != hit["chunk_id"]:
@@ -194,9 +218,16 @@ class Searcher:
                 break
         if not targets:
             return []
-        found = {r["chunk_id"]: r for r in self.store.get([t["대상"] for t in targets])}
+        internal = [t for t in targets if t["상태"] != "외부연결"]
+        found = {r["chunk_id"]: r for r in self.store.get([t["대상"] for t in internal])} if internal else {}
         out = []
         for t in targets:
+            if t["상태"] == "외부연결":
+                out.append({"chunk_id": t["대상"], "doc_id": t["대상"], "문서명": t.get("법령명"),
+                           "위계": "외부법령", "개정표기": None, "출처URL": None, "article": "제" + t["대상"].split("_")[-1] + "조",
+                           "조문상태": "현행", "body": t.get("외부본문", ""), "정정안내": None,
+                           "인용원문": t["원문"], "연결상태": t["상태"]})
+                continue
             r = found.get(t["대상"])
             if r:
                 entry = self._entry(r)
@@ -206,10 +237,14 @@ class Searcher:
         return out
 
     # 전체 -------------------------------------------------------------------
-    def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True):
+    def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True,
+              vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT, rewritten=None,
+              routed_titles=None):
         """질의 하나에 대해 상위 k개 청크를 돌려준다.
 
         filters: {"tier": "지침", "doc_ids": ["23234"], "min_year": 2025} (모두 선택)
+        rewritten: 질문을 규정 용어로 바꿔 쓴 검색어 (선택). 후보를 찾을 때만 더하고, 리랭킹은 원래 질문으로 한다.
+        vector_weight, keyword_weight: 기본값은 config.py 값. 가중치 비교(src/eval/sweep_weights.py)에서만 넘긴다.
         반환: [{"chunk_id", "doc_id", "article", "body", "score", "rerank", "match",
                 "siblings": [...], "cited": [...]}, ...]
         """
@@ -220,10 +255,25 @@ class Searcher:
         doc_ids = self._allowed_doc_ids(filters)
         vec_hits = self.vector_hits(text, doc_ids)
         key_hits = self.bm25_hits(text, doc_ids)
-        fused = [h for h in self.fuse(vec_hits, key_hits) if h["chunk_id"] not in taken]
+        # 바꿔 쓴 검색어와 동의어 사전의 규정 용어를 합쳐 후보 찾기에만 더한다 (리랭킹은 원래 질문).
+        hint = " ".join(x for x in (rewritten, synonyms.expand(text, self.synonym_table),
+                                    glossary.signal_terms(text, self.glossary)) if x)
+        self.last_hint = hint  # 기록용: 이번 검색에서 후보 찾기에 더해진 검색어(바꿔 쓴 검색어, 동의어 사전, 용어집 신호)
+        extra = ()
+        if hint:
+            extra = (("벡터(바꿔쓴)", self.vector_hits(hint, doc_ids), vector_weight),
+                     ("키워드(바꿔쓴)", self.bm25_hits(hint, doc_ids), keyword_weight))
+        fused = [h for h in self.fuse(vec_hits, key_hits, vector_weight, keyword_weight, extra)
+                if h["chunk_id"] not in taken]
 
         if rerank:
             fused = self.rerank(text, fused[:RERANK_TOP])
+            if routed_titles:
+                fused = self._demote_unrouted(fused, routed_titles)
+        # 확인된 다른 개념의 수치 근거는 후보 단계에서 빼서 빈자리를 다음 후보가 채우게 한다 (정확 조회 결과는 건드리지 않는다).
+        self.last_glossary_excluded = []
+        if self.glossary_filter:
+            fused, self.last_glossary_excluded = glossary.filter_candidates(text, fused, self.glossary)
         top = (exact + fused)[:k]
 
         out = []

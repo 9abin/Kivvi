@@ -93,6 +93,19 @@ class PgStore:
             )
         self.conn.commit()
 
+    def chunk_texts(self):
+        """청크 ID별 (본문, 검색용 본문, 상태). 증분 색인에서 달라진 청크를 가릴 때 쓴다.
+        상태도 비교한다: 본문은 그대로이고 정상→삭제로만 바뀐 청크도 다시 적재해야 색인에서 빠진다."""
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT chunk_id, body, body_search, status FROM chunks")
+            return {cid: (b, bs, st) for cid, b, bs, st in cur.fetchall()}
+
+    def delete_chunks(self, chunk_ids):
+        """청크 ID 목록을 지운다. 증분 색인에서 더 이상 없는 청크를 정리할 때 쓴다."""
+        with self.conn.cursor() as cur:
+            cur.execute("DELETE FROM chunks WHERE chunk_id = ANY(%s)", (list(chunk_ids),))
+        self.conn.commit()
+
     def truncate(self):
         """전체 재적재 전에 비운다. chunks가 documents를 참조하므로 함께 비운다."""
         with self.conn.cursor() as cur:

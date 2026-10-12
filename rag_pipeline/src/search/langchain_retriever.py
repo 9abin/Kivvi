@@ -38,7 +38,8 @@ class RegulationRetriever(BaseRetriever):
     searcher: Searcher
     k: int = 5
     filters: Optional[dict] = None
+    rewritten: Optional[str] = None  # 규정 용어로 바꿔 쓴 검색어 (후보 찾기에만 더한다)
 
     def _get_relevant_documents(self, query, *, run_manager: CallbackManagerForRetrieverRun) -> List[Document]:
-        results = self.searcher.search(query, k=self.k, filters=self.filters)
+        results = self.searcher.search(query, k=self.k, filters=self.filters, rewritten=self.rewritten)
         return [entry_to_document(e) for e in results]

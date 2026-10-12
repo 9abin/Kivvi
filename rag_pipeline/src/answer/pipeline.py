@@ -20,6 +20,9 @@ import sys
 from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARTIAL_SHOW
 from src.answer.generate import (Generator, flatten, order_entries, revision_notes,
                                  state_notes)
+from src.search.glossary import filter_by_glossary
+from src.answer.guard import (contradicted_distinctions, filter_tables_by_scope, missing_terms,
+                              unsupported_numbers)
 from src.search.langchain_retriever import RegulationRetriever, document_to_entry
 from src.search.search import Searcher
 
@@ -56,7 +59,9 @@ def partial_answer(related):
 
 
 class Assistant:
-    def __init__(self):
+    def __init__(self, scope_filter=True, use_glossary=True):
+        self.use_glossary = use_glossary  # 용어집의 수치 근거 제외 (search/glossary.py). 전후 비교를 위해 끌 수 있다
+        self.scope_filter = scope_filter  # 표 범위 필터 (guard.py). 전후 비교를 위해 끌 수 있다
         self.searcher = Searcher()
         self.generator = Generator()
 
@@ -64,13 +69,30 @@ class Assistant:
         self.searcher.close()
 
     def _retrieve(self, question, k, filters):
-        retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters)
+        self.searcher.glossary_filter = self.use_glossary
+        retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters,
+                                        rewritten=self.generator.rewrite_query(question))
         return [document_to_entry(d) for d in retriever.invoke(question)]
+
+    def _check(self, question, answer, entries):
+        """(근거 밖 문장, 검사 성공 여부, 질문에는 있고 근거에는 없는데 답에 쓰인 말)."""
+        unsupported, ok = self.generator.verify(question, answer, entries)
+        evidence = [f"{e['문서명']} {e['body']}" for e in entries]
+        return unsupported, ok, missing_terms(self.searcher.kiwi, question, evidence, answer)
 
     def ask(self, question, k=5, filters=None):
         results = self._retrieve(question, k, filters)
         assembled = self.searcher.assemble(results)
         entries = order_entries(flatten(assembled))  # 현행 먼저, 부칙·삭제는 뒤로
+        scope_excluded = []
+        if self.scope_filter:
+            entries, scope_excluded = filter_tables_by_scope(question, entries)
+        # 용어집 제외: 후보 단계(Searcher)에서 뺀 것과, 형제 항 확장 뒤에 한 번 더 거른 것을 모두 기록한다
+        glossary_excluded = [(self.searcher.documents.get(d, {}).get("title") or d, a, r)
+                             for d, a, r in self.searcher.last_glossary_excluded] if self.use_glossary else []
+        if self.use_glossary:
+            entries, late = filter_by_glossary(question, entries, self.searcher.glossary)
+            glossary_excluded += late
 
         scored = [r["rerank"] for r in results if r.get("rerank") is not None]
         top_score = max(scored) if scored else None
@@ -81,7 +103,8 @@ class Assistant:
 
         base = {"mode": mode, "top_score": top_score, "entries": entries, "assembled": assembled,
                 "results": results, "conflicts": [], "cited": [], "warnings": [], "model": None,
-                "unsupported": []}
+                "unsupported": [], "scope_excluded": scope_excluded, "glossary_excluded": glossary_excluded,
+                "search_hint": self.searcher.last_hint}
 
         if mode == "none":
             return {**base, "answer": NONE_MESSAGE, "entries": []}
@@ -95,11 +118,35 @@ class Assistant:
 
         # 문장 단위 근거 검사: 모델이 쓴 각 불릿이 인용한 근거 본문과 맞는지 다시 확인한다 (답변_설계.md 10절).
         # ok=False(응답을 해석하지 못함)와 "검사 통과"(빈 목록)를 구분해서 각각 경고한다.
-        unsupported, verify_ok = self.generator.verify(question, out["answer"], entries)
+        unsupported, verify_ok, missing = self._check(question, out["answer"], entries)
+
+        # 숫자·단위가 인용한 근거에 없으면(코드 검사, 오탐이 거의 없음) 답을 내지 않고 관련 조문만 보여 준다.
+        bad_numbers = unsupported_numbers(question, out["answer"], entries)
+        bad_dims = contradicted_distinctions(out["answer"], entries)
+        if bad_numbers or bad_dims:
+            related = [{**e, "역할": "관련 조문"} for e in entries[:PARTIAL_SHOW]]
+            reasons = []
+            if bad_numbers:
+                reasons.append("답의 숫자(" + ", ".join(n for nums, _ in bad_numbers for n in nums) + ")가 근거 본문에 없어")
+            if bad_dims:
+                reasons.append("표가 '" + bad_dims[0][1] + " 구분 없이'라고 정한 '" + bad_dims[0][0] + "'을(를) 답이 " + bad_dims[0][1] + "으로 설명해")
+            return {**base, "mode": "partial", "answer": partial_answer(related), "entries": related,
+                    "warnings": [" ".join(reasons) + " 답 대신 관련 조문만 보여 줍니다."],
+                    "withheld": out["answer"]}
+
+        # 검사 결과로 답을 막거나 다시 쓰는 방식은 실측에서 정상 답변 29건 중 22건을 막아서 경고만 붙이는 방식으로 되돌렸다.
+        # 검사 모델이 "맞습니다. …" 같은 결론 문장과 맞는 문장까지 근거 밖으로 자주 표시한다 (정밀도 낮음).
         if not verify_ok:
             out["warnings"] = out["warnings"] + ["문장 근거 검사 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
         elif unsupported:
             out["warnings"] = out["warnings"] + [f"근거와 맞지 않을 수 있음: {s}" for s in unsupported]
+        # 질문의 핵심 말이 근거에 없는데 답이 그 말로 답했으면 주제가 바뀌었을 수 있다 (예: 질문 계약보증금, 근거 임차보증금).
+        out["warnings"] = out["warnings"] + [f'질문의 "{t}"이(가) 근거 본문에 없음: 비슷한 다른 항목으로 답했을 수 있음' for t in missing]
+
+        if glossary_excluded:
+            out["warnings"] = out["warnings"] + [f"용어집: {m} {a}를 근거에서 제외({r})" for m, a, r in glossary_excluded]
+        if scope_excluded:
+            out["warnings"] = out["warnings"] + [f"표 범위 필터: {m} {a}({t} 대상)는 {r}이라 근거에서 제외" for m, a, t, r in scope_excluded]
 
         notes = state_notes(entries, out["cited"]) + revision_notes(entries, out["cited"])
         if notes:

@@ -20,7 +20,9 @@ def list_sources():
         folder, name = os.path.split(f)
         idx = folder.rsplit("_", 1)[1]
         rows.append((idx, name, f))
-    return rows
+    # 같은 고유번호에 hwp·hwpx가 있으면 함께 놓인 pdf(보조 확인용 변환본)는 원본으로 보지 않는다.
+    has_native = {idx for idx, name, _ in rows if not name.lower().endswith(".pdf")}
+    return [r for r in rows if not (r[1].lower().endswith(".pdf") and r[0] in has_native)]
 
 
 def extract_one(path):
@@ -29,7 +31,12 @@ def extract_one(path):
         return extract_hwp(path)
     if ext == "hwpx":
         return extract_hwpx(path)
-    return "\n".join((p.extract_text() or "") for p in PdfReader(path).pages)
+    text = "\n".join((p.extract_text() or "") for p in PdfReader(path).pages)
+    # 정보보안관리지침(23753) 표 안 일부 글자가 폰트 매핑이 깨져 가운뎃점(·)이 "ž"로
+    # 추출된다(2026.10.12 발견, "자료수ž발신" → "자료 수·발신"). 같은 문서에 가운뎃점이
+    # 169번 정상 추출된 것과 대조해 확인했다. 이 PDF들에서 "ž"가 정상적으로 쓰일 일은
+    # 없으므로 가운뎃점으로 되돌린다.
+    return text.replace("ž", "·")
 
 
 def extract_all():

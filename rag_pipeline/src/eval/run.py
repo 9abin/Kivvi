@@ -38,9 +38,15 @@ K = 10
 MODES = ["vector", "bm25", "rrf", "rrf_rerank", "search"]
 
 
-def load_questions():
-    with open(QUESTIONS, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+def load_questions(path=QUESTIONS):
+    """하나 또는 여러 질문 파일을 읽어 합친다. 블라인드 세트(v2+v3)처럼 여러 파일을 한 번에
+    돌릴 때는 파일을 복사해서 합치지 않고 경로 목록을 그대로 넘긴다."""
+    paths = [path] if isinstance(path, str) else path
+    rows = []
+    for p in paths:
+        with open(p, encoding="utf-8") as f:
+            rows.extend(json.loads(line) for line in f if line.strip())
+    return rows
 
 
 def check_gold(questions):
@@ -87,8 +93,15 @@ def concentration(hits):
     return max(docs.count(d) for d in set(docs)) / len(docs)
 
 
-def run(modes, rerank_header=None):
-    questions = load_questions()
+def recall_at_k(hits, gold, k=K):
+    """정답이 여러 개인 질문에서, 상위 k개 안에 정답 중 몇 퍼센트가 들어왔는지.
+    정답이 하나뿐이면 Hit@k와 같은 값이라 의미가 없다. 정답이 둘 이상일 때만 쓴다."""
+    found = {h["chunk_id"] for h in hits[:k]} & gold
+    return len(found) / len(gold)
+
+
+def run(modes, rerank_header=None, questions_path=QUESTIONS):
+    questions = load_questions(questions_path)
     check_gold(questions)
 
     searcher = Searcher()
@@ -97,24 +110,37 @@ def run(modes, rerank_header=None):
     print(f"리랭커 머리말: {'켬' if searcher.rerank_header else '끔'}")
     results = {}
     concentrations = {}
+    recalls = {}
     for mode in modes:
         ranks = []  # (유형, 질문, 순위 또는 None, 세부유형)
         content_concentration = []
+        multi_gold_recall = []  # 정답이 2개 이상인 질문만
         for q in questions:
             hits = hits_for(searcher, mode, q["q"])
-            ranks.append(
-                (q["유형"], q["q"], rank_of(hits, set(q["정답"])), q.get("세부유형", "미지정"))
-            )
+            gold = set(q["정답"])
+            ranks.append((q["유형"], q["q"], rank_of(hits, gold), q.get("세부유형", "미지정")))
             if q["유형"] == "내용":
                 content_concentration.append(concentration(hits))
+            if len(gold) > 1:
+                multi_gold_recall.append(recall_at_k(hits, gold))
         results[mode] = ranks
         concentrations[mode] = sum(content_concentration) / max(len(content_concentration), 1)
+        recalls[mode] = (sum(multi_gold_recall) / len(multi_gold_recall), len(multi_gold_recall)) \
+            if multi_gold_recall else (None, 0)
     searcher.close()
 
     print_report(results, len(questions))
     print(f"\n쏠림: 내용 질문 상위 {K}개 중 한 규정이 차지한 비율 평균 (낮을수록 여러 규정이 섞임)")
     for mode, value in concentrations.items():
         print(f"  {mode:<12}{value:.2f}")
+
+    print(f"\nRecall@{K}: 정답이 2개 이상인 질문에서, 정답 중 상위 {K}개 안에 들어온 비율 평균")
+    print("  (정답이 1개뿐인 질문은 Hit@k와 같은 값이라 뺀다)")
+    for mode, (value, n) in recalls.items():
+        if value is None:
+            print(f"  {mode:<12}해당 질문 없음")
+        else:
+            print(f"  {mode:<12}{value:.2f}  (n={n})")
 
 
 def summarize(ranks):
@@ -163,6 +189,9 @@ if __name__ == "__main__":
     ap.add_argument("--mode", choices=MODES, default=None)
     ap.add_argument("--rerank-header", choices=["on", "off"], default=None,
                     help="리랭커 입력 머리말 비교용. 생략하면 config.RERANK_HEADER를 따른다")
+    ap.add_argument("--questions", nargs="+", default=[QUESTIONS],
+                    help="질문 파일 경로 (여러 개 가능). 생략하면 eval/questions.jsonl "
+                        "(예: --questions eval/questions_v2.jsonl eval/questions_v3.jsonl)")
     args = ap.parse_args()
     header = None if args.rerank_header is None else args.rerank_header == "on"
-    run([args.mode] if args.mode else MODES, rerank_header=header)
+    run([args.mode] if args.mode else MODES, rerank_header=header, questions_path=args.questions)

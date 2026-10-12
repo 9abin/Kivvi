@@ -4,7 +4,7 @@ import json
 import os
 import re
 
-from config import MANUAL_CHUNKS
+from config import ANNEX_OVERRIDES, MANUAL_CHUNKS
 from src.preprocess.clean import clean_text
 
 CIRCLED = {c: i for i, c in enumerate("①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳", 1)}
@@ -17,7 +17,14 @@ ARTICLE_HEADER = re.compile(
 )
 # 표기 오류 '제9조2(…)' → 제9조의2 로 정규화
 TYPO_HEADER = re.compile(r"(?:^|\n)[^\n가-힣0-9①-⑳.()]{0,8}?제(\d+)조(\d)(?=\s*\()", re.M)
-BUJIK = re.compile(r"\n\s*(?:[^\n가-힣]{0,8})?부\s*칙")
+# 부칙 "제목 줄"만 잡는다: 뒤에 공백 다음 줄바꿈이나 괄호(공포일)만 와야 한다.
+# "② 부칙 조문에는…", "4. 부칙: …"처럼 문장 중간이나 목록 설명으로 쓰인 "부칙"은 제외한다
+# (내규관리규정처럼 부칙의 형식 자체를 설명하는 문서에서 조문이 통째로 삼켜지는 사고를 막는다).
+BUJIK = re.compile(r"\n\s*(?:[^\n가-힣]{0,8})?부\s*칙[ \t]*(?=[\(<>\n]|$)")
+# 부칙 뒤에 붙는 별표(표)·별지(서식) 제목 줄. 제목 줄만 잡고, "[별표3] … 적용한다."처럼 문장으로 끝나는 줄은 뺀다.
+ANNEX_TITLE = re.compile(r"(?m)^[ \t]*(?:■[ \t]*)?[\[\(【<][ \t]*별[ \t]*(표|지)[^\]\)】>\n]{0,20}[\]\)】>][^\n]*")
+ANNEX_SENTENCE_END = re.compile(r"다\.\s*$")
+ANNEX_NUMBER = re.compile(r"별\s*표\s*(?:제\s*)?(\d+)(?:\s*호)?(?:\s*의\s*(\d+))?")
 
 DUP_NUMBERING = []  # (고유번호, 항 시작 문구, 원문 항번호, 검색용 항번호)
 
@@ -77,6 +84,86 @@ def split_paragraphs(seg, idx):
     return fixed
 
 
+def split_annex(seg):
+    """부칙 조각을 (부칙 글, [(종류, 제목 줄, 본문), ...])로 나눈다. 종류는 '표'(별표) 또는 '지'(별지)."""
+    marks = [m for m in ANNEX_TITLE.finditer(seg) if not ANNEX_SENTENCE_END.search(m.group(0).rstrip())]
+    if not marks:
+        return seg, []
+    blocks = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(seg)
+        blocks.append((m.group(1), m.group(0), seg[m.start():end].strip()))
+    return seg[:marks[0].start()], blocks
+
+
+ANNEX_SPLIT_OVER = 1000   # 별표가 이보다 길면 조각으로 나눈다 (리랭커가 긴 글을 읽는 시간, 검색 단위)
+ANNEX_PIECE = 800
+
+
+def split_long_annex(text):
+    """긴 별표를 줄 단위로 ANNEX_PIECE자 안팎 조각으로 나눈다. 둘째 조각부터 맨 위에 별표 제목을 다시 붙인다."""
+    if len(text) <= ANNEX_SPLIT_OVER:
+        return [text]
+    lines = text.split("\n")
+    title = lines[0].strip()
+    pieces, cur = [], ""
+    for ln in lines:
+        if cur and len(cur) + len(ln) + 1 > ANNEX_PIECE:
+            pieces.append(cur.strip())
+            cur = f"{title} (계속)\n"
+        cur += ln + "\n"
+    if cur.strip():
+        pieces.append(cur.strip())
+    return pieces
+
+
+def load_annex_overrides():
+    """추출 때 칸이 깨진 별표를 원본 표로 복원한 글. {"문서ID_별표N": {"text": 복원 글, "keep_from": 이 낱말부터는 원문 유지}}"""
+    if not os.path.exists(ANNEX_OVERRIDES):
+        return {}
+    with io.open(ANNEX_OVERRIDES, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def annex_rows(meta_row, idx, blocks, dedupe):
+    """별표는 번호별 청크(색인 대상), 별지 서식은 문서당 청크 1개(색인 제외)로 만든다."""
+    overrides = load_annex_overrides()
+    merged = []
+    for kind, title, text in blocks:
+        if kind == "지" and merged and merged[-1][0] == "지":
+            merged[-1] = ("지", merged[-1][1], merged[-1][2] + "\n" + text)
+        else:
+            merged.append((kind, title, text))
+    rows = []
+    for kind, title, text in merged:
+        if kind == "지":
+            rows.append({**meta_row, "id": dedupe(f"{idx}_별지"), "조항": "별지서식", "상태": "정상",
+                         "본문": text, "cites": []})
+            continue
+        m = ANNEX_NUMBER.search(title)
+        art = "별표" + (m.group(1) + (f"의{m.group(2)}" if m.group(2) else "") if m else "")
+        status = "삭제" if re.search(r"삭제", text[:40]) and len(text) < 120 else "정상"
+        fix = overrides.get(f"{idx}_{art}")
+        if fix:
+            keep = fix.get("keep_from")
+            tail = text[text.index(keep):] if keep and keep in text else ""
+            text = fix["text"].rstrip() + ("\n" + tail if tail else "")
+        pieces = split_long_annex(text)
+        for k, piece in enumerate(pieces, start=1):
+            cid = f"{idx}_{art}" if len(pieces) == 1 else f"{idx}_{art}_{k:02d}"
+            rows.append({**meta_row, "id": dedupe(cid), "조항": art, "상태": status,
+                         "본문": piece, "cites": []})
+    return rows
+
+
+def is_deletion_only(text):
+    """항 본문이 번호와 삭제 표기뿐이면 True. 예: '④ 삭제 <2025.04.17.>', '② (삭제) <삭제 2015.06.25.>', '① <삭제>'.
+    남은 글이 조금이라도 있으면 살아 있는 항이므로 False다."""
+    rest = re.sub(r"<[^>]*>|\([^)]*\)|\[[^\]]*\]", "", text)   # <개정·삭제 날짜>, (삭제), [2014.12.29. 개정]
+    rest = re.sub(r"[①-⑳]|삭제", "", rest)               # 항 번호, '삭제' 글자
+    return bool(re.search(r"삭제", text)) and not re.search(r"[가-힣A-Za-z0-9]", rest)
+
+
 def build_chunks(meta, texts):
     """문서별 텍스트 → 청크 목록 (참조 cites는 아직 비어 있음)."""
     rows, seen = [], set()
@@ -109,10 +196,18 @@ def build_chunks(meta, texts):
                 cid = f"{idx}_{art}" + (f"_{pno}항" if len(paras) > 1 or pno != 1 else "")
                 rows.append({**m, "id": dedupe(cid),
                              "조항": art + (f" 제{pno}항" if len(paras) > 1 else ""),
-                             "상태": "정상", "본문": ptxt, "cites": []})
+                             "상태": "삭제" if is_deletion_only(ptxt) else "정상",
+                             "본문": ptxt, "cites": []})
         if len(parts) > 1:
+            heads, blocks = [], []
+            for p in parts[1:]:
+                head, b = split_annex(p)
+                heads.append(head)
+                blocks += b
+            bujik = "\n".join(parts[1:]) if not blocks else "\n".join(h.strip() for h in heads if h.strip())
             rows.append({**m, "id": dedupe(f"{idx}_부칙"), "조항": "부칙", "상태": "정상",
-                         "본문": "부칙\n" + "\n".join(parts[1:]).strip(), "cites": []})
+                         "본문": "부칙\n" + bujik.strip(), "cites": []})
+            rows += annex_rows(m, idx, blocks, dedupe)
     return _merge_manual(rows)
 
 
