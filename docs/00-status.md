@@ -17,7 +17,7 @@
 - 원본 기획 결정: 법령은 RDB로 구성해 폐쇄망에 변경분 반입, 충돌은 자동 판정하지 않고 양쪽 표시, 수정안은 참고 문안 ([03](03-product-plan.md))
 
 ## 열린 질문 / 외부 대기
-- **챗봇 통합 합의 (김가빈)**: 같은 DB·스키마 분리·`chunk_id` 공통 키·권한 3역할 → [합의안](chatbot-integration-proposal.md), [chatbot-integration](todo/chatbot-integration.md)
+- **챗봇 통합 (김가빈)**: 우리 쪽 확정(261012, 같은 DB·`amend` 스키마·가빈 `chunk_id`·역할 4개). 가빈 요청 3가지(본체 적용·데이터 확인·화면) → [합의안](chatbot-integration-proposal.md), [chatbot-integration](todo/chatbot-integration.md)
 - 법률 DB 형식·엔진 (한석희와 합의) → [law-db-interface](todo/law-db-interface.md)
 - 조문 ID 임시안 공유·합의 (김가빈·한석희) → [261006-1428-07](reports/261006-1428-07-article-parsing.md)
 - 오류 주입셋 담당 (원본 기획: 이민형)
@@ -25,7 +25,7 @@
 - git: 로컬 저장소(main, 첫 커밋 952e720). 원격 없음 → 팀 공유 위치 정하기
 
 ## 다음 액션
-1. 챗봇 통합: 가빈 합의 → 본체 적용, 검토 화면을 `amend.decision_log`로, 챗봇 청크 → 개정 화면 (`amend` 스키마 로컬 완료) ([chatbot-integration](todo/chatbot-integration.md))
+1. 챗봇 통합(우리 쪽 확정): 가빈 요청 3가지 전달, 검토 화면을 `amend.decision_log`로, 챗봇 청크 → 개정 화면 (`amend` 스키마 로컬 완료) ([chatbot-integration](todo/chatbot-integration.md))
 2. 발표 자료 (학습 문서 퀴즈는 박형건) ([03](03-product-plan.md) 일정)
 3. 사람: 확인 대기 36건 판정(`uv run streamlit run app/review_app.py`), 시나리오 5~10개 작성. 합의: 부칙 옛 조문·오탈자(김가빈), 미수집 법령 55종(한석희)
 
