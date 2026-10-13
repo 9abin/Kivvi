@@ -303,10 +303,62 @@
     });
   }
   async function refreshChangesets() { if (LIVE) renderChangesetList(await api("/api/changesets")); }
+  // 상태: 초안 → 검토(제출) → 승인(최종안 저장) → 공포.  검토 중 반려 → 기각 (sql/amend_schema.sql CHECK)
+  const CS_LABEL = { 초안: ["초안", ""], 검토: ["검토 요청됨", "accent"], 승인: ["승인", "pos"], 공포: ["공포", "pos"], 기각: ["반려", "neg"] };
+  const editable = (C) => C.status === "초안" || C.status === "검토";
+  async function renderFinal(C, doc) {
+    if (!LIVE || !["검토", "승인", "공포"].includes(C.status)) return;
+    let F;
+    try { F = await api(`/api/final?id=${encodeURIComponent(C.id)}`); } catch (e) { return toast(e.message); }
+    if (CS !== C) return;   // 그사이 다른 개정안을 열었음
+    const s = el("section", "final");
+    const c = F.counts;
+    s.append(el("h2", null, C.status === "검토" ? "최종안 미리보기 (수락한 카드만 반영)" : "최종 개정안 (승인됨)"));
+    const meta = el("p", "hint", `수락 ${c["수락"]} · 기각 ${c["기각"]} · 미결정 ${c["미결정"]} — 함께 개정에 반영된 고침 ${c["반영"]}/${c["고칠 문구 있음"]}건`);
+    s.append(meta);
+    if (c["미결정"]) s.append(el("div", "warnline", `결정하지 않은 카드 ${c["미결정"]}건이 남아 있어 아직 승인할 수 없습니다.`));
+    const main = el("div", "comp"); main.append(el("b", null, `${F.reg_name} (본 개정)`), el("p", null, F.amendment_final)); s.append(main);
+    F.companion.forEach((x) => {
+      const d = el("div", "comp"), h = el("b", null, x.reg_name);
+      d.append(h, " ", el("span", "tag " + (x.status === "ok" ? "pos" : x.status === "수작업만" ? "" : "neg"), x.status === "ok" ? "적용 확인" : x.status));
+      if (x.amendment) d.append(el("p", null, x.amendment));
+      if (x.manual?.length) d.append(el("p", "hint", `별표·별지·부칙 안 인용 ${x.manual.length}건은 사람이 직접 고칩니다`));
+      s.append(d);
+    });
+    if (F.excluded.length) {
+      const d = el("div", "comp"); d.append(el("b", null, `기각해서 뺀 고침 ${F.excluded.length}건`));
+      const ul = el("ul", "qlist"); F.excluded.forEach((x) => ul.append(el("li", null, `${x.where} — 「${x.quote}」 → 「${x.suggest}」`))); d.append(ul); s.append(d);
+    }
+    if (F.addendum_draft) { const d = el("div", "comp"); d.append(el("b", null, "부칙"), el("p", null, F.addendum_draft)); s.append(d); }
+    doc.prepend(s);
+  }
+  function renderActions(C) {
+    const row = clear($(".review-foot .row2"));
+    const btn = (cls, label, fn, ic) => { const b = el("button", "btn " + cls); b.type = "button"; if (ic) b.append(icon(ic)); b.append(label); b.addEventListener("click", fn); return b; };
+    const link = (label, href) => { const a = el("a", "btn secondary"); a.href = href; a.setAttribute("download", ""); a.append(icon("download"), label); return a; };
+    const act = (path, msg) => async () => {
+      if (!LIVE) return toast("서버에 연결되지 않았습니다");
+      try { const r = await api(path, { id: C.id }); toast(msg(r)); await loadChangeset(C.id); await refreshChangesets(); } catch (e) { toast(e.message, 6000); }
+    };
+    if (C.status === "초안") {
+      if (C.has_package) row.append(link("패키지 내려받기", `/api/package?id=${encodeURIComponent(C.id)}`));
+      row.append(btn("primary", "검토자에게 제출", act("/api/submit", (r) => `${C.id} 검토 요청함${r.undecided ? ` — 미결정 ${r.undecided}건 포함` : ""}`)));
+    } else if (C.status === "검토") {
+      row.append(btn("secondary", "반려", act("/api/reject", () => `${C.id} 반려함`), "x"));
+      row.append(btn("primary", "승인 (최종안 확정)", act("/api/approve", (r) => `${C.id} 승인 — 수락 ${r.counts["수락"]}건으로 최종안을 저장했습니다`), "check"));
+    } else if (C.status === "승인") {
+      row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
+      row.append(btn("primary", "공포 처리", act("/api/publish", () => `${C.id} 공포 처리함`)));
+    } else {
+      if (C.status === "공포") row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
+      const b = btn("primary", C.status === "공포" ? "공포됨" : "반려됨", () => {}); b.disabled = true; row.append(b);
+    }
+  }
   function renderChangeset(C) {
     CS = C;
     $("#cs-id").textContent = C.id; $("#cs-title").textContent = `${C.reg} — ${C.title.replace(/\s*\([^)]*\)\s*$/, "")}`;
-    $("#cs-status").textContent = C.status === "검토" ? "검토 요청됨" : C.status; $("#cs-status").className = "tag" + (C.status === "검토" ? " accent" : "");
+    const [lab, tone] = CS_LABEL[C.status] || [C.status, ""];
+    $("#cs-status").textContent = lab; $("#cs-status").className = "tag " + tone;
     const doc = clear($("#doc"));
     const s1 = el("section"); s1.append(el("h2", null, "개정문"), el("p", "amend-text", C.amendment)); doc.append(s1);
     const s2 = el("section"); s2.append(el("h2", null, "신·구조문 대비표"));
@@ -328,7 +380,9 @@
     const SD = clear($("#side"));
     const cnt = (k) => C.impacts.filter((x) => x.kind === k).length;
     const sum = el("div", "summary");
-    [["깨짐", cnt("break"), cnt("break") > 0], ["충돌 해소", cnt("resolved")], ["법령 대조", cnt("law")], ["확인 필요", cnt("review") + cnt("topic")]].forEach(([t, v, hot]) => {
+    // 깨짐 카드는 에이전트가 본 개정문 안에서 이미 고친 것일 수 있다 (연쇄 수정 breaks[0] → breaks[1])
+    const autoFixed = C.breaks && C.breaks[1] === 0 && cnt("break") > 0;
+    [[autoFixed ? `깨짐 → 0 자동 수정` : "깨짐", cnt("break"), cnt("break") > 0 && !autoFixed], ["충돌 해소", cnt("resolved")], ["법령 대조", cnt("law")], ["확인 필요", cnt("review") + cnt("topic")]].forEach(([t, v, hot]) => {
       const s = el("span", hot ? "hot" : null); s.append(el("b", null, String(v)), t); sum.append(s);
     });
     SD.append(sum);
@@ -347,7 +401,9 @@
         acc.setAttribute("aria-pressed", String(x.state === "accept")); rej.setAttribute("aria-pressed", String(x.state === "reject"));
         li.classList.toggle("rejected", x.state === "reject"); tally();
       };
+      if (!editable(C)) { acc.disabled = rej.disabled = true; acc.title = rej.title = "승인·공포·반려된 개정안은 결정을 바꿀 수 없습니다"; }
       const decide = async (d) => {
+        if (!editable(C)) return;
         const next = x.state === d ? "clear" : d, prev = x.state;
         x.state = next === "clear" ? null : next; paint();
         if (!LIVE || !x.key) return;
@@ -357,8 +413,8 @@
       dc.append(acc, rej); body.append(dc); li.append(body); ol.append(li); paint();
     });
     SD.append(ol);
-    const dl = $("#dl-pkg"); dl.href = `/api/package?id=${encodeURIComponent(C.id)}`; dl.hidden = !(LIVE && C.has_package);
-    $("#submit-cs").disabled = C.status !== "초안"; $("#submit-cs").textContent = C.status === "초안" ? "검토자에게 제출" : C.status === "검토" ? "검토 요청됨" : C.status;
+    renderActions(C);
+    renderFinal(C, doc);
     tally();
   }
   function tally() {
@@ -367,14 +423,6 @@
     $("#tally").textContent = `수락 ${na} / 기각 ${nr} / 남음 ${N - na - nr}${LIVE ? " · 결정은 바로 저장됩니다" : " · 예시 (저장 안 됨)"}`;
     $("#p-acc").style.width = N ? (na / N) * 100 + "%" : "0"; $("#p-rej").style.width = N ? (nr / N) * 100 + "%" : "0";
   }
-  $("#submit-cs").addEventListener("click", async () => {
-    if (!CS || !LIVE) return toast("서버에 연결되지 않았습니다");
-    try {
-      const r = await api("/api/submit", { id: CS.id });
-      toast(`${CS.id} 검토 요청함${r.undecided ? ` — 미결정 ${r.undecided}건 포함` : ""}`);
-      await loadChangeset(CS.id); await refreshChangesets();
-    } catch (e) { toast(e.message); }
-  });
 
   // ── 데이터 불러오기 ──────────────────────────────────
   async function loadArticle(chunk) {

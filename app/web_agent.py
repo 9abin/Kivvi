@@ -109,6 +109,9 @@ def decide(cid: str, key: str, state: str, user: str) -> dict:
     if not key.startswith(f"I:{cid}:"):
         return {"error": "이 개정안의 영향 카드가 아닙니다"}
     with write_conn() as con, con.cursor() as cur:
+        st = cur.execute("SELECT status FROM amend.changeset WHERE id = %s", (cid,)).fetchone()
+        if not st or st[0] not in ("초안", "검토"):   # 승인·공포·기각된 개정안의 결정은 잠근다
+            return {"error": f"{cid}는 {st[0] if st else '없는'} 상태라 결정을 바꿀 수 없습니다"}
         prev = cur.execute("SELECT state FROM amend.v_decision_state WHERE key = %s", (key,)).fetchone()
         new = "미결정" if state == "clear" else STATES[state]
         cur.execute("INSERT INTO amend.decision_log (key, kind, prev, state, reviewer, ref) VALUES (%s, 'impact', %s, %s, %s, %s)",
@@ -121,6 +124,8 @@ def submit(cid: str, user: str, comment: str = "") -> dict:
         row = cur.execute("SELECT status FROM amend.changeset WHERE id = %s", (cid,)).fetchone()
         if not row:
             return {"error": f"개정안이 없습니다: {cid}"}
+        if row[0] != "초안":
+            return {"error": f"초안만 제출할 수 있습니다 (지금 {row[0]})"}
         open_ = cur.execute("SELECT count(*) FROM amend.impact i LEFT JOIN amend.v_decision_state d ON d.key = i.review_key "
                             "WHERE i.changeset_id = %s AND coalesce(d.state, '미결정') NOT IN ('수락', '기각')", (cid,)).fetchone()[0]
         cur.execute("UPDATE amend.changeset SET status = '검토' WHERE id = %s", (cid,))
@@ -139,3 +144,140 @@ def package_html(cid: str) -> str | None:
         from agent_fix import render
         return render(pkg)
     return None
+
+
+# ── 최종 개정안 (수락한 카드만 반영) · 승인 흐름 ─────────────────────────────
+# 수락의 뜻: 고칠 문구(suggest)가 딸린 「다른 규정이 바뀐 조를 인용」 카드 → 그 고침을 「함께 개정할 규정」 개정문에 넣는다.
+#           기각 → 넣지 않는다 (예: 부칙 「다른 내규와의 관계」로 해결). 고칠 문구가 없는 카드(법령 대조·충돌 해소·확인 필요)는 확인 기록만.
+# 상태: 초안 → 검토(제출) → 승인(미결정 0일 때, 최종안 저장) → 공포.  검토 중 반려 → 기각.  (sql/amend_schema.sql CHECK 값)
+
+def _impacts_with_state(cur, cid: str) -> list[dict]:
+    rows = cur.execute("SELECT i.review_key, i.category, i.reg_id, i.payload, coalesce(d.state, '미결정') "
+                       "FROM amend.impact i LEFT JOIN amend.v_decision_state d ON d.key = i.review_key WHERE i.changeset_id = %s", (cid,)).fetchall()
+    out = []
+    for key, cat, rid, payload, state in rows:
+        it = payload if isinstance(payload, dict) else json.loads(payload or "{}")
+        out.append({**it, "key": key, "category": cat, "reg_id": rid, "state": state})
+    return out
+
+
+def _companion_from(items: list[dict], main_reg: str, cid: str) -> list[dict]:
+    """수락한 고침만으로 규정별 함께 개정문을 다시 만든다 (agent.build_package와 같은 규칙)."""
+    from collections import defaultdict
+    from regcheck.agent import _unit_label, fix_sentence
+    from regcheck.amend import AmendError, build_changeset
+    regs, _, _ = corpus()
+    others: dict[str, list[dict]] = defaultdict(list)
+    for f in items:
+        if f.get("path") == "인용받음" and f.get("suggest") and f["reg_id"] != main_reg:
+            others[f["reg_id"]].append(f)
+    companion = []
+    for rid, fs in others.items():
+        by_unit, manual = defaultdict(list), []
+        for f in fs:
+            if f.get("unit") in ("별표", "별지", "부칙"):   # 개정문 적용기가 다루지 않는 단위 → 사람이 직접
+                manual.append({"where": f"{f.get('unit')} {f['article']}", "quote": f.get("quote", ""), "suggest": f["suggest"]})
+            else:
+                by_unit[(f["article"], f.get("para") or 0)].append((f.get("quote", ""), f["suggest"]))
+        sents = [fix_sentence(_unit_label(lab, para), list(dict.fromkeys(pr for pr in prs if pr[0] != pr[1])))
+                 for (lab, para), prs in by_unit.items() if any(pr[0] != pr[1] for pr in prs)]
+        entry = {"reg_id": rid, "reg_name": regs[rid]["name"] if rid in regs else rid, "amendment": "\n".join(sents), "status": "ok", "manual": manual}
+        if sents:
+            try:   # 적용기로 다시 확인 — 수락한 고침이 원문에 실제로 적용되는지
+                ocs, _ = build_changeset(regs[rid], entry["amendment"], f"{cid}-{rid}")
+                entry["rows"] = ocs["rows"]
+            except AmendError as e:
+                entry["status"] = f"적용 못함: {e}"
+        else:
+            entry["status"] = "수작업만"
+        companion.append(entry)
+    return companion
+
+
+def final_package(cid: str) -> dict:
+    with write_conn() as con, con.cursor() as cur:
+        row = cur.execute("SELECT reg_id, title, amendment, status FROM amend.changeset WHERE id = %s", (cid,)).fetchone()
+        if not row:
+            return {"error": f"개정안이 없습니다: {cid}"}
+        items = _impacts_with_state(cur, cid)
+    reg_id, title, amendment, status = row
+    pkg = load_package(cid) or {}
+    regs, _, _ = corpus()
+
+    def name(rid):
+        return regs[rid]["name"] if rid in regs else rid
+    fixable = [f for f in items if f.get("path") == "인용받음" and f.get("suggest") and f["reg_id"] != reg_id]
+    undecided = [f for f in items if f["state"] not in ("수락", "기각")]
+    companion = _companion_from([f for f in fixable if f["state"] == "수락"], reg_id, cid)
+    return {
+        "id": cid, "status": status, "title": title, "reg_id": reg_id, "reg_name": name(reg_id),
+        "amendment_final": pkg.get("amendment_final") or amendment, "rows": pkg.get("rows", []),
+        "companion": [{k: v for k, v in c.items() if k != "rows"} | {"applied": bool(c.get("rows"))} for c in companion],
+        "_companion_rows": companion,
+        "excluded": [{"where": f"{name(f['reg_id'])} {f.get('article', '')}", "quote": f.get("quote", ""), "suggest": f["suggest"]}
+                     for f in fixable if f["state"] == "기각"],
+        "addendum_draft": pkg.get("addendum_draft", ""),
+        "questions": pkg.get("questions", []),
+        "counts": {"수락": sum(f["state"] == "수락" for f in items), "기각": sum(f["state"] == "기각" for f in items),
+                   "미결정": len(undecided), "고칠 문구 있음": len(fixable), "반영": sum(f["state"] == "수락" for f in fixable)},
+        "undecided": [f"{name(f['reg_id'])} {f.get('article', '')}" for f in undecided][:20],
+    }
+
+
+def final_html(fin: dict) -> str:
+    """최종안을 기존 패키지 화면 형식으로 (agent_fix.render 재사용)"""
+    from agent_fix import render
+    pkg = load_package(fin["id"]) or {}
+    c = fin["counts"]
+    p = {**pkg, "id": fin["id"], "reg_name": fin["reg_name"],
+         "request": f"[최종안] {fin['title']} — 수락 {c['수락']} · 기각 {c['기각']} · 함께 개정 반영 {c['반영']}/{c['고칠 문구 있음']}",
+         "amendment_input": fin["amendment_final"], "amendment_final": fin["amendment_final"], "rows": fin["rows"] or pkg.get("rows", []),
+         "companion": fin["_companion_rows"], "addendum_draft": fin["addendum_draft"], "questions": fin["questions"],
+         "law_check": [], "review": [], "rounds": pkg.get("rounds", []), "added_sentences": pkg.get("added_sentences", []),
+         "breaks_before": pkg.get("breaks_before"), "breaks_after": pkg.get("breaks_after", 0)}
+    return render(p)
+
+
+def _set_status(cid: str, want_from: tuple[str, ...], to: str, user: str, comment: str = "", ref: dict | None = None) -> dict:
+    with write_conn() as con, con.cursor() as cur:
+        row = cur.execute("SELECT status FROM amend.changeset WHERE id = %s", (cid,)).fetchone()
+        if not row:
+            return {"error": f"개정안이 없습니다: {cid}"}
+        if row[0] not in want_from:
+            return {"error": f"{'·'.join(want_from)} 상태에서만 할 수 있습니다 (지금 {row[0]})"}
+        cur.execute("UPDATE amend.changeset SET status = %s WHERE id = %s", (to, cid))
+        cur.execute("INSERT INTO amend.decision_log (key, kind, prev, state, reviewer, comment, ref) VALUES (%s, 'changeset', %s, %s, %s, %s, %s)",
+                    (f"C:{cid}", row[0], to, user, comment or None, json.dumps(ref or {}, ensure_ascii=False)))
+    return {"id": cid, "status": to}
+
+
+def approve(cid: str, user: str, comment: str = "") -> dict:
+    fin = final_package(cid)
+    if fin.get("error"):
+        return fin
+    if fin["status"] != "검토":
+        return {"error": f"검토 상태에서만 승인할 수 있습니다 (지금 {fin['status']})"}
+    if fin["counts"]["미결정"]:
+        return {"error": f"결정하지 않은 영향 카드가 {fin['counts']['미결정']}건 있습니다: {', '.join(fin['undecided'][:3])} …"}
+    bad = [c["reg_name"] for c in fin["companion"] if c["status"].startswith("적용 못함")]
+    if bad:
+        return {"error": f"함께 개정문이 원문에 적용되지 않습니다: {', '.join(bad)}"}
+    out = package_path(cid).parent
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "final.html").write_text(final_html(fin), encoding="utf-8")
+    (out / "final.json").write_text(json.dumps({k: v for k, v in fin.items() if k != "_companion_rows"}, ensure_ascii=False, indent=1), encoding="utf-8")
+    res = _set_status(cid, ("검토",), "승인", user, comment, {"counts": fin["counts"], "companion": [c["reg_name"] for c in fin["companion"]]})
+    return res if res.get("error") else {**res, "counts": fin["counts"]}
+
+
+def reject_cs(cid: str, user: str, comment: str = "") -> dict:
+    return _set_status(cid, ("검토",), "기각", user, comment)
+
+
+def publish(cid: str, user: str, comment: str = "") -> dict:
+    return _set_status(cid, ("승인",), "공포", user, comment)
+
+
+def final_file(cid: str) -> str | None:
+    f = package_path(cid).parent / "final.html"
+    return f.read_text(encoding="utf-8") if f.exists() else None

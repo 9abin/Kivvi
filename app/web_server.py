@@ -13,7 +13,8 @@ API (GET, JSON)
   /api/changesets                  개정안 목록
   /api/changeset?id=S01            개정문, 대비표, 함께 개정안·부칙·질의(패키지), 영향과 결정 상태
   /api/regulation?reg=24024        규정 전문 · /api/chat/status 답변 모델 상태 · /api/package?id= 패키지 내려받기
-POST (JSON): /api/ask {q} 채팅(로컬 9B) · /api/draft {chunk, request} 개정안 작성 · /api/decide {id, key, state} · /api/submit {id} · /api/feedback
+POST (JSON): /api/ask {q} 채팅(로컬 9B) · /api/draft {chunk, request} 개정안 작성 · /api/decide {id, key, state} · /api/submit {id}
+             /api/approve·reject·publish {id} 승인 흐름 · /api/feedback.  GET /api/final?id= 최종안 미리보기 · /api/package?id=&final=1
 쓰기는 app/web_agent.py가 editor 역할로 (개정안·영향·결정 기록만)
 """
 
@@ -243,6 +244,7 @@ ROUTES = {
     "/api/changeset": lambda p: changeset(p.get("id", "")),
     "/api/regulation": lambda p: regulation(p.get("reg", "")),
     "/api/chat/status": lambda p: web_chat.status(),
+    "/api/final": lambda p: {k: v for k, v in web_agent.final_package(p.get("id", "")).items() if k != "_companion_rows"},
 }
 # 쓰기·실행 (POST, JSON 본문). user는 화면의 사용자 이름 (시연용 — 실제 배포는 로그인 계정으로 바꿈)
 def with_open_changes(res: dict) -> dict:
@@ -263,6 +265,9 @@ POSTS = {
     "/api/draft": lambda b: web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
     "/api/decide": lambda b: web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
     "/api/submit": lambda b: web_agent.submit(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/approve": lambda b: web_agent.approve(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/reject": lambda b: web_agent.reject_cs(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/publish": lambda b: web_agent.publish(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
     "/api/feedback": lambda b: feedback(b),
 }
 
@@ -298,13 +303,14 @@ class Handler(SimpleHTTPRequestHandler):
         params = {k: v[0] for k, v in parse_qs(u.query).items()}
         if u.path == "/api/package":   # 개정 패키지 HTML 내려받기
             cid = re.sub(r"[^A-Za-z0-9_-]", "", params.get("id", ""))
-            html = web_agent.package_html(cid)
+            final = params.get("final") == "1"   # 승인된 최종안 (수락한 카드만 반영)
+            html = web_agent.final_file(cid) if final else web_agent.package_html(cid)
             if not html:
-                return self._json({"error": f"패키지 파일이 없습니다: {cid}"}, 404)
+                return self._json({"error": f"{'최종안' if final else '패키지'} 파일이 없습니다: {cid}"}, 404)
             data = html.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Disposition", f"attachment; filename=\"package-{cid}.html\"")
+            self.send_header("Content-Disposition", f"attachment; filename=\"{'final' if final else 'package'}-{cid}.html\"")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             return self.wfile.write(data)
