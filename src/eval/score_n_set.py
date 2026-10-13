@@ -18,7 +18,7 @@ entries 기준"): gold `핵심근거`의 (규정, 조항)과 실행 기록 `entr
 정확히 맞춰서 센다. 다른 조문 경로로 같은 내용을 지지하는 경우는 사람 확인 때 반영한다
 (코드로는 과대추정하지 않는다).
 
-실행 (rag_pipeline에서):
+실행 (프로젝트 루트에서):
   uv run python -m src.eval.score_n_set judge  --rundir eval/n_set/runs/<폴더> [--dry-run] [--limit N]
   uv run python -m src.eval.score_n_set review --rundir eval/n_set/runs/<폴더>   # 사람 검토 파일(끔/켬 가림) 생성
   uv run python -m src.eval.score_n_set merge  --rundir eval/n_set/runs/<폴더>   # 사람 확인 결과 병합 + 최종 집계

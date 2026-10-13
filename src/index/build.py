@@ -1,6 +1,6 @@
 """검색 색인 적재: 청크를 BGE-m3로 임베딩하고 Kiwi 형태소 토큰을 만든 뒤 PostgreSQL(pgvector)에 넣는다.
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   uv run python -m src.index.build               # 전체 (documents 90, chunks 4,579, 색인 4,465)
   uv run python -m src.index.build --limit 200   # 샘플 (적재 전체를 비우지 않고 샘플만 덮어씀)
 

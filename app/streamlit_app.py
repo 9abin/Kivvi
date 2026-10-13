@@ -1,6 +1,6 @@
 """규정 질의응답 화면 (Streamlit).
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   uv run streamlit run app/streamlit_app.py
 """
 import os
@@ -8,7 +8,7 @@ import sys
 
 import streamlit as st
 
-# 프로젝트 루트(rag_pipeline)를 import 경로에 넣는다
+# 프로젝트 루트를 import 경로에 넣는다
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.answer.pipeline import Assistant  # noqa: E402

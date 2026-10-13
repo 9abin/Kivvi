@@ -9,7 +9,7 @@ faithfulness는 이미 Generator.verify()·judge.py와 상당 부분 겹친다. 
   answer_relevancy(관련성): 답변이 질문에 실제로 답했는지 (근거가 맞고 틀리고를 떠나, 질문의 요지를 다뤘는가)
   context_recall(문맥재현): 정답 근거(조 전체)의 핵심 내용이 검색된 근거 안에 들어 있었는가
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   uv run python -m src.eval.ragas_style                              # 블라인드 세트(v2+v3, 기본값)
   uv run python -m src.eval.ragas_style --questions eval/questions.jsonl --limit 20
 """

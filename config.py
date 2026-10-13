@@ -4,7 +4,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 원본 규정 폴더 (폴더명 끝 숫자 = 알리오 고유번호)
-SOURCE_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", "한국벤처투자_내부규정"))
+SOURCE_ROOT = os.path.abspath(os.path.join(BASE_DIR, "한국벤처투자_내부규정"))
 DOWNLOAD_LIST = os.path.join(SOURCE_ROOT, "다운로드목록.json")
 
 DATA_DIR = os.path.join(BASE_DIR, "data")

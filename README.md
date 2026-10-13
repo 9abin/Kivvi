@@ -20,13 +20,12 @@
 ├── 한국벤처투자_내부규정/          ← 원본 (90건)
 │   ├── 감사규정_23234/...
 │   └── ...
-└── rag_pipeline/                   ← 이 저장소
+├── src/ app/ eval/ docs/ ...       ← 이 저장소 (RAG 챗봇 + 개정안 에이전트)
 ```
 
 ## 2. 실행 순서
 
 ```
-cd rag_pipeline
 $env:UV_PROJECT_ENVIRONMENT = ".venv"      # 저장소 안에 격리된 환경 사용
 uv sync                                    # 패키지 설치 (처음 한 번)
 .\.venv\Scripts\python.exe run.py          # 추출 → 청킹 → 참조 해석 → 보정 적용 → out/ 저장

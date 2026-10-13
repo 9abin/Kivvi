@@ -1,6 +1,6 @@
 """검색 품질 측정. eval/questions.jsonl의 질문으로 검색 구성 요소를 따로 비교한다.
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   uv run python -m src.eval.run                 # 네 가지 방식 전부
   uv run python -m src.eval.run --mode bm25     # 한 방식만
   uv run python -m src.eval.run --rerank-header off   # 리랭커 머리말 끄고 비교

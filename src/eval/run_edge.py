@@ -8,7 +8,7 @@
          mode가 none이나 partial(관련 조문만 제시)이면 적절하다. answer인데 숫자를
          만들어 냈다면 추측(할루시네이션)일 가능성이 크므로 직접 읽어서 확인해야 한다.
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   uv run python -m src.eval.run_edge
 """
 import json

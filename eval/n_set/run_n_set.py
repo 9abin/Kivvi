@@ -3,7 +3,7 @@
 - 문항 번호 홀수는 끔→켬, 짝수는 켬→끔으로 교차한다. 실행마다 고유 run_id를 부여한다.
 - 실행 전에 run_manifest.json(코드·DB·프롬프트·모델·gold·규칙·runner 해시)을 저장하고, 다른 manifest의 기록과 섞이면 중단한다.
 - --dry-run: API·모델·검색을 호출하지 않고 가짜 답으로 160건 구조를 검증한다(DB는 읽기만 한다).
-사용(rag_pipeline에서): python eval/n_set/run_n_set.py --outdir DIR [--dry-run] [--limit N]
+사용(프로젝트 루트에서): python eval/n_set/run_n_set.py --outdir DIR [--dry-run] [--limit N]
 """
 import argparse, hashlib, importlib, importlib.metadata as md, json, os, sys, time, datetime, glob
 

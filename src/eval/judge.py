@@ -5,7 +5,7 @@ Hit@k·MRR은 "정답 조문을 찾았는가"만 본다. 이 스크립트는 그
 근거 본문(정답 조문)은 검색 시스템을 거치지 않고 DB에서 직접 가져온다 — 채점 기준이
 검색 결과에 영향받지 않게 하기 위해서다.
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   uv run python -m src.eval.judge                              # eval/questions_v2.jsonl + v3
   uv run python -m src.eval.judge --questions eval/questions.jsonl --limit 20
 """

@@ -1,6 +1,6 @@
 """RRF 가중치(벡터:키워드) 비교. eval/questions.jsonl 277개로 어느 비율이 나은지 본다.
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   uv run python -m src.eval.sweep_weights
 
 방법
