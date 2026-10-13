@@ -1,0 +1,140 @@
+/* 규정 도우미 — 조항 수정 기능 기본 틀
+   색: Figma 「규정 도우미 – 사내 내부규정 AI 챗봇 UI」 화면4·화면8 SVG에서 뽑은 값 (app/web/design/*.svg) */
+:root {
+  --text: #1F2937;
+  --text-2: #4B5563;
+  --text-3: #6B7280;
+  --line: #D9DDE3;
+  --line-soft: #EEF0F3;
+  --bg: #FFFFFF;
+  --bg-soft: #F7F8FA;
+  --bg-mute: #EEF2F7;
+  --navy: #1E3A5F;          /* 새 대화 버튼, 강조 */
+  --teal: #0B6B74;          /* 제출 버튼 */
+  --teal-2: #0E7C86;
+  --green: #15803D;  --green-bg: #DCFCE7;  --green-ink: #166534;   /* 현행·수락 */
+  --red: #B91C1C;    --red-bg: #FEE2E2;                           /* 위반·깨짐 */
+  --orange: #B93D0B; --orange-bg: #FFEDD5;                        /* 누락·확인 필요 */
+  --blue: #1D4ED8;   --blue-bg: #DBEAFE;                          /* 표현·정보 */
+  --hl: #FEF3A8;                                                  /* 근거 원문 강조 */
+  --radius: 8px;
+  --font: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { font: 14px/1.6 var(--font); color: var(--text); background: var(--bg); }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+.app { display: grid; grid-template-columns: 248px 1fr; height: 100vh; }
+
+/* ── 왼쪽: 대화 목록 ───────────────────────── */
+.sidebar { background: var(--bg-soft); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.brand { display: flex; gap: 10px; align-items: center; padding: 16px; }
+.brand .logo { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px; display: grid; place-items: center; font-size: 9px; color: var(--text-3); background: #fff; }
+.brand b { display: block; font-size: 15px; }
+.brand small { color: var(--text-3); font-size: 11px; }
+.btn-new { margin: 0 16px 12px; background: var(--navy); color: #fff; border: 0; border-radius: var(--radius); padding: 10px; font-weight: 600; }
+.nav { list-style: none; margin: 0; padding: 0 8px; }
+.nav button { width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 7px 10px; color: var(--text-2); display: flex; gap: 8px; align-items: center; }
+.nav button:hover { background: var(--bg-mute); }
+.nav button[aria-current="page"] { background: var(--bg-mute); color: var(--text); font-weight: 600; }
+.nav-group { font-size: 11px; color: var(--text-3); padding: 12px 18px 4px; }
+.scroll { overflow-y: auto; flex: 1; min-height: 0; }
+.chip { font-size: 11px; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.chip.draft { background: var(--bg-mute); color: var(--text-2); }
+.chip.review { background: var(--blue-bg); color: var(--blue); }
+.chip.change { background: var(--orange-bg); color: var(--orange); }
+.chip.done { background: var(--green-bg); color: var(--green-ink); }
+.chip.current { background: var(--green-bg); color: var(--green-ink); }
+.user { border-top: 1px solid var(--line); padding: 12px 16px; display: flex; gap: 10px; align-items: center; }
+.user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--bg-mute); display: grid; place-items: center; font-size: 12px; }
+.user select { font: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; background: #fff; }
+.editor-only[hidden] { display: none !important; }
+
+/* ── 가운데·오른쪽 공통 ─────────────────────── */
+.main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
+.main.review { grid-template-columns: 1fr 420px; }
+.topbar { height: 52px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 20px; }
+.topbar h1 { font-size: 15px; margin: 0; }
+.topbar .meta { margin-left: auto; color: var(--text-3); font-size: 12px; }
+.col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.col + .col { border-left: 1px solid var(--line); }
+
+/* ── 질의응답 ──────────────────────────────── */
+.thread { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 18px; }
+.q { align-self: flex-end; background: var(--bg-mute); border-radius: 12px; padding: 8px 14px; max-width: 70%; }
+.a { display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.a-head { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.a-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.cite { border: 1px solid var(--teal-2); background: #F0FAFA; border-radius: 8px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; }
+.cite small { color: var(--text-3); display: block; }
+.cite .chip { margin-left: auto; }
+.follow { display: flex; flex-wrap: wrap; gap: 8px; }
+.follow button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; color: var(--text-2); font-size: 13px; }
+.composer { margin: 0 32px 20px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.composer textarea { border: 0; resize: none; font: inherit; outline: none; min-height: 40px; }
+.composer small { color: var(--text-3); }
+
+/* ── 근거 원문 패널 ─────────────────────────── */
+.panel { overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.panel h2 { font-size: 16px; margin: 0; }
+.panel .sub { display: flex; gap: 8px; align-items: center; color: var(--text-3); font-size: 12px; }
+.art-title { font-weight: 700; color: var(--navy); }
+.para { margin: 0; color: var(--text-2); }
+.para.hl { background: var(--hl); color: var(--text); border-radius: 6px; padding: 8px 10px; }
+.panel-foot { border-top: 1px solid var(--line); padding: 10px 20px; display: flex; justify-content: space-between; font-size: 13px; }
+.panel-foot button { background: none; border: 0; color: var(--text-2); }
+.panel-foot button.link { color: var(--navy); font-weight: 600; }
+
+/* 개정 담당자 영역 (우리 기능) */
+.amend-box { border: 1px dashed var(--navy); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: #FAFBFD; }
+.amend-box h3 { font-size: 13px; margin: 0; display: flex; gap: 8px; align-items: center; }
+.amend-box .badge-open { background: var(--orange-bg); color: var(--orange); }
+.facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.facts li { font-size: 13px; color: var(--text-2); }
+.facts b { color: var(--text); }
+.facts .ref { display: block; margin-top: 2px; padding-left: 10px; border-left: 2px solid var(--line); color: var(--text-3); }
+.btn-primary { background: var(--navy); color: #fff; border: 0; border-radius: var(--radius); padding: 9px 12px; font-weight: 600; }
+.btn-teal { background: var(--teal); color: #fff; border: 0; border-radius: var(--radius); padding: 9px 14px; font-weight: 600; }
+.btn-line { background: #fff; color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 14px; }
+
+/* ── 개정안 검토 ─────────────────────────────── */
+.doc { flex: 1; overflow-y: auto; padding: 20px 28px; display: flex; flex-direction: column; gap: 16px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-3); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+.paper { border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; }
+.paper h2 { font-size: 15px; margin: 0 0 8px; }
+.amend-text { background: var(--bg-soft); border-radius: 8px; padding: 10px 12px; margin: 0; }
+.diff { width: 100%; border-collapse: collapse; font-size: 13px; }
+.diff th, .diff td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+.diff th { background: var(--bg-soft); width: 50%; }
+.diff del { color: var(--red); background: var(--red-bg); text-decoration: line-through; }
+.diff ins { color: var(--green-ink); background: var(--green-bg); text-decoration: none; }
+.note { font-size: 12px; color: var(--text-3); }
+
+.cards { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-soft); }
+.summary { display: flex; gap: 10px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; flex-wrap: wrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.card.accepted { border-color: var(--green); box-shadow: 0 0 0 1px var(--green) inset; }
+.card.rejected { opacity: .55; }
+.card .kind { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px; align-self: flex-start; }
+.kind.resolved { background: var(--green-bg); color: var(--green-ink); }
+.kind.review { background: var(--orange-bg); color: var(--orange); }
+.kind.law { background: var(--blue-bg); color: var(--blue); }
+.kind.break { background: var(--red-bg); color: var(--red); }
+.card .where { font-weight: 600; }
+.card .quote { background: var(--bg-soft); border-radius: 6px; padding: 6px 10px; font-size: 13px; color: var(--text-2); }
+.card .actions { display: flex; gap: 8px; justify-content: flex-end; }
+.card .actions button { font-size: 12px; padding: 4px 10px; }
+.review-foot { border-top: 1px solid var(--line); padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.review-foot .row { display: flex; gap: 8px; }
+.review-foot .row button { flex: 1; }
+
+@media (max-width: 1100px) {
+  .main, .main.review { grid-template-columns: 1fr; }
+  .col + .col { border-left: 0; border-top: 1px solid var(--line); }
+}

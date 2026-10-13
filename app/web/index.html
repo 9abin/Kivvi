@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>규정 도우미 — 조항 수정</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 기본 틀: Figma 화면4(질의응답·근거 원문)와 화면8(검토 결과)을 따라 만든 조항 수정 기능 자리.
+       데이터는 sample-data.js (예시). 화면 조각: 사이드바 / 질의응답 / 근거 원문 패널 / 개정안 검토 -->
+  <div class="app">
+    <aside class="sidebar" aria-label="대화와 개정안 목록">
+      <div class="brand"><span class="logo">LOGO</span><span><b>규정 도우미</b><small>한국벤처투자 내부규정</small></span></div>
+      <button class="btn-new" type="button" data-view="chat">+ 새 대화</button>
+      <ul class="nav">
+        <li><button type="button" data-view="chat" aria-current="page">💬 질의응답</button></li>
+        <li><button type="button" disabled title="가빈 화면">📄 문서 검토</button></li>
+        <li class="editor-only"><button type="button" data-view="review">📝 개정안 검토</button></li>
+      </ul>
+      <div class="scroll">
+        <div id="conv-list"></div>
+        <div class="editor-only">
+          <div class="nav-group">내 개정안</div>
+          <ul class="nav" id="cs-list"></ul>
+        </div>
+      </div>
+      <div class="user">
+        <span class="avatar" id="user-initial"></span>
+        <span style="flex:1;min-width:0"><b id="user-name"></b><br>
+          <select id="role" aria-label="권한 (시연용 전환)">
+            <option value="employee">일반 직원</option>
+            <option value="editor" selected>개정 담당자</option>
+          </select>
+        </span>
+      </div>
+    </aside>
+
+    <!-- 질의응답 + 근거 원문 -->
+    <main class="main" id="view-chat">
+      <section class="col">
+        <header class="topbar"><h1>육아휴직 분할 횟수</h1><span class="meta">내부규정 90건 기준 응답 · 예시 데이터</span></header>
+        <div class="thread" id="thread"></div>
+        <form class="composer" onsubmit="return false">
+          <textarea placeholder="내부규정에 대해 궁금한 점을 질문해 보세요" aria-label="질문 입력"></textarea>
+          <small>Enter 전송 · Shift+Enter 줄바꿈</small>
+        </form>
+      </section>
+      <section class="col" aria-label="근거 원문">
+        <div class="panel" id="panel"></div>
+        <div class="panel-foot"><button type="button">조문 복사</button><button type="button" class="link">규정 전문 보기 ›</button></div>
+      </section>
+    </main>
+
+    <!-- 개정안 검토 (editor 전용) -->
+    <main class="main review" id="view-review" hidden>
+      <section class="col">
+        <header class="topbar"><h1 id="cs-title"></h1><span class="chip draft" id="cs-status"></span><span class="meta">참고 문안 · 자동 반영하지 않음</span></header>
+        <div class="doc" id="doc"></div>
+      </section>
+      <section class="col" aria-label="영향 검토 카드">
+        <div class="cards" id="cards"></div>
+        <div class="review-foot">
+          <div class="note" id="tally"></div>
+          <div class="row"><button type="button" class="btn-line">개정 패키지 내려받기</button><button type="button" class="btn-teal">검토자에게 제출</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="sample-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
