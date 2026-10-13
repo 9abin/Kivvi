@@ -4,7 +4,7 @@
 MINI_CNS/
 ├─ AGENTS.md / CLAUDE.md   # 개인용 에이전트 설정 (261013부터 git 제외). 공유 규칙은 docs/05-working-agreement.md
 ├─ docs/                   # 기준 문서와 작업 기록
-│  ├─ 00~05                # 현재 상태, 구조, 스펙, 제품 계획, 용어집, 작업 규칙
+│  ├─ 00~06                # 현재 상태, 구조, 스펙, 제품 계획, 용어집, 작업 규칙, 지금 구조(RAG+에이전트)
 │  ├─ labeling-guideline.md # 오류 원장 라벨링 기준
 │  ├─ todo/                # 할 일
 │  ├─ reports/             # 완료한 일, 주요 결정
