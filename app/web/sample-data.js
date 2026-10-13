@@ -57,7 +57,7 @@ window.SAMPLE = {
       { kind: "law", label: "법령 대조", where: "남녀고용평등법 제19조(육아휴직)", quote: "", reason: "개정안이 법정 기준과 맞는지 대조" },
       { kind: "review", label: "확인 필요", where: "승진지침 별표2", quote: "인사규정 제30조에 따른 육아휴직", reason: "바뀐 제30조를 인용 — 바뀐 내용과 관계있는지 확인" },
       { kind: "review", label: "확인 필요", where: "취업규칙 제43조③", quote: "「인사규정」", reason: "인사규정에 문서 단위로 맡긴 조항이고 문맥에 「육아휴직」이 있음" },
-      { kind: "review", label: "같은 주제", where: "취업규칙 제44조", quote: "육아기 근로시간 단축", reason: "같은 주제 조문 — 바뀐 내용과 맞는지 확인" },
+      { kind: "topic", label: "같은 주제", where: "취업규칙 제44조", quote: "육아기 근로시간 단축", reason: "같은 주제 조문 — 바뀐 내용과 맞는지 확인" },
     ],
   },
 };
