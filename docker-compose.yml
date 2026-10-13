@@ -1,0 +1,25 @@
+# 규정 원문 DB의 로컬 사본 (김가빈 챗봇 DB 덤프를 복원해 쓴다).
+# 접속 정보는 .env(git 제외)의 PG_* 값을 그대로 쓴다.
+#   docker compose up -d                       # 띄우기
+#   uv run python scripts/db_restore.py 덤프파일 # 가빈 덤프 복원
+#   uv run --extra db python scripts/db_check.py
+# 기존 다른 프로젝트 컨테이너(db-pg, 볼륨 db-pg-data)와 이름이 겹치지 않게 따로 둔다.
+services:
+  reg-db:
+    image: pgvector/pgvector:pg17
+    container_name: reg-db
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DATABASE}
+    ports:
+      - "${PG_PORT}:5432"
+    volumes:
+      - reg-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${PG_DATABASE}"]
+      interval: 3s
+      retries: 20
+
+volumes:
+  reg-db-data:
