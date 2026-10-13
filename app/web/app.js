@@ -130,7 +130,8 @@
     const src = el("div", "sources"); src.append(el("span", "label", used.length ? `인용한 근거 ${used.length}` : `근거 후보 ${rest.length}`));
     (used.length ? used : rest.slice(0, 5)).forEach((e) => {
       const c = el("button", "cite" + (isOpenable(e.chunk) ? "" : " off")); c.type = "button";
-      const t = el("span"); t.append(`${e.reg || ""} ${e.article || ""}`, el("small", null, e.role || ""));
+      const ROLE = { "검색": "검색 결과", "형제항": "같은 조의 다른 항", "인용": "인용된 조문", "정확조회": "직접 찾은 조문", "관련 조문": "관련 조문" };
+      const t = el("span"); t.append(`${e.reg || ""} ${e.article || ""}`, el("small", null, ROLE[e.role] || e.role || ""));
       c.append(el("span", "num", String(e.n)), t, el("span", "tag " + (e.state === "현행" ? "pos" : ""), e.state || ""), el("small", null, isOpenable(e.chunk) ? "원문 →" : "법령"));
       c.addEventListener("click", () => openEntry(e)); src.append(c);
     });
@@ -182,7 +183,8 @@
     h.append(el("h2", null, art.reg), meta);
     P.append(h, el("h3", "art-title", art.label));
     art.paras.forEach((p, i) => P.append(el("p", "para" + (i === art.highlight ? " hl" : "") + (p.status === "삭제" ? " del" : ""), p.text)));
-    if (art.highlight > 0) P.querySelector(".para.hl")?.scrollIntoView({ block: "center" });
+    P.scrollTop = 0; const hl = P.querySelector(".para.hl");   // 머리(규정명)가 보이게 위에서 시작, 강조 항이 화면 밖일 때만 내림
+    if (hl && hl.offsetTop + hl.offsetHeight > P.clientHeight) hl.scrollIntoView({ block: "nearest" });
   }
   async function showFullRegulation() {
     if (!CURRENT?.reg_id) return toast("먼저 조문을 여세요");
