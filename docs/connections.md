@@ -1,13 +1,13 @@
 # 접속 정보 한눈에 (주소·IP·포트·계정·링크)
 
-- 갱신: 261012 박형건. **비밀번호는 여기 적지 않는다** (어느 파일에 있는지만)
+- 갱신: 261013 박형건 (와이파이 IP 192.168.0.40 → 192.168.0.28). **비밀번호는 여기 적지 않는다** (어느 파일에 있는지만)
 - 와이파이 IP는 공유기가 나눠 주는 값이라 와이파이를 바꾸거나 오래 지나면 바뀐다 → `ipconfig`의 "무선 LAN 어댑터 Wi-Fi" IPv4로 다시 확인
 
 ## 1. 네트워크 (같은 와이파이 192.168.0.x)
 
 | 누구 | IP | 비고 |
 |---|---|---|
-| 박형건 PC | `192.168.0.40` | 우리 DB(reg-db)가 도는 PC |
+| 박형건 PC | `192.168.0.28` | 우리 DB(reg-db)가 도는 PC |
 | 김가빈 PC | `192.168.0.84` | 가빈 챗봇 DB 원본 (`db-pg` 컨테이너) |
 | 공유기 | `192.168.0.1` | 기본 게이트웨이. DB 아님 |
 
@@ -16,7 +16,7 @@
 | DB | 주소 | DB 이름 | 계정 | 비밀번호 위치 | 권한 |
 |---|---|---|---|---|---|
 | **우리 DB (reg-db)** — 박형건 PC 안에서 | `localhost:5432` | `regulations` | `rag_reg` | `.env` (`PG_PASSWORD`) | 관리자 |
-| **우리 DB (reg-db)** — 팀원이 DBeaver로 | `192.168.0.40:5432` | `regulations` | `mini_cns_team` | `.env.team` (`TEAM_PASSWORD`) | 조회 전용 |
+| **우리 DB (reg-db)** — 팀원이 DBeaver로 | `192.168.0.28:5432` | `regulations` | `mini_cns_team` | `.env.team` (`TEAM_PASSWORD`) | 조회 전용 |
 | 가빈 DB 원본 | `192.168.0.84:5432` | `regulations` | `rag_reg` | `.env`와 같은 값 | 우리는 읽기만 (접속하려면 가빈 PC 방화벽 필요) |
 | 법률 DB (한석희) | 파일 `data/law_rag.sqlite3` (261012 수집본, 법령 284 / 이전본 `law_rag.20261007.sqlite3`) | — | — | — | 읽기 전용 (SQLite, DBeaver에서 파일로 연다) |
 
@@ -26,7 +26,7 @@
 
 | 컨테이너 | 이미지 | 포트 | 데이터 볼륨 | 켜기 |
 |---|---|---|---|---|
-| `reg-db` | `pgvector/pgvector:pg17` | `5432` | `mini_cns_reg-db-data` | 저장소 폴더에서 `docker compose up -d` (PC를 다시 켜면 직접 켜야 함) |
+| `reg-db` | `pgvector/pgvector:pg17` | `5432` | `mini_cns_reg-db-data` | 저장소 폴더에서 `docker compose up -d` (PC를 다시 켜면 직접 켜야 함). Docker Desktop을 막 켠 직후엔 5432가 안 붙을 수 있음 → `docker ps`에 `0.0.0.0:5432->5432`가 없으면 `docker start reg-db` 한 번 더 (261013) |
 | `db-pg` | `pgvector/pgvector:pg17` | `5432` | `db-pg-data` | 다른 실습 프로젝트 DB. **reg-db와 포트가 같아 동시에 켜지 않는다** |
 | `coding_platform-ollama-1` | — | 11434 (내부) | — | 다른 프로젝트 |
 

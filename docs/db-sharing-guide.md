@@ -46,7 +46,7 @@ ipconfig                                                    # 무선 LAN IPv4 �
 ## 2. 팀원 DBeaver 설정
 
 1. 새 연결 → **PostgreSQL**
-2. Host: 박형건 PC IP (예 `192.168.0.40`) · Port `5432` · Database `regulations`
+2. Host: 박형건 PC IP (예 `192.168.0.28`) · Port `5432` · Database `regulations`
 3. Username `mini_cns_team` · Password: 따로 받은 값
 4. **PostgreSQL 탭 → "Show all databases" 끄기**, Schemas 필터에 `public`, `amend`
 5. 드라이버 받기 묻으면 받는다 → Test Connection → 완료
