@@ -97,24 +97,76 @@ def article_blocks(text: str) -> list[list[str]]:
     return blocks
 
 
+PAIRS = {"(": ")", "「": "」", "『": "』", "[": "]", "<": ">", "“": "”", "‘": "’"}
+QUANT = {"최대", "최소", "총", "연", "월", "주", "매년", "매월", "매주", "각", "약", "만"}   # 숫자 바로 앞에서 숫자와 한 덩어리로 읽히는 말
+
+
+def _unmatched(s: str) -> tuple[int, int]:
+    """(짝 없는 닫는 기호 수, 짝 없는 여는 기호 수). 큰따옴표는 홀수 개면 여는 쪽 하나로 본다."""
+    close = opens = 0
+    stack = []
+    for ch in s:
+        if ch in PAIRS:
+            stack.append(PAIRS[ch])
+        elif ch in PAIRS.values():
+            if stack and stack[-1] == ch:
+                stack.pop()
+            else:
+                close += 1
+    opens = len(stack) + (s.count('"') % 2)
+    return close, opens
+
+
 def _span_pair(old: str, new: str) -> tuple[str, str] | None:
-    """바뀐 부분을 낱말 경계까지 넓혀 (옛 문구, 새 문구). 옛 문구가 항 안에서 하나뿐이 되도록 더 넓힌다."""
+    """바뀐 부분을 (옛 문구, 새 문구)로. 개정문에 그대로 들어가므로 사람이 읽기 자연스럽게 넓힌다 (261013):
+    낱말 경계까지 → 괄호·낫표 짝 맞추기 → 숫자 앞 수량어(최대·총 등) 포함 → 항 안에서 한 번만 나오도록 어절 단위로 넓히기.
+    바뀐 곳 밖은 옛·새 문장이 같으므로 양쪽을 같은 글자 수만큼 넓힌다."""
     import difflib
     sm = difflib.SequenceMatcher(a=old, b=new, autojunk=False)
     ops = [o for o in sm.get_opcodes() if o[0] != "equal"]
     if not ops:
         return None
     i1, i2, j1, j2 = ops[0][1], ops[-1][2], ops[0][3], ops[-1][4]
-    while i1 > 0 and old[i1 - 1] not in " ,.「」()" and j1 > 0:
+    stop = " ,.「」()"
+    while i1 > 0 and old[i1 - 1] not in stop and j1 > 0:
         i1 -= 1
         j1 -= 1
-    while i2 < len(old) and old[i2] not in " ,.「」()" and j2 < len(new):
+    while i2 < len(old) and old[i2] not in stop and j2 < len(new):
         i2 += 1
         j2 += 1
+
+    def balance():
+        nonlocal i1, i2, j1, j2
+        for _ in range(len(old)):
+            co, oo = _unmatched(old[i1:i2])
+            cn, on = _unmatched(new[j1:j2])
+            if (co or cn) and i1 > 0 and j1 > 0:        # 닫는 기호만 있음 → 왼쪽으로
+                i1, j1 = i1 - 1, j1 - 1
+            elif (oo or on) and i2 < len(old) and j2 < len(new):   # 여는 기호만 있음 → 오른쪽으로
+                i2, j2 = i2 + 1, j2 + 1
+            else:
+                return
+
+    balance()
+    # 숫자로 시작하면 바로 앞 수량어를 붙인다: 「2회」 → 「최대 2회」
+    if i1 > 1 and old[i1].isdigit() and old[i1 - 1] == " ":
+        k = i1 - 1
+        while k > 0 and old[k - 1] not in stop:
+            k -= 1
+        if old[k:i1 - 1] in QUANT:
+            j1 -= i1 - k
+            i1 = k
+    # 항 안에서 옛 문구가 한 번만 나오도록 어절 단위로 넓힌다
     while old.count(old[i1:i2]) > 1 and (i1 > 0 or i2 < len(old)):
-        i1, j1 = max(0, i1 - 1), max(0, j1 - 1)
-        i2, j2 = min(len(old), i2 + 1), min(len(new), j2 + 1)
-    return old[i1:i2], new[j1:j2]
+        if i1 > 0:
+            k = old.rfind(" ", 0, i1 - 1) + 1
+            j1, i1 = j1 - (i1 - k), k
+        if old.count(old[i1:i2]) > 1 and i2 < len(old):
+            k = old.find(" ", i2 + 1)
+            k = len(old) if k < 0 else k
+            j2, i2 = j2 + (k - i2), k
+        balance()
+    return old[i1:i2].strip(), new[j1:j2].strip()
 
 
 def blocks_to_amendment(reg: dict, blocks: list[list[str]]) -> str:

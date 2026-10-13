@@ -49,3 +49,22 @@ def test_intent_issues_catch_valid_but_wrong_drafts():
     cs, _ = build_changeset(r, "제4조를 다음과 같이 한다.\n제4조(포상) 포상은 따로 정한다.", "t")   # 신설 대신 기존 조를 덮어씀
     issues = intent_issues(req, cs, r, candidates(r, req))
     assert any("신설" in i for i in issues) and any("당연면직" in i for i in issues)
+
+
+def test_span_pair_balances_parentheses_and_keeps_quantifier():
+    # 261013 웹 초안: 「"2회(나누어 … 총 3회"를 …」처럼 괄호 짝이 안 맞고 「최대」가 빠졌던 경우
+    from regcheck.nl import _span_pair
+    old = "육아휴직 기간은 3년 이내로 하며, 분할하는 횟수는 최대 2회(나누어 사용하게 되는 휴직의 단위는 총 3회)로 한다."
+    new = old.replace("최대 2회", "최대 3회").replace("총 3회", "총 4회")
+    assert _span_pair(old, new) == ("최대 2회(나누어 사용하게 되는 휴직의 단위는 총 3회)", "최대 3회(나누어 사용하게 되는 휴직의 단위는 총 4회)")
+
+
+def test_span_pair_widens_by_words_until_unique():
+    from regcheck.nl import _span_pair
+    old = "직원은 1일 전까지 신청하고 사용 후 1일 이내에 보고한다."
+    new = "직원은 1일 전까지 신청하고 사용 후 3일 이내에 보고한다."
+    a, b = _span_pair(old, new)
+    assert old.count(a) == 1 and new.count(b) == 1
+    assert old.replace(a, b) == new
+    words = old.split()
+    assert a.split()[0] in words and a.split()[-1] in words   # 어절 중간에서 자르지 않음
