@@ -154,6 +154,13 @@ def test_lookalike_paragraph_marks():
     assert [i.path[0] for i in p.articles[0].items] == [1, 2, 3, 4]
 
 
+def test_lowercase_l_for_one_in_article_number():
+    # 보안업무지침 「제l조(목적)」: 숫자 1 대신 영문 소문자 l
+    p = parse(["제l조(목적) 이 지침은 필요한 사항을 규정하는데 있다.", "제2조(적용범위) 회사의 보안업무에 적용한다."])
+    assert [a.label for a in p.articles] == ["제1조", "제2조"]
+    assert parse(["제2조(용어) 「제l조」라고 쓴 문장은 고치지 않는다."]).articles[0].items[0].text.count("제l조") == 1
+
+
 def test_wrapped_da_is_not_mok():
     # 정보보안관리지침 제15조: 「…익일에 실시한」 + 다음 줄 「다.」
     p = parse(["제15조(진단) ① 익일에 실시한", "다.", "  ② 보안진단을 한다."])

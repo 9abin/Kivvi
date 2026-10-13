@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, field
 
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 # 원문에 ① 대신 쓰인 닮은 문자: 「ⓛ」(동그라미 l, 인사규정 제19조·여비규정 제8조), 딩뱃 「➀~➉」(도서관리지침 제7조 「➃」)
+RE_L_FOR_ONE = re.compile(r"^(\s*제)l(?=\d*조)")
 LOOKALIKE = str.maketrans({"ⓛ": "①", **{chr(0x2780 + i): CIRCLED[i] for i in range(10)}, **{chr(0x278A + i): CIRCLED[i] for i in range(10)}})
 
 RE_CHAPTER = re.compile(r"^\s*제\s*(\d+)\s*(장|절)\s*(.*)$")
@@ -175,7 +176,8 @@ def _make_article(m: re.Match, body_lines: list[str], chapter: str) -> Article:
 
 
 def parse(lines: list[str]) -> ParsedRegulation:
-    lines = [l.translate(LOOKALIKE) for l in lines]
+    # 「제l조」: 숫자 1 자리에 영문 소문자 l (보안업무지침 제1조, 261013 청크 점검에서 발견)
+    lines = [RE_L_FOR_ONE.sub(r"\g<1>1", l.translate(LOOKALIKE)) for l in lines]
     # 1) 머리: 첫 장·조·부칙 전까지
     start = next(
         (i for i, l in enumerate(lines) if RE_CHAPTER.match(l) or RE_ARTICLE.match(l) or RE_ADDENDUM.match(l)),
