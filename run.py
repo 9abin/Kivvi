@@ -1,6 +1,6 @@
 """전처리 파이프라인 실행 진입점.
 
-실행 (rag_pipeline 폴더에서):
+실행 (프로젝트 루트에서):
   python run.py            # 추출 → 청킹 → 참조 해석 → 산출물 저장
   python run.py extract    # 추출만
 """
@@ -12,7 +12,7 @@ import sys
 
 from config import LAW_DB, OUT_DIR
 from src.chunk.articles import DUP_NUMBERING, build_chunks
-from src.citations.law_lookup import resolve_external
+from src.citations.law_lookup import load as load_laws, resolve_external
 from src.citations.refs import resolve_citations, review_old_references
 from src.corrections import store as corrections
 from src.corrections.store import validate, check_pairs
@@ -54,7 +54,8 @@ def main(argv):
     meta = build_meta()
     texts = {idx: io.open(os.path.join(OUT_DIR, "text", idx + ".txt"), encoding="utf-8").read() for idx in meta}
     rows = build_chunks(meta, texts)
-    rows, aliases, stat = resolve_citations(rows, {idx: m["문서명"] for idx, m in meta.items()})
+    law_names = load_laws(LAW_DB)[0] if os.path.exists(LAW_DB) else ()
+    rows, aliases, stat = resolve_citations(rows, {idx: m["문서명"] for idx, m in meta.items()}, law_names)
     if os.path.exists(LAW_DB):
         rows, n_ext = resolve_external(rows, LAW_DB)
         print("외부 법령 인용 연결:", n_ext, "건")

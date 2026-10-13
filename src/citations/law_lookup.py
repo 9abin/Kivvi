@@ -12,6 +12,7 @@
 """
 import re
 import sqlite3
+import json
 
 ARTICLE_KEY = re.compile(r"제(\d+)조(?:\s*의\s*(\d+))?")
 
@@ -22,6 +23,15 @@ LAW_ALIASES = {
     "개보법": "개인정보 보호법",
     "개인정보 보호법률": "개인정보 보호법",
     "부패방지 및 국민권익위위원회의 설치와 운영에 관한 법률": "부패방지 및 국민권익위원회의 설치와 운영에 관한 법률",
+    "특정금융정보법": "특정 금융거래정보의 보고 및 이용 등에 관한 법률",
+    "특금법": "특정 금융거래정보의 보고 및 이용 등에 관한 법률",
+    "테러자금금지법": "공중 등 협박목적 및 대량살상무기확산을 위한 자금조달행위의 금지에 관한 법률",
+    "국가계약법": "국가를 당사자로 하는 계약에 관한 법률",
+    "지방계약법": "지방자치단체를 당사자로 하는 계약에 관한 법률",
+    "소프트웨어산업 진흥법": "소프트웨어 진흥법",
+    "공공기록물법": "공공기록물 관리에 관한 법률",
+    "퇴직급여보장법": "근로자퇴직급여 보장법",
+    "이해충돌방지법": "공직자의 이해충돌 방지법",
 }
 
 
@@ -33,11 +43,15 @@ def load(path):
     """(법령명 -> document_id, (document_id, 조번호) -> 본문) 두 인덱스를 돌려준다."""
     conn = sqlite3.connect(path)
     titles = {}
-    for doc_id, requested, api in conn.execute(
-            "select id, requested_title, api_title from documents"):
+    documents = list(conn.execute("select id, requested_title, api_title, raw_json from documents"))
+    for doc_id, requested, api, _ in documents:
         for t in (requested, api):
             if t:
                 titles.setdefault(_norm(t), doc_id)
+    for doc_id, _, _, raw in documents:
+        previous = json.loads(raw).get("법령", {}).get("기본정보", {}).get("이전법령명")
+        if isinstance(previous, str) and previous.strip():
+            titles.setdefault(_norm(previous), doc_id)
     chunks = {}
     for doc_id, path_, content in conn.execute("select document_id, path, content from chunks"):
         m = re.match(r"^(\d+(?:의\d+)?)", path_ or "")
@@ -57,9 +71,11 @@ def article_key(ref_text):
 
 def resolve(law_name, ref_text, titles, chunks):
     """(document_id, 조번호, 본문) 또는 매칭 실패 시 None."""
-    base, sep, after = law_name.partition(" 시행령")
-    base = LAW_ALIASES.get(base, base)
-    doc_id = titles.get(_norm(base + sep + after))
+    name = _norm(law_name)
+    suffix = next((s for s in ("시행규칙", "시행령") if name.endswith(s)), "")
+    base = name[:-len(suffix)] if suffix else name
+    aliases = {_norm(k): _norm(v) for k, v in LAW_ALIASES.items()}
+    doc_id = titles.get(name) or titles.get(aliases.get(base, base) + suffix)
     if not doc_id:
         return None
     key = article_key(ref_text)

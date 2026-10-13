@@ -1,0 +1,62 @@
+"""eval/answer_eval.jsonl(190문항)을 현재 설정으로 한 번씩 실행해 답변을 저장한다. 채점은 하지 않는다.
+
+사용(rag_pipeline에서): uv run python -m src.eval.run_answer_eval --tag base [--limit N]
+결과: eval/answer_runs/<tag>/runs.jsonl (이어 실행 가능: 이미 있는 id는 건너뛴다)
+"""
+import argparse
+import json
+import os
+import sys
+import time
+
+from dotenv import load_dotenv
+
+from config import BASE_DIR
+
+sys.stdout.reconfigure(encoding="utf-8")
+load_dotenv()
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+os.environ["LANGSMITH_TRACING"] = "false"
+
+GOLD = os.path.join(BASE_DIR, "eval", "answer_eval.jsonl")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--tag", required=True)
+    ap.add_argument("--limit", type=int, default=0)
+    args = ap.parse_args()
+
+    gold = [json.loads(l) for l in open(GOLD, encoding="utf-8") if l.strip()]
+    if args.limit:
+        gold = gold[:args.limit]
+    outdir = os.path.join(BASE_DIR, "eval", "answer_runs", args.tag)
+    os.makedirs(outdir, exist_ok=True)
+    path = os.path.join(outdir, "runs.jsonl")
+    done = set()
+    if os.path.exists(path):
+        done = {json.loads(l)["id"] for l in open(path, encoding="utf-8")}
+
+    from src.answer.pipeline import Assistant
+    assistant = Assistant()
+    for g in gold:
+        if g["id"] in done:
+            continue
+        t = time.time()
+        try:
+            r = assistant.ask(g["q"])
+            rec = {"id": g["id"], "mode": r["mode"], "answer": r["answer"], "withheld": r.get("withheld"),
+                   "warnings": r.get("warnings", []), "glossary_excluded": r.get("glossary_excluded", []),
+                   "entries": [{"문서명": e["문서명"], "article": e["article"], "상태": e["조문상태"]} for e in r["entries"]],
+                   "top_score": r.get("top_score")}
+        except Exception as e:
+            rec = {"id": g["id"], "error": repr(e)[:300]}
+        rec["sec"] = round(time.time() - t, 1)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        print(g["id"], rec.get("mode", "ERROR"), rec["sec"], flush=True)
+    assistant.close()
+
+
+if __name__ == "__main__":
+    main()

@@ -9,6 +9,7 @@
 """
 import re
 import collections
+from .law_lookup import LAW_ALIASES
 
 
 REF = re.compile(r"제(\d+)조(?:\s*[의\-]\s*(\d+))?(?:\s*제(\d+)항)?")
@@ -22,13 +23,18 @@ UNRESOLVED_WORD = re.compile(r"(?:규정|지침|법|정관|헌장|강령|령)\s*
 
 
 LAW_NAME = re.compile(r"(?:[가-힣]{2,}(?:법|령|규칙)|법률|시행령|시행규칙)\s*$")
+# 괄호 앞의 설명까지 법령명으로 삼지 않도록, 이름 안에 괄호는 허용하지 않는다.
+LAW_NAME_FULL = re.compile(
+    r"(?:[가-힣·‧]+(?:\s+및\s+[가-힣·‧]+)?(?:\s+[가-힣·‧]+)?\s+등에\s+관한\s+법률"
+    r"|[가-힣·‧\d]{2,}(?:법률|시행령|시행규칙|규칙|령|법|고시|훈령|예규))\s*$"
+)
 DEF_TAIL = re.compile(ALIAS.pattern + r"\s*$")
 HISTORY_WORDS = ("이동", "종전")
 
 # "동법"·"같은 법"은 문서가 정의한 1글자 약칭("법")이 아니라 바로 앞에서 쓴 법령을 가리킨다.
 # 이 체크를 약칭 사전 조회보다 먼저 해야, "(이하 "법"이라 한다)"로 정의된 그 문서의 법과
 # 전혀 다른 "동법"(예: 다른 법을 가리킴)이 섞이지 않는다.
-SAME_LAW = re.compile(r"(?<![가-힣])(?:동법|같은\s*법)\s*$")
+SAME_LAW = re.compile(r"(?<![가-힣])(?:동법|같은\s*법|위\s*법률)\s*$")
 # "영"·"시행령"이 바로 앞에 있으면 법 자체가 아니라 그 법의 시행령을 가리킨다.
 DECREE_WORD = re.compile(r"(?<![가-힣])(?:시행령|영)\s*$")
 
@@ -60,6 +66,16 @@ def _target_id(doc, n, k, h):
 def build_aliases(rows, names):
     """문서별 약칭 사전: '(이하 “X”라 한다)' 앞의 문서명을 찾아 X → 고유번호 로 저장."""
     norm = {re.sub(r"\s+", "", nm): idx for idx, nm in names.items()}
+    corpus_aliases = {
+        "자금세탁행위 방지를 위한 업무규정": "한국벤처투자 자금세탁행위 방지를 위한 업무규정",
+        "전화 녹음 관리 및 운영관리 지침": "전화 녹음관리 및 운영지침",
+        "전화 녹음 시스템 운영지침": "전화 녹음관리 및 운영지침",
+        "녹음 시스템 운영지침": "전화 녹음관리 및 운영지침",
+    }
+    for alias, title in corpus_aliases.items():
+        target = norm.get(re.sub(r"\s+", "", title))
+        if target is not None:
+            norm[re.sub(r"\s+", "", alias)] = target
     aliases = {}
     for idx in names:
         txt = normalize_brackets("\n".join(r["본문"] for r in rows if r["고유번호"] == idx))
@@ -100,10 +116,17 @@ def _set_rules(names):
             STEM_RULE[idx] = by_name[n[:-2] + "규정"]
 
 
-def resolve_citations(rows, names):
+def resolve_citations(rows, names, law_names=()):
     """모든 청크의 cites를 채운다. 반환: (rows, aliases, 상태별 건수)"""
     _set_rules(names)
     aliases, norm = build_aliases(rows, names)
+    quoted_laws = {re.sub(r"\s+", "", ALIAS.sub("", m.group(1)))
+                   for r in rows for m in re.finditer(r"「([^」]+)」", normalize_brackets(r["본문"]))
+                   if LAW_NAME.search(ALIAS.sub("", m.group(1)))}
+    known_laws = sorted({re.sub(r"\s+", "", nm) for nm in law_names} |
+                        quoted_laws |
+                        {re.sub(r"\s+", "", nm) + suffix for nm in LAW_ALIASES
+                         for suffix in ("", "시행령", "시행규칙")}, key=len, reverse=True)
     ids = {r["id"] for r in rows}
 
     def exists(t):
@@ -132,7 +155,7 @@ def resolve_citations(rows, names):
                     hit = "외부:" + last_law_name  # "동법"·"같은 법" = 바로 앞에서 쓴 법령
                 if hit is None:
                     for ali, tgt in aliases.get(own, {}).items():
-                        if pre.rstrip().endswith(ali):
+                        if re.search(r"(?<![가-힣])" + re.escape(ali) + r"\s*$", pre):
                             hit = tgt
                             break
                 if hit is None:
@@ -144,21 +167,22 @@ def resolve_citations(rows, names):
                 # 앞 호의 법령명이 뒤 호의 다른 참조에 잘못 이어붙지 않게 한다.
                 bm = re.search(r"「([^」]+)」\s*(?:제\d+조(?:(?!\n\s*\d+[.)])[^「」]){0,40})?$", pre)
                 if hit is None and bm:
-                    nm = re.sub(r"\s+", "", bm.group(1))
-                    hit = norm.get(nm, "외부:" + bm.group(1))
+                    title = re.sub(r"\s+", " ", ALIAS.sub("", bm.group(1))).strip()
+                    nm = re.sub(r"\s+", "", title)
+                    hit = norm.get(nm, "외부:" + title)
                 if hit is None and re.search(r"정관\s*$", pre[-6:]) and JUNGWAN_ID and own != JUNGWAN_ID:
                     hit = JUNGWAN_ID  # '정관 제N조' = 한국벤처투자 정관
                 if hit is None and re.search(r"(?<![가-힣])규정\s*$", pre[-6:]) and own in STEM_RULE:
                     hit = STEM_RULE[own]  # 'X지침'이 '규정'이라 하면 같은 이름의 'X규정'
                 if hit is None:  # 문서명을 괄호 없이 쓴 경우 (예: '전산업무규정 제4조')
-                    pc = re.sub(r"\s+", "", pre[-40:])
+                    pc = re.sub(r"\s+", "", pre)
                     cand = [nm for nm in norm if pc.endswith(nm)]
                     if cand:
                         hit = norm[max(cand, key=len)]
                 # 여기까지 못 찾았고 바로 앞이 "영"/"시행령"이면, 그 표기를 뗀 글로 다시 한 번
                 # 시도한다(법 자체가 아니라 그 법의 시행령을 가리키는 경우). 문서가 이미 "영"을
                 # 약칭으로 정의해 둔 경우는 위에서 먼저 잡히므로 여기까지 오지 않는다.
-                decree_m = DECREE_WORD.search(pre) if hit is None else None
+                decree_m = DECREE_WORD.search(pre)
                 if decree_m:
                     pre_law = pre[:decree_m.start()]
                     if SAME_LAW.search(pre_law) and last_law_name:
@@ -172,6 +196,16 @@ def resolve_citations(rows, names):
                                 hit = "외부:" + bm2.group(1)
                 if hit is not None and decree_m and str(hit).startswith("외부:") and not str(hit).endswith(" 시행령"):
                     hit = "외부:" + str(hit)[3:] + " 시행령"
+                if hit is None and not SELF_WORD.search(pre[-20:]):
+                    pc = re.sub(r"\s+", "", pre)
+                    title = next((nm for nm in known_laws if pc.endswith(nm)), None)
+                    if title:
+                        tm = re.search(r"\s*".join(re.escape(ch) for ch in title) + r"\s*$", pre)
+                        hit = "외부:" + re.sub(r"\s+", " ", tm.group()).strip()
+                    else:
+                        lm = LAW_NAME_FULL.search(pre)
+                        if lm and lm.group().strip() not in ("시행령", "시행규칙", "동법", "동령"):
+                            hit = "외부:" + lm.group().strip()
                 if hit is not None and not str(hit).startswith("외부:"):
                     kind, target = "내부문서", hit
                 elif hit is not None:
