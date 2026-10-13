@@ -86,4 +86,4 @@ SELECT src, evidence, target, check_status FROM amend.edge WHERE check_status IN
 - **ER 다이어그램에 선이 거의 없다**: 가빈 표 재적재를 막지 않으려고 `public` 쪽 외래키를 걸지 않았다 ([31](reports/261012-1540-31-amend-schema.md)). 연결 키는 `chunk_detail.chunk_id = chunks.chunk_id`, `edge.target = chunk_detail.article_id`, `finding.src_id = chunk_detail.item_id`, `*.reg_id = documents.doc_id`. DBeaver에서 보려면 ER 다이어그램 → 가상 키(Virtual key)로 추가
 - 데이터는 박형건이 파이프라인을 다시 돌리고 `amend_load.py`를 실행할 때만 바뀐다. 기준 시점은 `amend.finding.run` (실행 ID)
 - 법률 DB(한석희 SQLite)는 이 DB에 없다. DBeaver에서 SQLite로 따로 연다 (`data/law_rag.sqlite3`)
-- 원문(HWP)은 KVIC 저작물. DB 내용을 외부로 내보낼 때는 원문 대신 ALIO 링크 (AGENTS §4)
+- 원문(HWP)은 KVIC 저작물. DB 내용을 외부로 내보낼 때는 원문 대신 ALIO 링크 ([작업 규칙 §4](05-working-agreement.md))
