@@ -57,6 +57,7 @@
 | 가빈 저장소 (GitHub, 공개) | https://github.com/9abin/kvic-internal-regulations-review |
 | 팀원용 DB 접속 가이드 | https://claude.ai/artifact/CqqnKy39Ty39Q4KJhRmAAg |
 | 챗봇 통합 결정과 요청 (가빈에게) | https://claude.ai/artifact/FUmVQNaT4Y8yFDW6Av2bWs |
+| 팀 챗봇 UI 디자인 (Figma, 진행 중) | https://www.figma.com/design/yiXHZ59iuuCnoRwbuukjRw/?node-id=1-2 |
 | 데이터 지도 (DB 구조·그래프) | https://claude.ai/artifact/Nxtp7jxhxCNLA5nDVxBeQo |
 | 학습 문서 | `docs/learning/261012-amendment-agent.html` (Chrome에서 열기) |
 
