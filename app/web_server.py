@@ -130,20 +130,29 @@ def amend(chunk: str) -> dict:
     inbound = q("select i.src, i.src_label, i.context, i.kind, d.label, d.hang from amend.v_inbound i "
                 "left join amend.chunk_detail d on d.item_id = i.src where i.target = %s or i.target like %s", aid, aid + "-%")
     findings = q("select type, quote, note, suggest from amend.finding where chunk_id = any(%s) order by type", chunks)
-    laws = q("select distinct evidence, context from amend.edge where src_article = %s and target_type = 'law'", aid)
+    laws = q("select target, min(context) as context from amend.edge where src_article = %s and target_type = 'law' group by target", aid)
     same = []
     db = lawdb()
+    text = " ".join(p["text"] for p in a["paras"])
     if db and a["title"] and a["title"].replace(" ", "") not in GENERIC_TITLES:
         # 이 규정이 실제로 인용하는 법령을 앞에 (흔하지 않은 제목도 다른 법에 우연히 같을 수 있어서)
         cited = {r["d"].replace(" ", "") for r in q("select distinct regexp_replace(target, '\\s*제\\s*\\d+.*$', '') d from amend.edge "
                                                     "where src like %s and target_type = 'law'", a["reg_id"] + ":%")}
         cand = db.same_title(a["title"], limit=20)
         cand.sort(key=lambda x: x[0]["title"].replace(" ", "") not in cited)
-        for law, key, u in cand[:3]:
-            hang = u.get("항") or []
-            hang = hang if isinstance(hang, list) else [hang]
-            body = " ".join(h.get("항내용", "") for h in hang if isinstance(h, dict)).strip() or (u.get("조문내용") or "")
-            same.append({"law": law["title"], "article": f"제{key}조({u.get('조문제목', '')})", "text": body[:220]})
+        for law, key, u in cand[:2]:
+            # 제목이 같은 조 + 내용이 가까운 조 (육아휴직: 제19조 + 분할 사용을 정한 제19조의4)
+            for r in web_law.related(law, text, k=2, prefer=key):
+                if any(s["law"] == law["title"] and s["key"] == r["key"] for s in same):
+                    continue
+                same.append({"law": law["title"], "key": r["key"], "article": f"{r['article']}({r['title']})", "text": r["text"][:220],
+                             "why": "제목이 같은 조" if r["key"] == key else "내용이 가까운 조",
+                             "interp": web_law.interpretations(law["id"], r["key"], 3)})
+    cited_laws = []
+    for l in laws:
+        law, key = web_law.article_ref(db, l["target"])
+        cited_laws.append({"where": l["target"], "quote": (l["context"] or "")[:90],
+                           "interp": web_law.interpretations(law["id"], key, 3) if law and key else []})
 
     def where(r):
         reg_id = r["src"].split(":")[0]
@@ -153,8 +162,34 @@ def amend(chunk: str) -> dict:
             "open": [{"id": o["changeset_id"], "status": o["status"], "title": o["title"]} for o in open_],
             "inbound": [{"where": where(r), "quote": (r["context"] or "").strip()[:90], "kind": r["kind"]} for r in inbound],
             "findings": [{"type": f["type"].replace("_", " "), "quote": f["quote"], "note": f["note"] or f["suggest"] or ""} for f in findings],
-            "laws": [{"where": l["evidence"], "quote": (l["context"] or "")[:90]} for l in laws],
+            "laws": cited_laws,
             "sameTitleLaws": same}
+
+
+def lawcheck(cid: str) -> dict:
+    """개정안의 법령 대조 카드: 법령 대조 영향마다 관련 법조문(내용이 가까운 항), 숫자 비교, 해석례"""
+    rows = q("select reg_id, payload from amend.changeset where id = %s", cid)
+    if not rows:
+        return {"error": f"개정안이 없습니다: {cid}"}
+    payload = rows[0]["payload"] or {}
+    from web_agent import load_package
+    pkg = load_package(cid) or {}
+    prow = pkg.get("rows") or payload.get("rows", [])
+    plain = lambda parts: "".join(p if isinstance(p, str) else (p.get("del") or p.get("ins") or "") for p in parts)  # noqa: E731
+    old, new = plain(segments(prow, "old")), plain(segments(prow, "new"))
+    focus, units = web_law.focus_of(old, new)
+    db, cards = lawdb(), []
+    for r in q("select quote, reason from amend.impact where changeset_id = %s and category = 'law_check'", cid):
+        law, key = web_law.article_ref(db, r["quote"] or "")
+        if not law:
+            continue
+        rel = web_law.related(law, old, k=2, prefer=key or None, focus=focus, units=units)
+        for x in rel:
+            x["interp"] = web_law.interpretations(law["id"], x["key"], 3)
+            x["why"] = "제목이 같은 조" if x["key"] == key else "바뀐 구절과 내용이 가까운 조"
+        cards.append({"law": law["title"], "quoted": r["quote"], "related": rel,
+                      "compare": web_law.compare([x["text"] for x in rel], old, new)})
+    return {"id": cid, "cards": cards, "note": "숫자 대조는 참고용입니다. 같은 단위라도 세는 대상이 다를 수 있어, 문맥이 비슷할 때만 같아짐·다름을 표시합니다."}
 
 
 def changesets() -> list[dict]:
@@ -244,6 +279,7 @@ ROUTES = {
     "/api/changeset": lambda p: changeset(p.get("id", "")),
     "/api/regulation": lambda p: regulation(p.get("reg", "")),
     "/api/chat/status": lambda p: web_chat.status(),
+    "/api/lawcheck": lambda p: lawcheck(p.get("id", "")),
     "/api/final": lambda p: {k: v for k, v in web_agent.final_package(p.get("id", "")).items() if k != "_companion_rows"},
 }
 # 쓰기·실행 (POST, JSON 본문). user는 화면의 사용자 이름 (시연용 — 실제 배포는 로그인 계정으로 바꿈)
@@ -283,6 +319,7 @@ def feedback(b: dict) -> dict:
 
 import web_agent  # noqa: E402
 import web_chat  # noqa: E402
+import web_law  # noqa: E402
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -348,7 +385,7 @@ def main() -> None:
     ap.add_argument("--host", default="127.0.0.1", help="같은 와이파이 팀원에게 보이려면 0.0.0.0 (방화벽 규칙 필요)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
-    lawdb()  # 법률 DB를 시작할 때 한 번 읽음 (첫 요청이 느려지지 않게)
+    web_law.init(lawdb())  # 법률 DB를 시작할 때 한 번 읽음 (첫 요청이 느려지지 않게, SQLite는 이 스레드에서만)
     web_agent.corpus()
     web_chat.warmup()  # 가빈 검색 모델(GPU)을 뒤에서 미리 올림
     print(f"규정 도우미 화면: http://{a.host}:{a.port}/  (DB 상태: /api/status)")
