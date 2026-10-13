@@ -17,6 +17,10 @@
   MRR: 정답 순위의 역수 평균 (높을수록 좋음)
 유형별(내용 / 문서명 / 항번호)과 세부유형별(단일조문 / 용어정의 / 조문간인용 등, 없으면 미지정)로도 나눠서 본다.
 
+채점 단위: 조. 정답 파일은 항 단위 시절 ID('X_제8조_2항')로 적혀 있어서, 정답과 검색 결과를 모두 조 ID로 맞춘 뒤
+같은 조가 여러 번 나오면 첫 번째만 센다. 그래서 항 단위 색인과 조 단위 색인을 같은 잣대로 비교할 수 있다.
+(PG_DATABASE 환경 변수로 비교할 색인 DB를 고른다. 예: 항 단위 기준 색인은 regulations_para)
+
 주의: 질문 세트(현재 277개, 90개 규정 전부 포함)로 가중치를 맞추면 이 세트에 과적합될 수 있다.
 가중치를 조정할 때는 질문을 나눠 일부를 검증용으로 남긴다.
 """
@@ -27,6 +31,7 @@ import sys
 from collections import defaultdict
 
 from config import BASE_DIR
+from src.chunk.articles import article_id
 from src.eval.dataset import QUESTION_SUBTYPES
 from src.search.search import RERANK_TOP, Searcher
 from src.store.pgstore import PgStore
@@ -53,18 +58,32 @@ def check_gold(questions):
     """정답 청크 ID가 DB에 있고 색인 대상인지 확인한다. 없으면 측정이 의미 없으므로 중단한다."""
     store = PgStore()
     ids = sorted({g for q in questions for g in q["정답"]})
-    found = {r["chunk_id"] for r in store.get(ids)}
+    with store.conn.cursor() as cur:  # 항 단위 색인이면 조 ID 정답은 그 조의 항 청크가 있으면 된다
+        cur.execute("SELECT chunk_id FROM chunks")
+        found = {article_id(cid) for (cid,) in cur.fetchall()}
     store.close()
-    missing = [i for i in ids if i not in found]
+    missing = [i for i in ids if article_id(i) not in found]
     if missing:
         raise SystemExit(f"정답 청크가 DB에 없음: {missing}")
     print(f"정답 청크 {len(ids)}개 확인 완료")
 
 
+def by_article(hits):
+    """검색 결과를 조 ID 목록으로 바꾼다. 항 단위 색인에서 같은 조의 항이 여러 번 나오면 첫 번째만 남긴다."""
+    out, seen = [], set()
+    for h in hits:
+        a = article_id(h["chunk_id"])
+        if a not in seen:
+            seen.add(a)
+            out.append(a)
+    return out
+
+
 def rank_of(hits, gold):
-    """정답 청크들 중 가장 앞선 순위(1부터). 없으면 None."""
-    for i, h in enumerate(hits, start=1):
-        if h["chunk_id"] in gold:
+    """정답 조들 중 가장 앞선 순위(1부터, 조 단위). 없으면 None."""
+    gold = {article_id(g) for g in gold}
+    for i, a in enumerate(by_article(hits), start=1):
+        if a in gold:
             return i
     return None
 
@@ -81,13 +100,14 @@ def hits_for(searcher, mode, text):
     if mode == "rrf_rerank":
         return searcher.rerank(text, fused[:RERANK_TOP])
     if mode == "search":
-        return searcher.search(text, k=K, expand_siblings=False, expand_cites=False)
+        # 항 단위 색인은 같은 조가 여러 번 나와 조 단위로 줄면 10개가 안 될 수 있어서 넉넉히 받는다
+        return searcher.search(text, k=RERANK_TOP, expand_siblings=False, expand_cites=False)
     raise ValueError(mode)
 
 
 def concentration(hits):
     """상위 K개 중 가장 많이 나온 한 규정이 차지한 비율. 머리말로 같은 규정이 상위를 독점하는지 본다."""
-    docs = [h["chunk_id"].split("_", 1)[0] for h in hits[:K]]
+    docs = [a.split("_", 1)[0] for a in by_article(hits)[:K]]
     if not docs:
         return 0.0
     return max(docs.count(d) for d in set(docs)) / len(docs)
@@ -96,7 +116,8 @@ def concentration(hits):
 def recall_at_k(hits, gold, k=K):
     """정답이 여러 개인 질문에서, 상위 k개 안에 정답 중 몇 퍼센트가 들어왔는지.
     정답이 하나뿐이면 Hit@k와 같은 값이라 의미가 없다. 정답이 둘 이상일 때만 쓴다."""
-    found = {h["chunk_id"] for h in hits[:k]} & gold
+    gold = {article_id(g) for g in gold}
+    found = set(by_article(hits)[:k]) & gold
     return len(found) / len(gold)
 
 
@@ -107,7 +128,7 @@ def run(modes, rerank_header=None, questions_path=QUESTIONS):
     searcher = Searcher()
     if rerank_header is not None:
         searcher.rerank_header = rerank_header
-    print(f"리랭커 머리말: {'켬' if searcher.rerank_header else '끔'}")
+    print(f"색인 DB: {os.environ.get('PG_DATABASE')} | 리랭커 머리말: {'켬' if searcher.rerank_header else '끔'}")
     results = {}
     concentrations = {}
     recalls = {}
@@ -121,7 +142,7 @@ def run(modes, rerank_header=None, questions_path=QUESTIONS):
             ranks.append((q["유형"], q["q"], rank_of(hits, gold), q.get("세부유형", "미지정")))
             if q["유형"] == "내용":
                 content_concentration.append(concentration(hits))
-            if len(gold) > 1:
+            if len({article_id(g) for g in gold}) > 1:  # 조 단위로 맞춰도 정답이 둘 이상일 때만
                 multi_gold_recall.append(recall_at_k(hits, gold))
         results[mode] = ranks
         concentrations[mode] = sum(content_concentration) / max(len(content_concentration), 1)

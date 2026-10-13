@@ -5,6 +5,7 @@
   3. 가중 RRF로 합친다 (벡터 0.7 : 키워드 0.3, config.py)
   4. 상위 후보를 리랭커로 다시 점수 매긴다
   5. 상위 k개에 형제 항을 붙이고 (3,000자 상한), cites를 1단계 따라간다
+     (청크가 조 단위라 형제 항은 보통 없다. 긴 별표 조각처럼 같은 조항 이름을 나눠 가진 청크만 붙는다)
 
 사용 예:
   from src.search.search import Searcher
@@ -20,7 +21,7 @@ from kiwipiepy import Kiwi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from config import (EMBED_MODEL, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
-                    RERANK_HEADER, RERANK_MODEL, RRF_K)
+                    RERANK_HEADER, RERANK_MODEL, RRF_K, USE_SYNONYMS)
 from src.search import glossary, synonyms
 from src.search.bm25 import BM25
 from config import CONTEXT_CHAR_BUDGET
@@ -30,7 +31,6 @@ from src.store.pgstore import PgStore
 CANDIDATES = 50         # 방식별로 합치기 전 가져올 후보 수
 RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
-UNROUTED_PENALTY = 0.3  # 문서 고르기에서 빠진 규정의 리랭크 점수에 곱하는 값
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
 
@@ -62,6 +62,19 @@ def _article_base(article):
     return (article or "").split(" ")[0]
 
 
+def interleave(lists, limit):
+    """여러 결과 목록을 순위별로 번갈아 합친다 (각 목록 1위, 각 목록 2위, …). 같은 청크는 처음 나온 것만 남긴다."""
+    out, seen = [], set()
+    for rank in range(max((len(x) for x in lists), default=0)):
+        for hits in lists:
+            if rank < len(hits) and hits[rank]["chunk_id"] not in seen:
+                seen.add(hits[rank]["chunk_id"])
+                out.append(hits[rank])
+                if len(out) >= limit:
+                    return out
+    return out
+
+
 class Searcher:
     def __init__(self):
         self.store = PgStore()
@@ -70,7 +83,7 @@ class Searcher:
         self.model.half()
         self.reranker = CrossEncoder(RERANK_MODEL, device="cuda")
         self.rerank_header = RERANK_HEADER
-        self.synonym_table = synonyms.load()
+        self.synonym_table = synonyms.load() if USE_SYNONYMS else {}
         self.glossary = glossary.load()
         self.glossary_filter = True  # 후보 단계 제외 (전후 비교를 위해 끌 수 있다)
         self.last_glossary_excluded = []
@@ -148,12 +161,14 @@ class Searcher:
 
     # 4. 리랭킹 -------------------------------------------------------------
     def rerank_text(self, chunk_id):
-        """리랭커에 넣는 청크 글자. 머리말을 켜면 '[문서명 조항] 본문_검색' 형태가 된다."""
+        """리랭커에 넣는 청크 글자. 머리말을 켜면 '[문서명 장 조항] 본문_검색' 형태가 된다.
+        문서명은 임베딩·BM25 색인에는 넣지 않고 여기서만 붙인다 (src/index/build.py embed_text)."""
         row = self.row_info[chunk_id]
         if not self.rerank_header:
             return row["body_search"]
         title = self.documents.get(row["doc_id"], {}).get("title") or row["doc_id"]
-        return f"[{title} {row['article']}] {row['body_search']}"
+        label = " ".join(x for x in (title, row.get("section"), row["article"]) if x)
+        return f"[{label}] {row['body_search']}"
 
     def rerank(self, text, cands):
         if not cands:
@@ -163,18 +178,6 @@ class Searcher:
         for c, s in zip(cands, scores):
             c["rerank"] = float(s)
         return sorted(cands, key=lambda c: c["rerank"], reverse=True)
-
-    def _demote_unrouted(self, ranked, routed_titles):
-        """질문이 다루는 업무 영역의 규정으로 모델이 고른 문서(routed_titles) 밖의 청크는 리랭크 점수를 깎는다.
-        리랭커가 '보증금', '계약' 같은 같은 단어만 보고 다른 영역의 규정(사택 지침)을 1위에 올리는 일을 줄이려는 것이다.
-        완전히 빼지 않는 이유: 문서 고르기가 정답 규정을 놓칠 때가 있다(실측 74%만 모두 포함)."""
-        ids = {d for d, v in self.documents.items() if v.get("title") in set(routed_titles)}
-        if not ids:
-            return ranked
-        for c in ranked:
-            if c["doc_id"] not in ids and c.get("rerank") is not None:
-                c["rerank"] *= UNROUTED_PENALTY
-        return sorted(ranked, key=lambda c: c.get("rerank") or 0, reverse=True)
 
     # 5. 확장 ---------------------------------------------------------------
     def _entry(self, h, status=None):
@@ -210,9 +213,13 @@ class Searcher:
     def _cited(self, hit):
         """청크의 cites 중 실제 대상이 있는 것을 1단계만 따라간다. 대상이 부칙·삭제여도 상태를 붙인다.
         외부연결(법령, law_lookup.py)은 내부 chunk_id가 아니라 cites에 이미 저장된 본문을 그대로 쓴다."""
-        targets = []
+        targets, seen = [], set()
         for c in self.row_info.get(hit["chunk_id"], {}).get("cites") or []:
-            if c.get("대상") and c.get("상태") in CITE_OK_STATUS and c["대상"] != hit["chunk_id"]:
+            # 조 단위 청크는 여러 항의 인용을 함께 가지므로, 같은 조를 가리키는 인용은 한 번만 따라간다.
+            # 같은 조 안의 인용('제1항에 따라')은 이미 이 청크 본문에 있으므로 따라가지 않는다.
+            if c.get("대상") and c.get("상태") in CITE_OK_STATUS and c["대상"] != hit["chunk_id"] \
+                    and c["대상"] not in seen:
+                seen.add(c["대상"])
                 targets.append(c)
             if len(targets) >= CITE_LIMIT:
                 break
@@ -238,8 +245,7 @@ class Searcher:
 
     # 전체 -------------------------------------------------------------------
     def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True,
-              vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT, rewritten=None,
-              routed_titles=None):
+              vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT, rewritten=None):
         """질의 하나에 대해 상위 k개 청크를 돌려준다.
 
         filters: {"tier": "지침", "doc_ids": ["23234"], "min_year": 2025} (모두 선택)
@@ -268,8 +274,6 @@ class Searcher:
 
         if rerank:
             fused = self.rerank(text, fused[:RERANK_TOP])
-            if routed_titles:
-                fused = self._demote_unrouted(fused, routed_titles)
         # 확인된 다른 개념의 수치 근거는 후보 단계에서 빼서 빈자리를 다음 후보가 채우게 한다 (정확 조회 결과는 건드리지 않는다).
         self.last_glossary_excluded = []
         if self.glossary_filter:
@@ -288,6 +292,29 @@ class Searcher:
             })
             out.append(item)
         return out
+
+    def search_plan(self, plan, k=5, filters=None, **kw):
+        """하위 질문 목록(Generator.plan_queries)을 각각 검색해 합친다 (Azure agentic retrieval 방식).
+
+        plan: [{"질문", "검색어"}, ...]. 하위 질문마다 search()를 따로 부르므로 리랭킹도 하위 질문으로 한다.
+              원래 질문 전체로 리랭킹하면 B를 찾는 조문이 질문의 절반과만 맞아서 밀리기 때문이다.
+        합치기: 하위 질문별 결과를 1위끼리, 2위끼리 번갈아 담는다(interleave). 어느 하위 질문도 자리를 뺏기지 않는다.
+              하위 질문이 둘 이상이면 하나당 최소 3자리가 되도록 k를 늘린다.
+        하위 질문이 하나면 search()와 같다(검색어는 rewritten으로 넘긴다).
+        """
+        total = k if len(plan) <= 1 else max(k, 3 * len(plan))
+        lists, hints, excluded = [], [], []
+        for sub in plan:
+            hits = self.search(sub["질문"], k=total, filters=filters, rewritten=sub.get("검색어"), **kw)
+            if len(plan) > 1:
+                for h in hits:
+                    h["하위질문"] = sub["질문"]
+            lists.append(hits)
+            hints.append(self.last_hint)
+            excluded += self.last_glossary_excluded
+        self.last_hint = " / ".join(h for h in hints if h)
+        self.last_glossary_excluded = excluded
+        return interleave(lists, total)
 
     def assemble(self, results, budget=CONTEXT_CHAR_BUDGET):
         """검색 결과를 답변 입력으로 조립한다.

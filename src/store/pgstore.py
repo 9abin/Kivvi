@@ -63,6 +63,7 @@ class PgStore:
                 "chunk_id": r["chunk_id"],
                 "doc_id": r["doc_id"],
                 "article": r["article"],
+                "section": r.get("section") or None,
                 "status": r["status"],
                 "is_indexed": r["is_indexed"],
                 "body": r["body"],
@@ -77,13 +78,14 @@ class PgStore:
         with self.conn.cursor() as cur:
             cur.executemany(
                 """
-                INSERT INTO chunks (chunk_id, doc_id, article, status, is_indexed, body, body_search,
+                INSERT INTO chunks (chunk_id, doc_id, article, section, status, is_indexed, body, body_search,
                                     body_tokens, corrections_note, cites, embedding, embedding_model, indexed_at)
-                VALUES (%(chunk_id)s, %(doc_id)s, %(article)s, %(status)s, %(is_indexed)s, %(body)s,
+                VALUES (%(chunk_id)s, %(doc_id)s, %(article)s, %(section)s, %(status)s, %(is_indexed)s, %(body)s,
                         %(body_search)s, %(body_tokens)s, %(corrections_note)s, %(cites)s,
                         %(embedding)s, %(embedding_model)s, %(indexed_at)s)
                 ON CONFLICT (chunk_id) DO UPDATE SET
-                    doc_id = EXCLUDED.doc_id, article = EXCLUDED.article, status = EXCLUDED.status,
+                    doc_id = EXCLUDED.doc_id, article = EXCLUDED.article, section = EXCLUDED.section,
+                    status = EXCLUDED.status,
                     is_indexed = EXCLUDED.is_indexed, body = EXCLUDED.body, body_search = EXCLUDED.body_search,
                     body_tokens = EXCLUDED.body_tokens, corrections_note = EXCLUDED.corrections_note,
                     cites = EXCLUDED.cites, embedding = EXCLUDED.embedding,
@@ -94,11 +96,12 @@ class PgStore:
         self.conn.commit()
 
     def chunk_texts(self):
-        """청크 ID별 (본문, 검색용 본문, 상태). 증분 색인에서 달라진 청크를 가릴 때 쓴다.
-        상태도 비교한다: 본문은 그대로이고 정상→삭제로만 바뀐 청크도 다시 적재해야 색인에서 빠진다."""
+        """청크 ID별 (본문, 검색용 본문, 상태, 장). 증분 색인에서 달라진 청크를 가릴 때 쓴다.
+        상태도 비교한다: 본문은 그대로이고 정상→삭제로만 바뀐 청크도 다시 적재해야 색인에서 빠진다.
+        장도 비교한다: 장 이름은 임베딩 입력 머리말에 들어가므로, 장만 바뀌어도 다시 임베딩해야 한다."""
         with self.conn.cursor() as cur:
-            cur.execute("SELECT chunk_id, body, body_search, status FROM chunks")
-            return {cid: (b, bs, st) for cid, b, bs, st in cur.fetchall()}
+            cur.execute("SELECT chunk_id, body, body_search, status, section FROM chunks")
+            return {cid: (b, bs, st, sec or "") for cid, b, bs, st, sec in cur.fetchall()}
 
     def delete_chunks(self, chunk_ids):
         """청크 ID 목록을 지운다. 증분 색인에서 더 이상 없는 청크를 정리할 때 쓴다."""
@@ -193,7 +196,7 @@ class PgStore:
         with self.conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT c.chunk_id, c.doc_id, c.article, c.body, c.body_search, c.body_tokens, c.cites,
+                SELECT c.chunk_id, c.doc_id, c.article, c.section, c.body, c.body_search, c.body_tokens, c.cites,
                        c.corrections_note, d.tier
                 FROM chunks c JOIN documents d ON d.doc_id = c.doc_id
                 WHERE c.is_indexed
@@ -202,17 +205,19 @@ class PgStore:
             return _rows(cur)
 
     def find_article(self, doc_id, base, para=None):
-        """문서와 조(·항)로 직접 조회한다. para가 없으면 그 조의 모든 항을 항 순서대로 돌려준다."""
+        """문서와 조(·항)로 직접 조회한다. para가 없으면 그 조 전체를 돌려준다.
+        청크가 조 단위면 '제N조 제M항' 청크가 없으므로, 항으로 못 찾으면 그 항이 들어 있는 조 청크를 돌려준다."""
         if para:
-            label = f"{base} 제{para}항"
-            cond = "article = %(label)s"
-        else:
-            label = base
-            cond = "split_part(article, ' ', 1) = %(label)s"
+            rows = self._article_rows(doc_id, "article = %(label)s", f"{base} 제{para}항")
+            if rows:
+                return rows
+        return self._article_rows(doc_id, "split_part(article, ' ', 1) = %(label)s", base)
+
+    def _article_rows(self, doc_id, cond, label):
         with self.conn.cursor() as cur:
             cur.execute(
                 f"""
-                SELECT chunk_id, doc_id, article, body, status, is_indexed, cites, corrections_note
+                SELECT chunk_id, doc_id, article, section, body, status, is_indexed, cites, corrections_note
                 FROM chunks
                 WHERE doc_id = %(doc)s AND {cond}
                 ORDER BY chunk_id
@@ -224,7 +229,8 @@ class PgStore:
     def get(self, chunk_ids):
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT chunk_id, doc_id, article, body, status, is_indexed, cites, corrections_note FROM chunks WHERE chunk_id = ANY(%s)",
+                "SELECT chunk_id, doc_id, article, section, body, status, is_indexed, cites, corrections_note "
+                "FROM chunks WHERE chunk_id = ANY(%s)",
                 (list(chunk_ids),),
             )
             return _rows(cur)

@@ -8,6 +8,8 @@
 """
 import re
 
+from src.chunk.articles import article_id
+
 
 def is_confirmed(c):
     return str(c.get("상태", "")).startswith("확정")
@@ -64,6 +66,7 @@ def apply_reference_corrections(rows, corrections):
         src = _norm(x.get("원문"))
         if not src:
             continue
+        target = article_id(x["대상ID"]) if x.get("대상ID") else None  # 항 단위로 적힌 대상도 조 청크로 맞춘다
         for r in rows:
             if r["고유번호"] != x["고유번호"] or src not in _norm(r["본문"]):
                 continue
@@ -71,10 +74,10 @@ def apply_reference_corrections(rows, corrections):
                 key = _norm(c["원문"])
                 if not key or key not in src:
                     continue
-                if not (c["상태"].startswith(("확인필요", "미해결")) or (x.get("대상ID") and c.get("대상") != x["대상ID"])):
+                if not (c["상태"].startswith(("확인필요", "미해결")) or (target and c.get("대상") != target)):
                     continue
-                if x.get("대상ID"):
-                    c["대상"] = x["대상ID"]
+                if target:
+                    c["대상"] = target
                 c["상태"] = "정정 확정"
                 c["정정ID"] = x["id"]
                 r.setdefault("정정안내", []).append(f"참조 정정: '{c['원문']}' → {x.get('정정안', '')} ({x['id']})")

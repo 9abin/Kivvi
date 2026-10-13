@@ -16,7 +16,7 @@ from src.search.search import Searcher
 # 답변 단계가 쓰는 필드. Document.metadata에 그대로 담아서 되돌릴 수 있게 한다.
 _META_KEYS = ["chunk_id", "doc_id", "문서명", "위계", "개정표기", "출처URL",
              "article", "조문상태", "정정안내", "score", "rerank", "match",
-             "siblings", "cited"]
+             "siblings", "cited", "하위질문"]
 
 
 def entry_to_document(e):
@@ -39,7 +39,11 @@ class RegulationRetriever(BaseRetriever):
     k: int = 5
     filters: Optional[dict] = None
     rewritten: Optional[str] = None  # 규정 용어로 바꿔 쓴 검색어 (후보 찾기에만 더한다)
+    plan: Optional[list] = None  # 하위 질문 목록 (Generator.plan_queries). 있으면 rewritten 대신 이것으로 검색한다
 
     def _get_relevant_documents(self, query, *, run_manager: CallbackManagerForRetrieverRun) -> List[Document]:
-        results = self.searcher.search(query, k=self.k, filters=self.filters, rewritten=self.rewritten)
+        if self.plan:
+            results = self.searcher.search_plan(self.plan, k=self.k, filters=self.filters)
+        else:
+            results = self.searcher.search(query, k=self.k, filters=self.filters, rewritten=self.rewritten)
         return [entry_to_document(e) for e in results]

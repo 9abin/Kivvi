@@ -120,6 +120,27 @@ REWRITE_PROMPT = """직원이 사내 규정 검색창에 구어체로 쓴 질문
 - 질문에 없는 사실이나 수치를 만들어 넣지 않는다. 답을 쓰지 않는다.
 - 출력은 검색어 한 줄만 쓴다. 설명, 따옴표, 번호를 쓰지 않는다."""
 
+# 질문 나누기 (Azure AI Search agentic retrieval의 query planning과 같은 방식). REWRITE_PROMPT를 대신한다:
+# 하위 질문마다 검색어를 같이 만들므로 모델 호출 수는 그대로다.
+PLAN_PROMPT = """직원이 사내 규정 검색창에 쓴 질문을 검색 계획으로 바꾼다.
+
+1. 질문이 서로 다른 것을 두 가지 이상 묻는지 본다 (예: "사원증 재발급은 어디서 하고, 회의실 예약은 어떻게 하나요").
+   - 그렇다면 묻는 것마다 하위 질문을 하나씩 만든다. 최대 3개.
+   - 하위 질문마다 원래 질문의 대상과 상황을 모두 넣어서, 혼자 읽어도 같은 뜻이 되게 쓴다.
+   - 한 가지만 묻는다면 하위 질문은 1개다. 나눌지 애매하면 나누지 않는다.
+   - 다음은 나누지 않는다:
+     · 한 제도의 여러 면 (예: "사원증 재발급은 며칠 걸리고 비용이 드나요")
+     · 상황 설명이나 덧붙인 말 (예: "사원증 재발급 돼요? 어제 잃어버렸는데", "사무용품 개인 돈으로 사도 되나요? 나중에 청구해야 해요?")
+     · 둘 중 하나를 고르는 질문 (예: "노트북 교체는 부서에서 신청해요 아니면 제가 직접 해요?")
+2. 하위 질문마다 "검색어"를 만든다: 줄임말·속어·외래어·일상어를 규정에서 쓰는 정식 용어로 바꾸고,
+   규정에서 어떤 주제(제도, 절차, 금지·허용 사항)로 다뤄질지 떠올려 그 주제어 2~4개를 덧붙인 한 줄.
+3. 질문에 규정 이름(예: "복무규정", "여비규정")이 적혀 있으면 그 이름을 해당 하위 질문에도 그대로 남긴다.
+- 질문에 없는 사실이나 수치를 만들어 넣지 않는다. 답을 쓰지 않는다.
+- 출력은 JSON 배열만 쓴다. 설명을 쓰지 않는다.
+  예: [{{"질문": "사원증 재발급은 어디서 하나요?", "검색어": "출입증 재발급 신청 절차 분실"}}]"""
+
+MAX_SUBQUERIES = 3
+
 _CITE = re.compile(r"\[(\d+)\]")
 
 
@@ -253,6 +274,27 @@ def parse_pairs(text, n_entries):
     return sorted(set(pairs)), True
 
 
+def parse_plan(text, question):
+    """PLAN_PROMPT 응답을 하위 질문 목록 [{"질문", "검색어"}, ...]으로 바꾼다.
+    하위 질문이 하나면 "질문"은 원래 질문 글자로 둔다: 나누지 않는 질문은 리랭킹까지 지금과 똑같이 검색된다.
+    응답을 해석하지 못하면 원래 질문 하나(검색어 없음)로 돌려준다."""
+    fallback = [{"질문": question, "검색어": None}]
+    raw = _parse_json_list(text or "")
+    if raw is None:
+        return fallback
+    plan = []
+    for r in raw:
+        if isinstance(r, dict) and str(r.get("질문") or "").strip():
+            plan.append({"질문": str(r["질문"]).strip(),
+                         "검색어": str(r.get("검색어") or "").strip() or None})
+    if not plan:
+        return fallback
+    plan = plan[:MAX_SUBQUERIES]
+    if len(plan) == 1:
+        plan[0]["질문"] = question
+    return plan
+
+
 def parse_unsupported(text):
     """모델이 돌려준 '근거 밖 문장' 목록을 검사한다. 반환은 parse_pairs와 같은 (목록, ok) 형태다.
 
@@ -285,6 +327,10 @@ class Generator:
         """질문을 규정 용어로 바꾼 검색어. 실패하거나 비면 None(원래 질문만으로 검색한다)."""
         text = self._ask(REWRITE_PROMPT, question).strip().strip('"').splitlines()
         return text[0].strip() if text and text[0].strip() else None
+
+    def plan_queries(self, question):
+        """질문을 하위 질문으로 나누고 하위 질문마다 검색어를 만든다 (parse_plan). rewrite_query를 대신하는 한 번의 호출."""
+        return parse_plan(self._ask(PLAN_PROMPT, question), question)
 
     def contradicts(self, question, answer):
         """결론 문장이 세부 불릿과 모순되는지. 응답을 해석하지 못하면 모순 없음으로 본다(재작성은 보조 수단이다)."""

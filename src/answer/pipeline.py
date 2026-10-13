@@ -17,7 +17,7 @@
 """
 import sys
 
-from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARTIAL_SHOW
+from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARTIAL_SHOW, QUERY_PLAN
 from src.answer.generate import (Generator, flatten, order_entries, revision_notes,
                                  state_notes)
 from src.search.glossary import filter_by_glossary
@@ -59,9 +59,11 @@ def partial_answer(related):
 
 
 class Assistant:
-    def __init__(self, scope_filter=True, use_glossary=True):
+    def __init__(self, scope_filter=True, use_glossary=True, use_plan=QUERY_PLAN):
         self.use_glossary = use_glossary  # 용어집의 수치 근거 제외 (search/glossary.py). 전후 비교를 위해 끌 수 있다
         self.scope_filter = scope_filter  # 표 범위 필터 (guard.py). 전후 비교를 위해 끌 수 있다
+        self.use_plan = use_plan  # 질문 나누기 (search_plan). 끄면 질문 한 줄 + 바꿔 쓴 검색어로 검색한다. 전후 비교용
+        self.last_plan = None
         self.searcher = Searcher()
         self.generator = Generator()
 
@@ -70,8 +72,14 @@ class Assistant:
 
     def _retrieve(self, question, k, filters):
         self.searcher.glossary_filter = self.use_glossary
-        retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters,
-                                        rewritten=self.generator.rewrite_query(question))
+        if self.use_plan:
+            # 질문을 하위 질문으로 나눠 각각 검색한다 (search_plan). 나누지 않는 질문은 지금까지와 같은 검색이다.
+            self.last_plan = self.generator.plan_queries(question)
+            retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters, plan=self.last_plan)
+        else:
+            self.last_plan = None
+            retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters,
+                                            rewritten=self.generator.rewrite_query(question))
         return [document_to_entry(d) for d in retriever.invoke(question)]
 
     def _check(self, question, answer, entries):
@@ -104,7 +112,7 @@ class Assistant:
         base = {"mode": mode, "top_score": top_score, "entries": entries, "assembled": assembled,
                 "results": results, "conflicts": [], "cited": [], "warnings": [], "model": None,
                 "unsupported": [], "scope_excluded": scope_excluded, "glossary_excluded": glossary_excluded,
-                "search_hint": self.searcher.last_hint}
+                "search_hint": self.searcher.last_hint, "plan": self.last_plan}
 
         if mode == "none":
             return {**base, "answer": NONE_MESSAGE, "entries": []}

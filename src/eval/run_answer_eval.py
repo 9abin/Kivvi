@@ -25,6 +25,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", required=True)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--no-plan", action="store_true", help="질문 나누기를 끄고 실행 (전후 비교용)")
     args = ap.parse_args()
 
     gold = [json.loads(l) for l in open(GOLD, encoding="utf-8") if l.strip()]
@@ -38,7 +39,7 @@ def main():
         done = {json.loads(l)["id"] for l in open(path, encoding="utf-8")}
 
     from src.answer.pipeline import Assistant
-    assistant = Assistant()
+    assistant = Assistant(use_plan=not args.no_plan)
     for g in gold:
         if g["id"] in done:
             continue
@@ -48,7 +49,7 @@ def main():
             rec = {"id": g["id"], "mode": r["mode"], "answer": r["answer"], "withheld": r.get("withheld"),
                    "warnings": r.get("warnings", []), "glossary_excluded": r.get("glossary_excluded", []),
                    "entries": [{"문서명": e["문서명"], "article": e["article"], "상태": e["조문상태"]} for e in r["entries"]],
-                   "top_score": r.get("top_score")}
+                   "top_score": r.get("top_score"), "plan": r.get("plan")}
         except Exception as e:
             rec = {"id": g["id"], "error": repr(e)[:300]}
         rec["sec"] = round(time.time() - t, 1)

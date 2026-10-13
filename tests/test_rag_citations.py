@@ -25,17 +25,30 @@ class CitationTest(unittest.TestCase):
 
     def test_table_internal_name_can_span_lines(self):
         rows = [row("1", "별표", "분류 근거\n「문서관리\n규정」\n제7조제1항"),
-                row("2", "제7조_1항", "본문")]
+                {**row("2", "제7조", "제7조(분류) ① 본문"), "항번호": [1]}]
         resolve_citations(rows, {"1": "다른지침", "2": "문서관리규정"})
-        self.assertEqual(rows[0]["cites"][0]["대상"], "2_제7조_1항")
+        self.assertEqual(rows[0]["cites"][0]["대상"], "2_제7조")
+        self.assertEqual(rows[0]["cites"][0]["항"], 1)
 
     def test_phone_form_title_variants_are_self_references(self):
         rows = [row("1", "별지", '「전화 녹음 관리 및 운영관리 지침」제8조 제1항\n'
                     '「전화 녹음 시스템 운영지침」제8조 제2항\n「녹음 시스템 운영지침」제8조 제1항'),
-                row("1", "제8조_1항", "열람"), row("1", "제8조_2항", "제공")]
+                {**row("1", "제8조", "제8조(열람) ① 열람\n② 제공"), "항번호": [1, 2]}]
         resolve_citations(rows, {"1": "전화 녹음관리 및 운영지침"})
-        self.assertEqual([c["대상"] for c in rows[0]["cites"]],
-                         ["1_제8조_1항", "1_제8조_2항", "1_제8조_1항"])
+        self.assertEqual([c["대상"] for c in rows[0]["cites"]], ["1_제8조"] * 3)
+        self.assertEqual([c["항"] for c in rows[0]["cites"]], [1, 2, 1])
+
+    def test_missing_paragraph_needs_review(self):  # 조는 있어도 그 항이 없으면 확인 필요
+        rows = [row("1", "제2조", "제5조제3항에 따른다."),
+                {**row("1", "제5조", "제5조(a) ① 가\n② 나"), "항번호": [1, 2]}]
+        resolve_citations(rows, {"1": "지침"})
+        self.assertEqual(rows[0]["cites"][0]["상태"], "확인필요(대상없음)")
+
+    def test_own_article_title_is_not_a_citation(self):  # 조 본문 맨 앞 '제5조(…)'는 인용이 아니다
+        rows = [{**row("1", "제5조", "제5조(a) ① 제3조에 따른다."), "항번호": [1]},
+                row("1", "제3조", "제3조(b) 본문")]
+        resolve_citations(rows, {"1": "지침"})
+        self.assertEqual([c["대상"] for c in rows[0]["cites"]], ["1_제3조"])
 
     def test_bare_law_name_is_captured_and_same_law_decree_inherits(self):
         rows = [row("1", "제1조", "양성평등기본법 제31조 및 동법 시행령 제19조")]

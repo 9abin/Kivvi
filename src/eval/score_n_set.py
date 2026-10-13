@@ -33,7 +33,7 @@ import sys
 
 from dotenv import load_dotenv
 
-from config import BASE_DIR, OPENAI_MODEL
+from config import BASE_DIR, JUDGE_MODEL
 from langchain_openai import ChatOpenAI
 
 load_dotenv()
@@ -154,11 +154,16 @@ def compute_grade(verdict):
     return "부분"
 
 
+def _article(label):
+    """'제21조 제1항' → '제21조'. 청크가 조 단위라 실행 기록에는 항이 없으므로 조까지만 맞춰 본다."""
+    return (label or "").split(" ")[0]
+
+
 def evidence_coverage(gold, rec):
-    required = {(h.get("규정"), h.get("조항")) for h in gold.get("핵심근거", [])}
+    required = {(h.get("규정"), _article(h.get("조항"))) for h in gold.get("핵심근거", [])}
     if not required:
         return None
-    used = {(e.get("문서명"), e.get("article")) for e in rec.get("entries", [])}
+    used = {(e.get("문서명"), _article(e.get("article"))) for e in rec.get("entries", [])}
     covered = required & used
     return {"필요": len(required), "확보": len(covered), "미확보_목록": sorted(required - used)}
 
@@ -376,7 +381,7 @@ def main():
     ap.add_argument("--rundir", required=True)
     ap.add_argument("--gold", default=GOLD_PATH)
     ap.add_argument("--outdir", default=None)
-    ap.add_argument("--model", default=OPENAI_MODEL)
+    ap.add_argument("--model", default=JUDGE_MODEL)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--dry-run", action="store_true", help="API를 호출하지 않고 가짜 판정으로 구조만 검증한다")

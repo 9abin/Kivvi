@@ -75,6 +75,41 @@ def _c(doc_id, article, body):
     return {"doc_id": doc_id, "article": article, "body": body, "chunk_id": f"{doc_id}_{article}"}
 
 
+class ArticleChunkTests(unittest.TestCase):
+    """청크가 조 단위라 항마다 판정한다. 뺄 항만 지우고, 모든 항이 빠질 때만 조를 통째로 뺀다."""
+
+    MIXED = _e("인사규정", "제28조", "제28조(휴직) ① 직원은 인병휴직을 신청할 수 있다.\n"
+                                    "② 인병휴직 기간 중에는 기본급의 70%를 지급한다.\n"
+                                    "③ 인병휴가를 다 쓴 직원은 인병휴가 사용내역을 제출한다.")
+    ONLY_OTHER = "제29조(휴직기간) ① 인병휴직은 1년 6개월을 넘지 못한다.\n② 인병휴직 기간은 30일 단위로 연장한다."
+
+    def test_paragraphs_split_on_circled_numbers_and_title_joins_first(self):
+        parts = glossary.paragraphs(self.MIXED["body"])
+        self.assertEqual(len(parts), 3)
+        self.assertTrue(parts[0].startswith("제28조(휴직) ①"))
+        self.assertEqual(glossary.paragraphs("제3조(정의) 이 지침에서 사용하는 용어는 다음과 같다."),
+                         ["제3조(정의) 이 지침에서 사용하는 용어는 다음과 같다."])
+
+    def test_only_the_numeric_paragraph_of_the_other_concept_is_removed(self):
+        kept, excluded = glossary.filter_by_glossary("병가는 며칠까지예요?", [SICK_LEAVE, self.MIXED], TABLE)
+        body = kept[1]["body"]
+        self.assertIn("인병휴직을 신청할 수 있다", body)  # 수치 없는 항은 남는다
+        self.assertIn("인병휴가 사용내역", body)          # 질문의 개념을 다루는 항은 남는다
+        self.assertNotIn("70%", body)                   # 다른 개념의 수치 항만 빠진다
+        self.assertEqual([x[1] for x in excluded], ["제28조 제2항"])
+
+    def test_article_is_dropped_only_when_every_paragraph_goes(self):
+        cands = [_c("hr", "제29조", self.ONLY_OTHER), _c("svc", "제24조", SICK_LEAVE["body"])]
+        kept, excluded = glossary.filter_candidates("병가는 며칠까지예요?", cands, TABLE)
+        self.assertEqual([c["article"] for c in kept], ["제24조"])
+        self.assertEqual([x[1] for x in excluded], ["제29조 제1항", "제29조 제2항"])
+
+    def test_original_candidate_is_not_mutated(self):
+        cand = _c("hr", "제28조", self.MIXED["body"])
+        glossary.filter_candidates("병가는 며칠까지예요?", [cand], TABLE)
+        self.assertIn("70%", cand["body"])
+
+
 class CandidateStageTests(unittest.TestCase):
     """후보 단계 제외: 빼면 뒤 후보가 올라와 빈자리를 채운다."""
 
