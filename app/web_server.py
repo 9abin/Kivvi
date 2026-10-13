@@ -245,8 +245,21 @@ ROUTES = {
     "/api/chat/status": lambda p: web_chat.status(),
 }
 # 쓰기·실행 (POST, JSON 본문). user는 화면의 사용자 이름 (시연용 — 실제 배포는 로그인 계정으로 바꿈)
+def with_open_changes(res: dict) -> dict:
+    """답변 근거마다 진행 중인 개정안(초안·검토·승인)을 붙인다 — 곧 바뀔 조문으로 답했음을 직원에게 알리려고"""
+    chunks = [e["chunk"] for e in res.get("entries", []) if e.get("chunk")]
+    if not chunks:
+        return res
+    open_ = {}
+    for r in q("select chunk_id, changeset_id, status, title from amend.v_chunk_open_change where chunk_id = any(%s) order by changeset_id", chunks):
+        open_.setdefault(r["chunk_id"], []).append({"id": r["changeset_id"], "status": r["status"], "title": r["title"]})
+    for e in res["entries"]:
+        e["open"] = open_.get(e.get("chunk"), [])
+    return res
+
+
 POSTS = {
-    "/api/ask": lambda b: web_chat.ask(b.get("q", "")),
+    "/api/ask": lambda b: with_open_changes(web_chat.ask(b.get("q", ""))),
     "/api/draft": lambda b: web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
     "/api/decide": lambda b: web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
     "/api/submit": lambda b: web_agent.submit(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),

@@ -9,7 +9,8 @@
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const clear = (n) => { while (n.firstChild) n.firstChild.remove(); return n; };
-  let LIVE = false, CURRENT = null, CS = null;
+  let LIVE = false, CURRENT = null, CS = null, ROLE_NOW = "editor";
+  const isEditor = () => ROLE_NOW === "editor";
   const api = async (path, body) => {
     const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: USER, ...body }) } : { cache: "no-store" });
     const j = await r.json().catch(() => ({ error: r.statusText }));
@@ -67,7 +68,7 @@
     c.msgs.forEach((m) => t.append(renderMsg(m.q, m.res)));
     renderConvList();
     const last = c.msgs[c.msgs.length - 1];
-    const first = last?.res?.entries?.find((e) => isOpenable(e.chunk));
+    const first = last?.res?.entries?.find((e) => (last.res.cited || []).includes(e.n) && isOpenable(e.chunk)) || last?.res?.entries?.find((e) => isOpenable(e.chunk));
     if (first) loadArticle(first.chunk);
     t.scrollTop = t.scrollHeight;
   }
@@ -127,12 +128,39 @@
     a.append(head, renderBody(res.answer, res.entries));
     const cited = new Set(res.cited || []);
     const used = res.entries.filter((e) => cited.has(e.n)), rest = res.entries.filter((e) => !cited.has(e.n));
+    const shown = used.length ? used : rest.slice(0, 5);
+    // 곧 바뀔 수 있는 조문으로 답했는지: 근거 중 개정안(초안·검토·승인)이 걸린 조문
+    const changing = shown.filter((e) => e.open?.length);
+    if (changing.length) {
+      const box = el("div", "changing");
+      box.append(el("b", null, "개정이 진행 중인 조문이 근거에 있습니다"));
+      const ul = el("ul"), byArt = new Map();   // 같은 조의 여러 항은 한 줄로, 개정안은 겹치지 않게
+      changing.forEach((e) => {
+        const k = `${e.reg} ${(e.article || "").split(" ")[0]}`;
+        if (!byArt.has(k)) byArt.set(k, new Map());
+        e.open.forEach((o) => byArt.get(k).set(o.id, o));
+      });
+      byArt.forEach((opens, art) => {
+        const li = el("li"); li.append(el("b", null, art), " — ");
+        [...opens.values()].forEach((o, i) => {
+          if (i) li.append(" · ");
+          li.append(el("span", "tag warn", o.status === "검토" ? "검토 요청됨" : o.status), ` ${o.id}`);
+          const go = el("button", "back editor-only", "보기"); go.type = "button"; go.dataset.view = "review"; go.dataset.cs = o.id;
+          go.hidden = !isEditor(); li.append(" ", go);
+        });
+        ul.append(li);
+      });
+      box.append(ul, el("p", null, "개정이 확정되면 이 답이 달라질 수 있습니다. 지금은 현행 조문 기준입니다."));
+      a.append(box);
+    }
     const src = el("div", "sources"); src.append(el("span", "label", used.length ? `인용한 근거 ${used.length}` : `근거 후보 ${rest.length}`));
-    (used.length ? used : rest.slice(0, 5)).forEach((e) => {
+    shown.forEach((e) => {
       const c = el("button", "cite" + (isOpenable(e.chunk) ? "" : " off")); c.type = "button";
       const ROLE = { "검색": "검색 결과", "형제항": "같은 조의 다른 항", "인용": "인용된 조문", "정확조회": "직접 찾은 조문", "관련 조문": "관련 조문" };
       const t = el("span"); t.append(`${e.reg || ""} ${e.article || ""}`, el("small", null, ROLE[e.role] || e.role || ""));
-      c.append(el("span", "num", String(e.n)), t, el("span", "tag " + (e.state === "현행" ? "pos" : ""), e.state || ""), el("small", null, isOpenable(e.chunk) ? "원문 →" : "법령"));
+      const tags = el("span", "tags"); tags.append(el("span", "tag " + (e.state === "현행" ? "pos" : ""), e.state || ""));
+      if (e.open?.length) tags.append(el("span", "tag warn", "개정 검토 중"));
+      c.append(el("span", "num", String(e.n)), t, tags, el("small", null, isOpenable(e.chunk) ? "원문 →" : "법령"));
       c.addEventListener("click", () => openEntry(e)); src.append(c);
     });
     a.append(src);
@@ -416,7 +444,7 @@
   });
   document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); newConv(); } });
   function setRole(role) {
-    const editor = role === "editor";
+    const editor = role === "editor"; ROLE_NOW = role;
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
     document.querySelectorAll(".editor-only").forEach((x) => (x.hidden = !editor));
     if (!editor) { show("chat"); selectTab("src"); }
