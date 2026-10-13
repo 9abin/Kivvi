@@ -1,0 +1,63 @@
+{
+ "id": "S02",
+ "title": "인사규정 제37조(당연면직) 삭제 (삭제)",
+ "change": {
+  "kind": "삭제",
+  "target": {
+   "reg_id": "24024",
+   "reg_name": "인사규정",
+   "article": "제37조",
+   "para": 0
+  },
+  "amendment": "제37조를 삭제한다.",
+  "request": "인사규정 당연면직 조항을 없애면 어디가 문제야?"
+ },
+ "expected": {
+  "breaks": [
+   {
+    "reg_id": "24024",
+    "reg_name": "인사규정",
+    "unit": "본문",
+    "article": "제33조",
+    "para": 5,
+    "quote": "이 규정 제37조에 따라 당연면직으로 처리된다",
+    "reason": "삭제된 조문을 근거로 듦 → 근거 소멸",
+    "handling": "판단 불가"
+   },
+   {
+    "reg_id": "24024",
+    "reg_name": "인사규정",
+    "unit": "본문",
+    "article": "제41조",
+    "para": 3,
+    "quote": "제37조에 의하여 당연면직되는 자",
+    "reason": "삭제된 조문을 근거로 듦 → 근거 소멸",
+    "handling": "판단 불가"
+   }
+  ],
+  "new_conflicts": [],
+  "resolved": [],
+  "review": [
+   {
+    "reg_id": "23926",
+    "reg_name": "해외 파견 업무처리 및 해외사무소 운영지침",
+    "unit": "본문",
+    "article": "제35조",
+    "para": 1,
+    "quote": "당사 인사규정상 당연해직 사유",
+    "reason": "조문 번호 없이 용어로 인사규정 당연면직에 의존 (용어도 '해직'으로 다름)",
+    "handling": "판단 불가"
+   }
+  ],
+  "law_check": [],
+  "undeterminable": [
+   {
+    "reason": "당연면직 사유를 다른 조문으로 옮기는지, 제도를 없애는지 회사 결정"
+   }
+  ],
+  "not_affected": []
+ },
+ "source": "관련 조항 표 + 원문 검색",
+ "judge": "박형건(초안, 확인 필요)",
+ "date": "2026-10-07"
+}

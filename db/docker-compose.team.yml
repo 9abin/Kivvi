@@ -1,0 +1,22 @@
+# 팀원용: MINI CNS 공유 DB를 내 PC에 띄운다 (박형건 PC에 접속하지 않음)
+#   1) 이 폴더에 .env 만들기:  POSTGRES_USER=mini  POSTGRES_PASSWORD=아무거나  (내 PC 전용)
+#   2) docker compose -f docker-compose.team.yml up -d     (처음 1~2분: 덤프 복원)
+#   3) DBeaver: localhost:15432 / regulations / .env의 계정
+# 데이터를 새 버전으로 바꿀 때: docker compose -f docker-compose.team.yml down -v → 이미지 태그 바꾸고 다시 up
+services:
+  mini-cns-db:
+    image: ${MINI_CNS_DB_IMAGE:-mini-cns-db:261012}
+    container_name: mini-cns-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mini}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD를 .env에 적어 주세요}
+    ports:
+      - "15432:5432"        # 내 PC에 이미 PostgreSQL(5432)이 있어도 겹치지 않게
+    volumes:
+      - mini-cns-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d regulations"]
+      interval: 5s
+      retries: 60
+volumes:
+  mini-cns-db-data:

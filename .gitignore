@@ -7,3 +7,25 @@
 /AGENTS.md
 /CLAUDE.md
 /.github/
+
+# --- work/261007 (개정안 작성 에이전트) ---
+data/*
+!data/.gitkeep
+*.hwp
+*.hwpx
+*.db
+*.sqlite
+~$*
+.venv/
+__pycache__/
+.pytest_cache/
+.serena/
+
+/out/
+# 외부 기관 배경 자료(RFP 원본 등): 재배포 권한 불명이라 저장소에 넣지 않는다
+info/
+
+# 원문·외부 자료 묶음 (KVIC 저작물 등)
+*.zip
+# 이미지에만 들어가는 데이터 (git 제외)
+db/seed/
