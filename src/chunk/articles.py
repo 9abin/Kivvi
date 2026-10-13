@@ -22,7 +22,15 @@ TYPO_HEADER = re.compile(r"(?:^|\n)[^\n가-힣0-9①-⑳.()]{0,8}?제(\d+)조(\d
 # (내규관리규정처럼 부칙의 형식 자체를 설명하는 문서에서 조문이 통째로 삼켜지는 사고를 막는다).
 BUJIK = re.compile(r"\n\s*(?:[^\n가-힣]{0,8})?부\s*칙[ \t]*(?=[\(<>\n]|$)")
 # 부칙 뒤에 붙는 별표(표)·별지(서식) 제목 줄. 제목 줄만 잡고, "[별표3] … 적용한다."처럼 문장으로 끝나는 줄은 뺀다.
-ANNEX_TITLE = re.compile(r"(?m)^[ \t]*(?:■[ \t]*)?[\[\(【<][ \t]*별[ \t]*(표|지)[^\]\)】>\n]{0,20}[\]\)】>][^\n]*")
+# '■ 한국벤처투자 이해충돌 방지제도 운영지침 [별지 제1호서식]'처럼 ■ 뒤에 문서명이 오는 줄도 잡는다
+# (이해충돌 방지제도 운영지침: 별지 16개가 부칙 청크에 들어가 있었음. 2026.10.13)
+ANNEX_TITLE = re.compile(r"(?m)^[ \t]*(?:■[^\n\[\(【<]{0,40})?[\[\(【<][ \t]*별[ \t]*(표|지)[^\]\)】>\n]{0,20}[\]\)】>][^\n]*")
+# 장·절·관 제목 줄과 쪽 머리말(문서명만 있는 줄). 앞 조의 마지막 항 끝에 붙어 들어가던 것을 뺀다. 2026.10.13
+CHAPTER_LINE = re.compile(r"(?m)^[ \t]*(?:제[ \t]*\d+[ \t]*[장절관](?:[ \t][^\n]*)?"
+                          r"|[<\[][ \t]*(?:본[ \t]*[장절][ \t]*신설|제\d+[장절]에서[ \t]*제\d+[장절])[^>\]\n]*[>\]])[ \t]*$\n?")
+# 위 둘째 줄: 장 제목 다음 줄에 따로 있는 장 개정 표시 '<제4장에서 제5장로 변경 2016.08.31.>', '[본장 신설 2017.06.28.]'
+# 조 머리 「제N조(제목)」 (제목 안 괄호 한 겹 허용)
+HEADER_PREFIX = re.compile(r"^[^\n가-힣0-9①-⑳.()]{0,8}?제\s*\d+(?:\s*[의\-]\s*\d+)?\s*조(?:\s*의\s*\d+)?\s*(?:\((?:[^()\n]|\([^()\n]*\))*\))?")
 ANNEX_SENTENCE_END = re.compile(r"다\.\s*$")
 ANNEX_NUMBER = re.compile(r"별\s*표\s*(?:제\s*)?(\d+)(?:\s*호)?(?:\s*의\s*(\d+))?")
 
@@ -49,8 +57,11 @@ def split_paragraphs(seg, idx):
     marks = [(m.start(1), CIRCLED[m.group(1)]) for m in re.finditer(r"(?:^|\n)[ \t]*([①-⑳])(?=\s|[가-힣])", seg)]
     # 줄바꿈 없이 이어진 항(예: '…다.② 보고책임자는…', '…회사③ …')도 찾는다.
     # 단, 줄 맨 앞 항과 합쳐서 번호가 1부터 순서대로 이어질 때만 사용하고, '①, ②' 같은 나열은 제외한다.
+    # '[제22조의 3 ⑤항으로 조문이동 …]'처럼 대괄호 안 원문자나 '⑤항' 같은 참조는 항 기호가 아니다 (여비규정 제22조의2). 2026.10.13
+    brackets = [(b.start(), b.end()) for b in re.finditer(r"\[[^\]\n]*\]?", seg)]
     inline = [(m.start(1), CIRCLED[m.group(1)])
-              for m in re.finditer(r"(?<=\S)\s*([①-⑳])(?=\s|[가-힣])(?!\s*,)", seg)]
+              for m in re.finditer(r"(?<=\S)\s*([①-⑳])(?=\s|[가-힣])(?!\s*,)(?!\s*항)", seg)
+              if not any(s < m.start(1) < e for s, e in brackets)]
     combined = sorted(set(marks) | set(inline))
     if combined and [n for _, n in combined] == list(range(1, len(combined) + 1)):
         marks = combined
@@ -65,10 +76,16 @@ def split_paragraphs(seg, idx):
         res.append((no, txt))
     if not res:
         return [(1, seg)]
+    head = seg[:marks[0][0]].strip()
     if res[0][0] != 1:
-        head = seg[:marks[0][0]].strip()
         if head:
             res.insert(0, (1, head))
+    elif head:
+        # ① 앞 글: 조 머리 뒤에 도입문이 있거나(해외파견지침 제11조의1 「…다음 각 항의 기준을 따르되 …」),
+        # 항이 ① 하나뿐인 조(조 단위 청크)면 첫 항에 붙인다. 그 밖(여러 항 조의 머리만 있는 경우)은 지금처럼 뺀다. 2026.10.13
+        rest = re.sub(r"<[^>]*>|\[[^\]]*\]", "", head[HEADER_PREFIX.match(head).end():] if HEADER_PREFIX.match(head) else head)
+        if re.search(r"[가-힣]", rest) or len(res) == 1:
+            res[0] = (1, head + "\n" + res[0][1])
     # 중복(또는 역순) 항만 다음 번호로 바꾸고, 뒤의 정상 항 번호는 그대로 둔다
     fixed, used, last_orig = [], set(), 0
     for no, txt in res:
@@ -185,8 +202,10 @@ def build_chunks(meta, texts):
         if not arts:
             rows.append({**m, "id": f"{idx}_전문", "조항": "전체", "상태": "정상",
                          "본문": body.strip(), "cites": []})
+        title_line = re.compile(r"(?m)^[ \t]*" + r"[ \t]*".join(map(re.escape, m["문서명"].replace(" ", ""))) + r"[ \t]*$\n?")
         for n, k, seg in arts:
             art = f"제{n}조" + (f"의{k}" if k else "")
+            seg = title_line.sub("", CHAPTER_LINE.sub("", seg)).strip()
             if re.search(r"삭제", seg[:40]) and len(seg) < 120:
                 rows.append({**m, "id": dedupe(f"{idx}_{art}"), "조항": art, "상태": "삭제",
                              "본문": seg, "cites": []})
