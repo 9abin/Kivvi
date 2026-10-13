@@ -219,3 +219,39 @@ button { cursor: pointer; }
   .main, .main.review { grid-template-columns: 1fr; }
   .col + .col { border-left: 0; border-top: 1px solid var(--rule); }
 }
+
+/* ── 4차: 실제 동작 (채팅·작성·결정) ─────────────── */
+a.btn { text-decoration: none; }
+.msg + .msg { margin-top: 34px; }
+.a .body { font-size: 15px; line-height: 1.8; }
+.a .body p { margin: 0 0 10px; }
+.a .body ul { margin: 0 0 10px; padding-left: 1.2em; }
+.a .body li { margin: 4px 0; }
+.a .body h4 { font-size: 12px; font-weight: 600; color: var(--ink-3); margin: 14px 0 6px; }
+.ref { font-family: var(--mono); font-size: 10px; color: var(--accent); border: 0; background: none; padding: 0 1px; vertical-align: super; cursor: pointer; }
+.ref:hover { text-decoration: underline; }
+.cite.off { opacity: .55; }
+.warnline { font-size: 12px; color: var(--warn); line-height: 1.6; }
+.thinking { display: flex; gap: 10px; align-items: center; color: var(--ink-3); font-size: 13px; }
+.thinking .bar { width: 120px; height: 2px; background: var(--rule); overflow: hidden; position: relative; }
+.thinking .bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--accent); animation: slide 1.2s ease-in-out infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .thinking .bar::after { animation: none; width: 100%; opacity: .4; } }
+.empty-chat { color: var(--ink-3); text-align: center; margin-top: 18vh; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.empty-chat h2 { font-family: var(--serif); font-weight: 600; font-size: 24px; color: var(--ink); margin: 0; letter-spacing: -.02em; }
+.examples { display: flex; flex-direction: column; width: min(520px, 100%); border-top: 1px solid var(--rule); }
+.examples button { background: none; border: 0; border-bottom: 1px solid var(--rule); padding: 11px 2px; text-align: left; color: var(--ink-2); display: flex; justify-content: space-between; align-items: center; }
+.examples button:hover { color: var(--ink); }
+.composer button:disabled { opacity: .4; cursor: default; }
+.draft-form { display: flex; flex-direction: column; gap: 8px; padding: 14px 0 4px; }
+.draft-form textarea { border: 1px solid var(--rule-2); border-radius: 8px; padding: 10px 12px; min-height: 70px; resize: vertical; background: var(--sheet); outline: none; line-height: 1.6; }
+.draft-form textarea:focus { border-color: var(--accent); }
+.draft-form .row-btns { display: flex; gap: 8px; }
+.art-block + .art-block { margin-top: 22px; }
+.art-block.cur .art-title { color: var(--accent); }
+.back { border: 0; background: none; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); padding: 0; margin-bottom: 14px; align-self: flex-start; }
+.back:hover { color: var(--ink); }
+.comp { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.comp b { font-weight: 600; }
+.comp p { margin: 4px 0 0; font-family: var(--serif); font-size: 14px; line-height: 1.85; color: var(--ink-2); white-space: pre-wrap; }
+.qlist { margin: 0; padding-left: 1.2em; color: var(--ink-2); font-size: 13.5px; line-height: 1.7; }

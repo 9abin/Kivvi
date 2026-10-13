@@ -37,14 +37,14 @@
     <main class="main" id="view-chat">
       <section class="col">
         <header class="topbar">
-          <div><div class="crumb">질의응답</div><h1>육아휴직 분할 횟수</h1></div>
+          <div><div class="crumb">질의응답</div><h1 id="chat-title">새 대화</h1></div>
           <span class="meta"><span class="live off" id="live">연결 확인 중</span></span>
         </header>
         <div class="thread" id="thread"></div>
-        <form class="composer" onsubmit="return false">
-          <textarea placeholder="내부규정에 대해 물어보세요" aria-label="질문 입력"></textarea>
+        <form class="composer" id="composer">
+          <textarea id="ask-q" placeholder="내부규정에 대해 물어보세요" aria-label="질문 입력" maxlength="500"></textarea>
           <button class="send" type="submit" aria-label="보내기"><span data-icon="up-arrow"></span></button>
-          <small>Enter 보내기 · Shift+Enter 줄바꿈</small>
+          <small id="model-state">Enter 보내기 · Shift+Enter 줄바꿈</small>
         </form>
         <p class="disclaimer">답변은 내부규정 조문을 근거로 만들어집니다. 최종 판단은 담당 부서에 확인하세요.</p>
       </section>
@@ -60,7 +60,7 @@
         </form>
         <div class="panel" id="panel-src" role="tabpanel" aria-labelledby="tab-src"></div>
         <div class="panel" id="panel-amend" role="tabpanel" aria-labelledby="tab-amend" hidden></div>
-        <div class="panel-foot"><button type="button" class="ghost" id="copy-art"><span data-icon="copy"></span>조문 복사</button><button type="button" class="ghost">규정 전문 보기 →</button></div>
+        <div class="panel-foot"><button type="button" class="ghost" id="copy-art"><span data-icon="copy"></span>조문 복사</button><button type="button" class="ghost" id="full-reg">규정 전문 보기 →</button></div>
       </section>
     </main>
 
@@ -78,7 +78,7 @@
         <div class="review-foot">
           <div class="progress" aria-hidden="true"><i class="p-acc" id="p-acc"></i><i class="p-rej" id="p-rej"></i></div>
           <div id="tally"></div>
-          <div class="row2"><button type="button" class="btn line"><span data-icon="download"></span>패키지 내려받기</button><button type="button" class="btn primary">검토자에게 제출</button></div>
+          <div class="row2"><a class="btn line" id="dl-pkg" href="#" download><span data-icon="download"></span>패키지 내려받기</a><button type="button" class="btn primary" id="submit-cs">검토자에게 제출</button></div>
         </div>
       </section>
     </main>
