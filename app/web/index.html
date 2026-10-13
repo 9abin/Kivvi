@@ -40,7 +40,7 @@
       <section class="col">
         <header class="topbar">
           <div><div class="crumb"><span data-icon="chat"></span>질의응답</div><h1>육아휴직 분할 횟수</h1></div>
-          <span class="meta"><span data-icon="book"></span>내부규정 90건 기준 · 예시 데이터</span>
+          <span class="meta"><span class="live off" id="live">연결 확인 중</span></span>
         </header>
         <div class="thread" id="thread"></div>
         <form class="composer" onsubmit="return false">
@@ -55,6 +55,10 @@
           <button type="button" role="tab" id="tab-src" aria-selected="true" aria-controls="panel-src"><span data-icon="book"></span>근거 원문</button>
           <button type="button" role="tab" id="tab-amend" aria-selected="false" aria-controls="panel-amend" class="editor-only"><span data-icon="edit"></span>개정 정보 <span class="count" id="amend-count"></span></button>
         </div>
+        <form class="finder" id="finder">
+          <input id="finder-q" type="search" placeholder="조문 열기 — 예: 인사규정 제30조 2항" aria-label="조문 열기">
+          <button type="submit" class="ghost strong">열기</button>
+        </form>
         <div class="panel" id="panel-src" role="tabpanel" aria-labelledby="tab-src"></div>
         <div class="panel" id="panel-amend" role="tabpanel" aria-labelledby="tab-amend" hidden></div>
         <div class="panel-foot"><button type="button" class="ghost"><span data-icon="copy"></span>조문 복사</button><button type="button" class="ghost strong">규정 전문 보기<span data-icon="arrow"></span></button></div>

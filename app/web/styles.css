@@ -215,3 +215,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .main, .main.review { grid-template-columns: 1fr; }
   .sidebar { max-height: none; }
 }
+
+/* 조문 열기 (DB 연결) */
+.finder { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.finder input { flex: 1; min-width: 0; border: 1px solid var(--line-strong); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; background: var(--surface-2); color: var(--text); }
+.finder input:focus { outline: none; border-color: var(--teal); background: var(--surface); }
+.empty { color: var(--text-3); font-size: 13px; padding: 8px 10px; background: var(--surface-2); border-radius: var(--r-sm); }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 8px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lift); z-index: 10; }
+.live { display: inline-flex; gap: 6px; align-items: center; }
+.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+.live.off::before { background: var(--text-3); }
+.status-banner { flex-wrap: wrap; row-gap: 2px; }
+.status-banner span { flex-basis: 100%; padding-left: 26px; font-size: 12.5px; }
