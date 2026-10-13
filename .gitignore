@@ -11,6 +11,7 @@
 # --- work/261007 (개정안 작성 에이전트) ---
 data/*
 !data/.gitkeep
+!data/manual/
 *.hwp
 *.hwpx
 *.db
@@ -21,7 +22,12 @@ __pycache__/
 .pytest_cache/
 .serena/
 
-/out/
+/out/*
+!/out/aliases.json
+!/out/chunks.jsonl
+!/out/cite_review.csv
+!/out/text/
+!/out/*_review.json
 # 외부 기관 배경 자료(RFP 원본 등): 재배포 권한 불명이라 저장소에 넣지 않는다
 info/
 
@@ -29,3 +35,13 @@ info/
 *.zip
 # 이미지에만 들어가는 데이터 (git 제외)
 db/seed/
+
+# --- RAG 챗봇 (옛 rag_pipeline) ---
+# 외부 법령 DB (팀원이 따로 전달하는 바이너리라 git에 안 올림)
+data/manual/law_rag*.sqlite3
+backups/
+# N-set·190문항 평가 실행 기록 (결과 파일, 코드 아님)
+eval/n_set/runs/
+eval/answer_runs/
+# 평가 검수 artifact용 임시 export
+review_data.json

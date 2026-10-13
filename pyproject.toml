@@ -1,20 +1,28 @@
 [project]
 name = "regcheck"
 version = "0.0.1"
-description = "KVIC 내부규정 조항 점검 에이전트"
+description = "KVIC 내부규정 조항 점검 에이전트와 규정 RAG 챗봇"
 requires-python = ">=3.12"
 dependencies = [
+    "kiwipiepy>=0.24.0",
+    "langchain>=1.4.3",
+    "langchain-core>=1.6.7",
+    "langchain-openai>=1.4.3",
     "olefile>=0.47",
+    "openai>=2.54.0",
+    "pgvector>=0.5.0",
+    "psycopg[binary]>=3.3.6",
     "pypdf>=6.0",
+    "python-dotenv>=1.2.4",
+    "sentence-transformers>=6.1.0",
+    "streamlit>=1.65.0",
+    "torch>=2.11.0",
+    "torchvision>=0.26.0",
 ]
 
 [project.optional-dependencies]
-# 벡터 색인용 (GPU). 설치: uv sync --extra vector
-vector = [
-    "torch>=2.6",
-    "sentence-transformers>=3",
-    "chromadb>=1.0",
-]
+# torch·sentence-transformers는 기본 의존성으로 옮겼다. chromadb만 선택 설치: uv sync --extra vector
+vector = ["chromadb>=1.0"]
 
 # 규정 원문 DB(PostgreSQL) 접속. 설치: uv sync --extra db
 db = ["psycopg[binary]>=3.2"]
@@ -34,6 +42,7 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }
 
 [build-system]
 requires = ["hatchling"]
