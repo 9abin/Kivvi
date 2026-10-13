@@ -168,6 +168,16 @@ def segments(rows: list, side: str) -> list:
     return out
 
 
+def readable(reason: str) -> str:
+    """점검 코드가 남긴 값 목록 「현행 ['3년', '2회'] → 개정안 [...]」을 사람이 읽는 문장으로"""
+    def vals(s: str) -> str:
+        return " · ".join(re.findall(r"'([^']*)'", s))
+    m = re.search(r"\s*/\s*바뀐 항의 값 현행 (\[[^\]]*\]) → 개정안 (\[[^\]]*\]), 상대 (\[[^\]]*\])", reason)
+    if m:
+        reason = reason[:m.start()] + f". 값: 현행 {vals(m.group(1))} → 개정안 {vals(m.group(2))} (상대 조문 {vals(m.group(3))})" + reason[m.end():]
+    return re.sub(r"\[([^\]]*)\]", lambda x: vals(x.group(0)) or x.group(0), reason)
+
+
 def changeset(cid: str) -> dict:
     rows = q("select id, reg_id, title, amendment, status, payload from amend.changeset where id = %s", cid)
     if not rows:
@@ -181,7 +191,7 @@ def changeset(cid: str) -> dict:
         kind, label = IMPACT_LABEL.get(r["category"], ("review", r["category"]))
         place = r["article"] + (f" 제{r['para']}항" if r["para"] else "")
         impacts.append({"kind": kind, "label": label, "where": f"{titles.get(r['reg_id'], r['reg_id'])} {place}",
-                        "quote": r["quote"] or "", "reason": r["reason"] or "", "priority": r["priority"]})
+                        "quote": r["quote"] or "", "reason": readable(r["reason"] or ""), "priority": r["priority"]})
     return {"id": c["id"], "reg": titles.get(c["reg_id"], c["reg_id"]), "title": c["title"], "status": c["status"],
             "amendment": c["amendment"], "diff": {"old": segments(payload.get("rows", []), "old"), "new": segments(payload.get("rows", []), "new")},
             "impacts": impacts}

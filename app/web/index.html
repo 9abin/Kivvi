@@ -7,18 +7,16 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- 배치: Figma 화면4(질의응답·근거 원문)와 화면8(검토 결과). 데이터: sample-data.js (S01 실제 값)
-       화면 조각: 사이드바 / 질의응답 / 근거 원문 패널(근거 원문·개정 정보 탭) / 개정안 검토 -->
+  <!-- 배치: Figma 화면4(질의응답·근거 원문)와 화면8(검토 결과). 데이터: app/web_server.py API (없으면 sample-data.js 예시) -->
   <div class="app">
     <aside class="sidebar" aria-label="대화와 개정안 목록">
-      <div class="brand"><span class="logo" data-icon="scale"></span><span><b>규정 도우미</b><small>한국벤처투자 내부규정</small></span></div>
-      <button class="btn-new" type="button" data-view="chat"><span data-icon="plus"></span>새 대화</button>
+      <div class="brand"><span class="mark" aria-hidden="true"></span><b>규정 도우미</b><small>KVIC</small></div>
+      <button class="btn-new" type="button" data-view="chat"><span data-icon="plus"></span>새 대화<kbd>Ctrl K</kbd></button>
       <ul class="nav">
         <li><button type="button" data-view="chat" aria-current="page"><span data-icon="chat"></span><span class="label">질의응답</span></button></li>
         <li><button type="button" disabled title="문서 검토 화면 (가빈 담당)"><span data-icon="doc"></span><span class="label">문서 검토</span></button></li>
         <li class="editor-only"><button type="button" data-view="review"><span data-icon="edit"></span><span class="label">개정안 검토</span></button></li>
       </ul>
-      <div class="divider"></div>
       <div class="scroll">
         <div id="conv-list"></div>
         <div class="editor-only">
@@ -39,29 +37,30 @@
     <main class="main" id="view-chat">
       <section class="col">
         <header class="topbar">
-          <div><div class="crumb"><span data-icon="chat"></span>질의응답</div><h1>육아휴직 분할 횟수</h1></div>
+          <div><div class="crumb">질의응답</div><h1>육아휴직 분할 횟수</h1></div>
           <span class="meta"><span class="live off" id="live">연결 확인 중</span></span>
         </header>
         <div class="thread" id="thread"></div>
         <form class="composer" onsubmit="return false">
-          <textarea placeholder="내부규정에 대해 궁금한 점을 질문해 보세요" aria-label="질문 입력"></textarea>
-          <button class="send" type="submit" aria-label="보내기"><span data-icon="send"></span></button>
-          <small>Enter 전송 · Shift+Enter 줄바꿈</small>
+          <textarea placeholder="내부규정에 대해 물어보세요" aria-label="질문 입력"></textarea>
+          <button class="send" type="submit" aria-label="보내기"><span data-icon="up-arrow"></span></button>
+          <small>Enter 보내기 · Shift+Enter 줄바꿈</small>
         </form>
-        <p class="disclaimer">답변은 내부규정 조문을 근거로 생성됩니다. 최종 판단은 담당 부서에 확인하세요.</p>
+        <p class="disclaimer">답변은 내부규정 조문을 근거로 만들어집니다. 최종 판단은 담당 부서에 확인하세요.</p>
       </section>
       <section class="col" aria-label="근거 원문">
         <div class="tabs" role="tablist">
-          <button type="button" role="tab" id="tab-src" aria-selected="true" aria-controls="panel-src"><span data-icon="book"></span>근거 원문</button>
-          <button type="button" role="tab" id="tab-amend" aria-selected="false" aria-controls="panel-amend" class="editor-only"><span data-icon="edit"></span>개정 정보 <span class="count" id="amend-count"></span></button>
+          <button type="button" role="tab" id="tab-src" aria-selected="true" aria-controls="panel-src">근거 원문</button>
+          <button type="button" role="tab" id="tab-amend" aria-selected="false" aria-controls="panel-amend" class="editor-only">개정 정보 <span class="count" id="amend-count"></span></button>
         </div>
         <form class="finder" id="finder">
-          <input id="finder-q" type="search" placeholder="조문 열기 — 예: 인사규정 제30조 2항" aria-label="조문 열기">
-          <button type="submit" class="ghost strong">열기</button>
+          <span data-icon="search"></span>
+          <input id="finder-q" type="search" placeholder="조문 열기 — 인사규정 제30조 2항" aria-label="조문 열기">
+          <button type="submit">열기 ↵</button>
         </form>
         <div class="panel" id="panel-src" role="tabpanel" aria-labelledby="tab-src"></div>
         <div class="panel" id="panel-amend" role="tabpanel" aria-labelledby="tab-amend" hidden></div>
-        <div class="panel-foot"><button type="button" class="ghost"><span data-icon="copy"></span>조문 복사</button><button type="button" class="ghost strong">규정 전문 보기<span data-icon="arrow"></span></button></div>
+        <div class="panel-foot"><button type="button" class="ghost" id="copy-art"><span data-icon="copy"></span>조문 복사</button><button type="button" class="ghost">규정 전문 보기 →</button></div>
       </section>
     </main>
 
@@ -69,9 +68,8 @@
     <main class="main review" id="view-review" hidden>
       <section class="col">
         <header class="topbar">
-          <div><div class="crumb"><span data-icon="edit"></span>개정안 검토 · <span id="cs-id"></span></div><h1 id="cs-title"></h1></div>
-          <span class="chip draft" id="cs-status"></span>
-          <span class="meta"><span data-icon="info"></span>참고 문안 · 자동 반영하지 않음</span>
+          <div><div class="crumb">개정안 검토 / <span id="cs-id"></span></div><h1 id="cs-title"></h1></div>
+          <span class="meta"><span class="tag" id="cs-status"></span>참고 문안 · 자동 반영 안 함</span>
         </header>
         <div class="doc" id="doc"></div>
       </section>
@@ -79,8 +77,8 @@
         <div class="side" id="side"></div>
         <div class="review-foot">
           <div class="progress" aria-hidden="true"><i class="p-acc" id="p-acc"></i><i class="p-rej" id="p-rej"></i></div>
-          <div class="hint" id="tally"></div>
-          <div class="row"><button type="button" class="btn-line"><span data-icon="download"></span>패키지 내려받기</button><button type="button" class="btn-teal"><span data-icon="send"></span>검토자에게 제출</button></div>
+          <div id="tally"></div>
+          <div class="row2"><button type="button" class="btn line"><span data-icon="download"></span>패키지 내려받기</button><button type="button" class="btn primary">검토자에게 제출</button></div>
         </div>
       </section>
     </main>
