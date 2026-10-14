@@ -537,6 +537,11 @@
       const st = await api("/api/status");
       LIVE = true;
       $("#live").className = "live"; $("#live").textContent = `DB · 청크 ${st.chunks.toLocaleString()} · ${st.db_user}`;
+      if (st.stale) {   // 가빈 청크가 다시 적재되거나 단위가 바뀌어 우리 항과의 대응이 끊김 → 근거 원문·개정 정보가 안 열릴 수 있음
+        $("#live").className = "live warn"; $("#live").textContent = `청크 대응 끊김 ${st.stale}곳`;
+        $("#live").title = "챗봇 청크(public.chunks)가 바뀌었습니다. 관리자가 scripts/amend_load.py를 실행해 대응을 다시 계산해야 합니다.";
+        toast(`챗봇 청크가 바뀌어 조문 ${st.stale}곳의 대응이 끊겼습니다. 대응을 다시 계산해야 합니다.`, 6000);
+      }
       pollModel();
       await refreshChangesets();
       await loadArticle(S.article.chunk_id);
@@ -547,9 +552,135 @@
     }
   })();
 
+  // ── 변경 감시: 법률 DB 판 선택 → 탐색 시작(POST /api/scan/start) → 새로 생김·해결됨 ────────
+  const WATCH_BASE = { finding: "기준선 적재본", rebase: "비교 없이 기준으로 기록" };
+  const when = (s) => String(s || "").slice(0, 16).replace("T", " ");
+  async function loadWatch(id) {
+    if (!LIVE) { $("#watch-last").textContent = "서버에 연결되지 않아 탐색할 수 없습니다"; return; }
+    try {
+      const [snap, res] = await Promise.all([api("/api/scan/snapshots"), api(`/api/scan${id ? "?id=" + encodeURIComponent(id) : ""}`)]);
+      const sel = clear($("#watch-law"));
+      snap.snapshots.forEach((s) => {
+        const d = s.last_promulgated, o = el("option", null, `${s.file} · 법령 ${s.laws}개 · 최근 공포 ${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}${s.file === snap.current ? " (현재 사용 중)" : ""}`);
+        o.value = s.file; if (s.file === snap.current) o.selected = true; sel.append(o);
+      });
+      $("#watch-last").textContent = snap.last ? `마지막 탐색 ${when(snap.last.started_at)} · ${snap.last.law_snapshot}` : "아직 탐색한 적이 없습니다. 처음이면 지금 점검 결과(기준선)와 비교합니다.";
+      renderWatch(res);
+    } catch (e) { toast(e.message); }
+  }
+  async function runWatch(rebase) {
+    const law = $("#watch-law").value, btn = rebase ? $("#watch-rebase") : $("#watch-go");
+    if (!law) return;
+    btn.disabled = true; const old = btn.lastChild.textContent; btn.lastChild.textContent = "탐색 중…";
+    try { renderWatch(await api("/api/scan/start", { law, rebase })); await loadWatch(); toast(rebase ? "이 판을 기준으로 기록했습니다" : "탐색을 마쳤습니다"); }
+    catch (e) { toast(e.message); }
+    finally { btn.disabled = false; btn.lastChild.textContent = old; }
+  }
+  $("#watch-go").addEventListener("click", () => runWatch(false));
+  $("#watch-rebase").addEventListener("click", () => runWatch(true));
+  function renderWatch(res) {
+    const box = clear($("#watch-result")), hist = clear($("#watch-history"));
+    hist.append(el("h2", "side-title", "탐색 기록"));
+    const ul = el("ul", "nav watch-hist");
+    (res.history || []).forEach((h) => {
+      const b = el("button"); b.type = "button";
+      b.append(el("span", "label", `${when(h.started_at)} · ${h.law_snapshot}`), el("small", null, `새로 ${h.counts.new} · 해결 ${h.counts.resolved}`));
+      if (res.scan && h.id === res.scan.id) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", () => loadWatch(h.id));
+      const li = el("li"); li.append(b); ul.append(li);
+    });
+    if (!(res.history || []).length) hist.append(el("div", "none", "기록 없음"));
+    hist.append(ul);
+    const sc = res.scan; if (!sc) return;
+    box.append(el("h2", null, "탐색 결과"));
+    const law = (sc.stats && sc.stats["법령 DB"]) || {};
+    box.append(el("p", "hint", `${sc.id} · ${when(sc.started_at)} · ${sc.law_snapshot} (법령 ${sc.law_count}개) · 비교 기준: ${WATCH_BASE[sc.base] || "직전 탐색 " + sc.base}` +
+      (law["법령 인용"] ? ` · 법령 인용 ${law["법령 인용"]}건 중 ${law["법령 연결"]}건 연결` : "")));
+    const sum = el("div", "summary watch-sum");
+    [["새로 생김", sc.counts.new, sc.counts.new > 0], ["해결됨", sc.counts.resolved, false], ["그대로", sc.counts.kept, false]].forEach(([t, n, hot]) => {
+      const s = el("span", hot ? "hot" : null); s.append(t, el("b", null, String(n))); sum.append(s);
+    });
+    box.append(sum);
+    [["new", "새로 생김", "직전 탐색에 없던 점검 결과입니다. 바뀐 법령 조문을 인용하는 곳부터 확인하세요."],
+     ["resolved", "해결됨", "직전 탐색에 있었으나 이번에는 나오지 않은 결과입니다."]].forEach(([k, title, hint]) => {
+      const items = res.items.filter((x) => x.change === k);
+      const s = el("section", "watch-sect"); s.append(el("h3", null, `${title} ${items.length}건`));
+      if (!items.length) { s.append(el("div", "none", k === "new" ? "새로 생긴 결과 없음" : "해결된 결과 없음")); box.append(s); return; }
+      s.append(el("p", "hint", hint));
+      const list = el("ol", "rows");
+      items.forEach((x) => {
+        const li = el("li", "row"), body = el("div", "body"), top = el("div", "top");
+        top.append(el("span", "tag " + (k === "new" ? "warn" : "pos"), x.type), el("span", "where", `${x.reg_name || x.reg_id} ${x.article || x.unit || ""}`));
+        body.append(top);
+        if (x.quote) body.append(el("q", null, x.quote));
+        if (x.note) body.append(el("div", "why", x.note));
+        if (x.chunk_id && k === "new") {
+          const go = el("button", "btn secondary small"); go.type = "button"; go.append("조문 열기"); go.style.alignSelf = "flex-end";
+          go.addEventListener("click", async () => { show("chat"); await loadArticle(x.chunk_id); selectTab("amend"); });
+          body.append(go);
+        }
+        li.append(body); list.append(li);
+      });
+      s.append(list); box.append(s);
+    });
+  }
+
+  // ── 법령명 일괄 정비: 점검 결과의 옛 법령명·오기 → 규정별 개정안 (GET /api/lawname, POST /api/lawname/create) ──
+  async function loadLawname() {
+    if (!LIVE) return;
+    try { renderLawname(await api("/api/lawname")); } catch (e) { toast(e.message); }
+  }
+  function renderLawname(p) {
+    const box = clear($("#lawname"));
+    box.append(el("h2", null, "법령명 일괄 정비"));
+    if (!p.mapping.length) { box.append(el("p", "hint", "점검 결과에 옛 법령명·법령명 오기가 없습니다.")); return; }
+    box.append(el("p", "hint", "점검 결과에서 찾은 옛 법령명과 오기를 법률 DB의 지금 이름으로 바꾸는 개정문입니다. 같은 이름이 다른 규정에 있으면 함께 바뀝니다. 고른 규정마다 개정안(초안)이 하나씩 만들어집니다."));
+    const t = el("table", "cmp-num lawname-map"), hd = el("tr");
+    ["구분", "지금 표기", "바꿀 이름", "점검에서 찾은 곳"].forEach((h) => hd.append(el("th", null, h)));
+    t.append(hd);
+    p.mapping.forEach((m) => {
+      const tr = el("tr");
+      [el("span", "tag " + (m.kind === "오기" ? "warn" : "accent"), m.kind), m.old, m.new, m.where.join(", ")].forEach((v) => { const td = el("td"); td.append(v); tr.append(td); });
+      t.append(tr);
+    });
+    box.append(t);
+    const list = el("ol", "rows");
+    p.packages.forEach((pk) => {
+      const li = el("li", "row"), body = el("div", "body"), top = el("div", "top");
+      const cb = el("input"); cb.type = "checkbox"; cb.value = pk.reg_id; cb.checked = !pk.open && pk.status === "ok"; cb.disabled = pk.open || pk.status !== "ok";
+      cb.setAttribute("aria-label", `${pk.reg_name} 개정안 만들기`);
+      top.append(cb, el("span", "where", pk.reg_name), el("small", null, `${pk.count}곳`));
+      if (pk.open) top.append(el("span", "tag", "진행 중인 정비 개정안 있음"));
+      if (pk.status !== "ok") top.append(el("span", "tag neg", pk.status));
+      body.append(top, el("pre", "amend-text", pk.amendment));
+      li.append(body); list.append(li);
+    });
+    box.append(list);
+    if (p.manual.length || p.check.length) {
+      const s = el("section", "watch-sect");
+      s.append(el("h3", null, `직접 고칠 곳 ${p.manual.length + p.check.length}건`),
+               el("p", "hint", "별표·별지·부칙은 개정문 적용기가 다루지 않고, 다른 낱말 속에 들어간 이름은 자동으로 바꾸지 않습니다."));
+      [...p.manual, ...p.check].forEach((h) => s.append(el("div", "why", `${h.reg_name} ${h.article} — 「${h.old}」 → 「${h.new}」`)));
+      box.append(s);
+    }
+    const go = el("button", "btn primary"); go.type = "button"; go.append(icon("edit"), "고른 규정 개정안 만들기");
+    go.addEventListener("click", async () => {
+      const regs = [...box.querySelectorAll("input[type=checkbox]:checked")].map((x) => x.value);
+      if (!regs.length) return toast("만들 규정을 골라 주세요");
+      go.disabled = true; go.lastChild.textContent = "만드는 중…";
+      try {
+        const r = await api("/api/lawname/create", { regs });
+        toast(`개정안 ${r.made.length}건을 만들었습니다${r.skipped.length ? ` (건너뜀 ${r.skipped.length})` : ""} — 왼쪽 「내 개정안」에서 검토하세요`, 5000);
+        await refreshChangesets(); await loadLawname();
+      } catch (e) { toast(e.message); go.disabled = false; go.lastChild.textContent = "고른 규정 개정안 만들기"; }
+    });
+    const foot = el("div", "actions-row"); foot.append(go); box.append(foot);
+  }
+
   // ── 화면 전환·권한 ──────────────────────────────────
   function show(view) {
-    $("#view-chat").hidden = view !== "chat"; $("#view-review").hidden = view !== "review";
+    $("#view-chat").hidden = view !== "chat"; $("#view-review").hidden = view !== "review"; $("#view-watch").hidden = view !== "watch";
+    if (view === "watch") { loadWatch(); loadLawname(); }
     document.querySelectorAll(".nav button[data-view]").forEach((b) => {
       if (b.dataset.view === view && !b.closest("#cs-list")) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });

@@ -235,6 +235,26 @@ h1, h2, h3, h4 { letter-spacing: -.01em; }
 #tally { margin: 0; font-size: 14px; color: var(--gray-60); }
 .review-foot .row2 { display: grid; grid-template-columns: 1fr 1.3fr; gap: 8px; }
 
+.live.warn { color: var(--warning); font-weight: 700; }
+.live.warn::before { background: var(--warning); }
+
+/* 변경 감시 */
+.watch-run h2, #watch-result h2 { font-size: 20px; margin: 0 0 8px; }
+.watch-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 16px 0 10px; }
+.watch-form select { flex: 1; min-width: 260px; height: 40px; border: 1px solid var(--gray-50); border-radius: var(--radius); padding: 0 12px; font-size: 15px; background: var(--gray-0); }
+.watch-form select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-10); }
+#watch-result:empty { display: none; }
+.watch-sum { grid-template-columns: repeat(3, 1fr); margin-top: 16px; }
+.doc section .watch-sect { background: none; border: 0; padding: 0; margin: 24px 0 0; }
+.watch-sect h3 { font-size: 17px; margin: 0 0 4px; }
+.watch-sect .hint { margin-bottom: 12px; }
+.watch-hist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.watch-hist button { width: 100%; text-align: left; background: var(--gray-0); border: 1px solid var(--gray-20); border-radius: var(--radius); padding: 8px 12px; font-size: 14px; color: var(--gray-70); display: flex; gap: 8px; align-items: center; }
+.watch-hist button:hover { background: var(--gray-5); }
+.watch-hist button[aria-current="page"] { background: var(--secondary-5); border-color: var(--secondary-10); color: var(--secondary); font-weight: 700; }
+.watch-hist small { font-size: 13px; color: var(--gray-60); white-space: nowrap; }
+.side .none { font-size: 14px; color: var(--gray-60); }
+
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--gray-90); color: #fff; padding: 12px 20px; border-radius: var(--radius); font-size: 15px; z-index: 30; box-shadow: var(--shadow); max-width: 90vw; }
 
 @media (max-width: 1200px) {
@@ -274,3 +294,12 @@ h1, h2, h3, h4 { letter-spacing: -.01em; }
 a.interp-title { color: var(--primary-hover); text-decoration: underline; text-underline-offset: 3px; }
 .interp-answer { margin: 4px 0 0; font-size: 13px; color: var(--gray-60); line-height: 1.55; }
 .sect .item .interp { margin-top: 8px; }
+
+/* 법령명 일괄 정비 */
+#lawname:empty { display: none; }
+#lawname h2 { font-size: 20px; margin: 0 0 8px; }
+.lawname-map { margin: 12px 0 16px; }
+#lawname .rows { margin-bottom: 12px; }
+#lawname .row .top input { width: 18px; height: 18px; accent-color: var(--primary); }
+#lawname .row .top small { font-size: 13px; color: var(--gray-60); }
+#lawname .amend-text { font-size: 15px; }

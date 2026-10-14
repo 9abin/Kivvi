@@ -19,6 +19,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import psycopg
+from psycopg.rows import dict_row
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -71,8 +72,6 @@ def draft(chunk: str, request: str, user: str) -> dict:
     from regcheck.nl import draft as nl_draft
     from regcheck.agent import build_package
     from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
-    from regcheck.amend_db import impact_rows
-    from agent_fix import render
     with _lock:   # 로컬 LLM·GPU를 채팅과 나눠 쓰므로 한 번에 하나
         res = nl_draft(regs, full_request, model=DRAFT_MODEL, reg=reg)
         if not res.get("ok"):
@@ -83,6 +82,14 @@ def draft(chunk: str, request: str, user: str) -> dict:
         cs = res["changeset"]
         cs["id"], cs["title"] = cid, request
         pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None)
+    n = _store(cid, reg_id, f"{label} — {request}" if label else request, cs, pkg, chunk, user, request, {"chunk": chunk, "model": DRAFT_MODEL})
+    return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
+
+
+def _store(cid: str, reg_id: str, title: str, cs: dict, pkg: dict, chunk: str | None, user: str, request: str, ref: dict) -> int:
+    """개정 패키지 파일 + amend.changeset·impact + 「초안」 결정 기록. 영향 수를 돌려준다"""
+    from regcheck.amend_db import impact_rows
+    from agent_fix import render
     pkg["run"] = cid
     out = package_path(cid).parent
     out.mkdir(parents=True, exist_ok=True)
@@ -90,17 +97,75 @@ def draft(chunk: str, request: str, user: str) -> dict:
     (out / "package.html").write_text(render(pkg), encoding="utf-8")
     found = pkg["law_check"] + pkg["review"] + [{**b, "category": "breaks"} for b in pkg.get("remaining_breaks", []) if isinstance(b, dict)]
     changes = cs.get("changes") or [{"origin": r["origin"]} for r in pkg["rows"] if r.get("origin")]   # v_chunk_open_change가 바뀌는 조를 여기서 찾음
-    payload = {"id": cid, "run": cid, "rows": pkg["rows"], "changes": changes, "request": request, "model": DRAFT_MODEL}
+    payload = {"id": cid, "run": cid, "rows": pkg["rows"], "changes": changes, "request": request, "model": ref.get("model"),
+               "kind": ref.get("kind", "draft")}
     with write_conn() as con, con.cursor() as cur:
         cur.execute("INSERT INTO amend.changeset (id, reg_id, title, amendment, status, origin_chunk, created_by, payload) "
                     "VALUES (%s, %s, %s, %s, '초안', %s, %s, %s)",
-                    (cid, reg_id, f"{label} — {request}" if label else request, pkg["amendment_final"], chunk, user, json.dumps(payload, ensure_ascii=False)))
+                    (cid, reg_id, title, pkg["amendment_final"], chunk, user, json.dumps(payload, ensure_ascii=False)))
         rows = impact_rows(cid, found)
         if rows:
             cur.executemany("INSERT INTO amend.impact VALUES (" + ",".join(["%s"] * 14) + ")", rows)
         cur.execute("INSERT INTO amend.decision_log (key, kind, prev, state, reviewer, comment, ref) VALUES (%s, 'changeset', NULL, '초안', %s, %s, %s)",
-                    (f"C:{cid}", user, request, json.dumps({"chunk": chunk, "model": DRAFT_MODEL}, ensure_ascii=False)))
-    return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": len(rows)}
+                    (f"C:{cid}", user, request, json.dumps(ref, ensure_ascii=False)))
+    return len(rows)
+
+
+def _lawname_rows() -> list[dict]:
+    from regcheck.lawname_fix import mapping
+    with write_conn() as con, con.cursor(row_factory=dict_row) as cur:
+        fs = cur.execute("select f.type, f.quote, f.suggest, f.reg_id, f.article, d.title as reg_name from amend.finding f "
+                         "left join public.documents d on d.doc_id = f.reg_id where f.type in ('법령명_변경', '법령명_오기')").fetchall()
+    return mapping(fs)
+
+
+def lawname_plan() -> dict:
+    """법령명 일괄 정비 초안 (고도화 7): 점검 결과의 옛 이름·오기 → 규정별 개정문. 아직 저장하지 않는다"""
+    from regcheck.lawname_fix import plan
+    regs, _, _ = corpus()
+    p = plan(regs, _lawname_rows())
+    open_regs = {r[0] for r in _open_lawname()}
+    for pk in p["packages"]:
+        pk["open"] = pk["reg_id"] in open_regs
+        pk.pop("rows", None)
+    keep = ("reg_name", "unit", "article", "old", "new", "token", "context")
+    return {"mapping": p["mapping"], "packages": p["packages"], "not_found": p["not_found"],
+            "check": [{k: h.get(k) for k in keep} for h in p["check"]], "manual": [{k: h.get(k) for k in keep} for h in p["manual"]]}
+
+
+def _open_lawname() -> list[tuple]:
+    with write_conn() as con:
+        return con.execute("select reg_id, id from amend.changeset where status in ('초안', '검토', '승인') and payload->>'kind' = 'lawname'").fetchall()
+
+
+def lawname_create(reg_ids: list[str], user: str) -> dict:
+    """고른 규정마다 개정안 하나(초안). 이미 진행 중인 법령명 정비 개정안이 있는 규정은 건너뛴다"""
+    from regcheck.agent import build_package
+    from regcheck.amend import build_changeset
+    from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
+    from regcheck.lawname_fix import plan
+    regs, rels, edges = corpus()
+    rows = _lawname_rows()
+    p = plan(regs, rows)
+    busy = {r[0] for r in _open_lawname()}
+    made, skipped = [], []
+    with _lock:
+        db = LawDB(LAW_DB) if LAW_DB.exists() else None
+        for pk in p["packages"]:
+            if pk["reg_id"] not in reg_ids:
+                continue
+            if pk["reg_id"] in busy or pk["status"] != "ok":
+                skipped.append({"reg": pk["reg_name"], "why": "진행 중인 법령명 정비 개정안 있음" if pk["reg_id"] in busy else pk["status"]})
+                continue
+            cid = "L" + datetime.now().strftime("%y%m%d-%H%M%S") + f"-{len(made):02d}"
+            names = [r for r in rows if r["old"] in pk["amendment"]]
+            title = "법령명 정비 — " + ", ".join(f"{r['old']} → {r['new']}" for r in names)
+            cs, _ = build_changeset(regs[pk["reg_id"]], pk["amendment"], cid, title)
+            cs["kind"] = "lawname"
+            pkg = build_package(cs, regs, rels, edges, lawdb=db)
+            n = _store(cid, pk["reg_id"], title, cs, pkg, None, user, title, {"kind": "lawname", "names": names})
+            made.append({"id": cid, "reg": pk["reg_name"], "impacts": n})
+    return {"made": made, "skipped": skipped}
 
 
 def decide(cid: str, key: str, state: str, user: str) -> dict:

@@ -89,6 +89,34 @@ CREATE TABLE IF NOT EXISTS amend.finding (
 CREATE INDEX IF NOT EXISTS finding_chunk_idx ON amend.finding (chunk_id);
 CREATE INDEX IF NOT EXISTS finding_key_idx   ON amend.finding (review_key);
 
+-- 변경 감시: 법률 DB 새 판을 반입하고 「탐색 시작」을 누를 때마다 한 줄 (regcheck.watch). 직전 탐색(없으면 amend.finding)과 비교
+CREATE TABLE IF NOT EXISTS amend.scan (
+    id           text PRIMARY KEY,                -- SC261014-153000
+    started_at   timestamptz NOT NULL DEFAULT now(),
+    law_snapshot text,                            -- 반입한 법률 DB 파일 (data/law_rag*.sqlite3)
+    law_count    int,
+    base         text,                            -- 비교 기준: 직전 탐색 id 또는 'finding'(기준선 적재본)
+    counts       jsonb NOT NULL,                  -- {"new": n, "resolved": n, "kept": n}
+    stats        jsonb NOT NULL DEFAULT '{}',     -- 법령 연결 통계 등
+    created_by   text
+);
+CREATE TABLE IF NOT EXISTS amend.scan_item (
+    scan_id    text NOT NULL REFERENCES amend.scan(id) ON DELETE CASCADE,
+    review_key text NOT NULL,                     -- amend.finding.review_key와 같은 규칙 (B: + 해시)
+    change     text NOT NULL CHECK (change IN ('new', 'resolved', 'kept')),
+    reg_id     text NOT NULL,
+    reg_name   text,
+    unit       text,
+    article    text,
+    para       int,
+    chunk_id   text,
+    type       text NOT NULL,
+    method     text,
+    quote      text,
+    note       text,
+    PRIMARY KEY (scan_id, review_key)
+);
+
 -- 개정안. 상태: 초안 → 검토 → 승인 → 공포 (또는 기각). 승인은 개정이 아니다 (공포는 회사 절차)
 CREATE TABLE IF NOT EXISTS amend.changeset (
     id          text PRIMARY KEY,
@@ -203,6 +231,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA amend TO editor;
 GRANT INSERT, UPDATE ON amend.changeset, amend.impact TO editor;
 GRANT INSERT ON amend.decision_log TO editor;
 GRANT USAGE ON SEQUENCE amend.decision_log_seq_seq TO editor;
+GRANT INSERT ON amend.scan, amend.scan_item TO editor;   -- 「탐색 시작」 결과 기록 (점검 결과 표 자체는 못 바꿈)
 
 -- amend_builder: 파이프라인(파싱·관계·점검 결과 적재). public은 읽기만
 GRANT USAGE ON SCHEMA public, amend TO amend_builder;
@@ -238,6 +267,8 @@ COMMENT ON COLUMN amend.edge.src_version IS '인용 쪽 규정의 개정일 (개
 COMMENT ON TABLE amend.finding IS '기준선 점검 결과 (오류 후보). 판정이 아니라 담당자 검토용';
 COMMENT ON COLUMN amend.finding.review_key IS '사람 결정과 잇는 고정 키 (fid는 실행마다 바뀜)';
 COMMENT ON COLUMN amend.finding.method IS 'rule 규칙 / semantic 의미 비교 / law_db 법률 DB / history 개정 이력';
+COMMENT ON TABLE amend.scan IS '변경 감시 탐색 기록. 법률 DB 새 판 반입 후 점검을 다시 돌린 결과 요약';
+COMMENT ON TABLE amend.scan_item IS '탐색 결과 항목. change = new 새로 생김 / resolved 해결됨 / kept 그대로';
 COMMENT ON TABLE amend.changeset IS '개정안. 상태 초안→검토→승인→공포(또는 기각). 승인은 개정이 아님';
 COMMENT ON TABLE amend.impact IS '개정안의 영향 (변경안 점검·연쇄 수정 결과)';
 COMMENT ON COLUMN amend.impact.category IS 'breaks 깨짐 / new_conflicts 새 충돌 / resolved 해소 / review 확인 필요 / law_check 법령 대조 / undeterminable 판단 불가 / info 참고';

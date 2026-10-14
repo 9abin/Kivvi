@@ -14,7 +14,9 @@ API (GET, JSON)
   /api/changeset?id=S01            개정문, 대비표, 함께 개정안·부칙·질의(패키지), 영향과 결정 상태
   /api/regulation?reg=24024        규정 전문 · /api/chat/status 답변 모델 상태 · /api/package?id= 패키지 내려받기
 POST (JSON): /api/ask {q} 채팅(로컬 9B) · /api/draft {chunk, request} 개정안 작성 · /api/decide {id, key, state} · /api/submit {id}
-             /api/approve·reject·publish {id} 승인 흐름 · /api/feedback.  GET /api/final?id= 최종안 미리보기 · /api/package?id=&final=1
+             /api/approve·reject·publish {id} 승인 흐름 · /api/feedback · /api/scan/start {law, rebase} 변경 감시 탐색
+GET /api/scan/snapshots 반입된 법률 DB 판 · /api/scan?id= 탐색 결과(새로 생김·해결됨) · /api/lawname 법령명 일괄 정비 초안
+POST /api/lawname/create {regs} 고른 규정마다 법령명 정비 개정안(초안)  GET /api/final?id= 최종안 미리보기 · /api/package?id=&final=1
 쓰기는 app/web_agent.py가 editor 역할로 (개정안·영향·결정 기록만)
 """
 
@@ -80,6 +82,15 @@ def lawdb():
 
 def reg_titles() -> dict[str, str]:
     return {r["doc_id"]: r["title"] for r in q("select doc_id, title from public.documents")}
+
+
+def status() -> dict:
+    """접속 확인 + 가빈 청크와 우리 항의 대응 상태. 가빈이 public.chunks를 다시 적재하거나 청크 단위·ID 규칙을 바꾸면
+    「가빈 청크 사라짐」이 늘어난다 → 화면이 경고하고, scripts/amend_load.py로 대응을 다시 계산한다 (docs/db-sharing-guide.md)"""
+    st = q("select (select count(*) from public.chunks) as chunks, (select count(*) from amend.changeset) as changesets, current_user as db_user")[0]
+    st["unmatched"] = {r["problem"]: r["n"] for r in q("select problem, count(*) as n from amend.v_chunk_unmatched group by 1")}
+    st["stale"] = st["unmatched"].get("가빈 청크 사라짐", 0)
+    return st
 
 
 def find(text: str) -> dict:
@@ -271,7 +282,7 @@ def regulation(reg_id: str) -> dict:
 
 
 ROUTES = {
-    "/api/status": lambda p: q("select (select count(*) from public.chunks) as chunks, (select count(*) from amend.changeset) as changesets, current_user as db_user")[0],
+    "/api/status": lambda p: status(),
     "/api/find": lambda p: find(p.get("q", "")),
     "/api/article": lambda p: article(p.get("chunk", "")),
     "/api/amend": lambda p: amend(p.get("chunk", "")),
@@ -281,6 +292,9 @@ ROUTES = {
     "/api/chat/status": lambda p: web_chat.status(),
     "/api/lawcheck": lambda p: lawcheck(p.get("id", "")),
     "/api/final": lambda p: {k: v for k, v in web_agent.final_package(p.get("id", "")).items() if k != "_companion_rows"},
+    "/api/scan/snapshots": lambda p: web_watch.snapshots(),
+    "/api/scan": lambda p: web_watch.result(p.get("id", "")),
+    "/api/lawname": lambda p: web_agent.lawname_plan(),
 }
 # 쓰기·실행 (POST, JSON 본문). user는 화면의 사용자 이름 (시연용 — 실제 배포는 로그인 계정으로 바꿈)
 def with_open_changes(res: dict) -> dict:
@@ -305,6 +319,8 @@ POSTS = {
     "/api/reject": lambda b: web_agent.reject_cs(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
     "/api/publish": lambda b: web_agent.publish(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
     "/api/feedback": lambda b: feedback(b),
+    "/api/scan/start": lambda b: web_watch.start(b.get("law", ""), b.get("user", "web"), bool(b.get("rebase"))),
+    "/api/lawname/create": lambda b: web_agent.lawname_create(list(b.get("regs") or []), b.get("user", "web")),
 }
 
 
@@ -320,6 +336,7 @@ def feedback(b: dict) -> dict:
 import web_agent  # noqa: E402
 import web_chat  # noqa: E402
 import web_law  # noqa: E402
+import web_watch  # noqa: E402
 
 
 class Handler(SimpleHTTPRequestHandler):

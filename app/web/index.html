@@ -16,6 +16,7 @@
       <ul class="nav gnb">
         <li><button type="button" data-view="chat" aria-current="page">질의응답</button></li>
         <li class="editor-only"><button type="button" data-view="review">개정안 검토</button></li>
+        <li class="editor-only"><button type="button" data-view="watch">변경 감시</button></li>
         <li><button type="button" disabled title="문서 검토 (김가빈 담당, 준비 중)">문서 검토 <span class="badge gray">준비 중</span></button></li>
       </ul>
     </nav>
@@ -88,6 +89,33 @@
           <p id="tally"></p>
           <div class="row2"><a class="btn secondary" id="dl-pkg" href="#" download><span data-icon="download"></span>패키지 내려받기</a><button type="button" class="btn primary" id="submit-cs">검토자에게 제출</button></div>
         </div>
+      </section>
+    </main>
+
+    <!-- 변경 감시 (개정 담당자 전용): 법률 DB 새 판 반입 → 탐색 → 새로 생김·해결됨 -->
+    <main class="main review" id="view-watch" hidden>
+      <section class="col">
+        <header class="topbar">
+          <div><p class="crumb">변경 감시</p><h1>법령 변경 탐색</h1></div>
+        </header>
+        <div class="doc" id="watch-doc">
+          <section class="watch-run">
+            <h2>반입된 법률 DB</h2>
+            <p class="hint">새 판을 반입한 뒤 탐색을 시작하면, 점검을 다시 돌려 직전 탐색과 비교합니다. 바뀐 법령 조문을 인용하는 내규, 새로 연결된 법령, 해결된 문제를 보여 줍니다. 결과는 담당자 검토용이며 법적 판단이 아닙니다.</p>
+            <div class="watch-form">
+              <label class="sr-only" for="watch-law">법률 DB 판</label>
+              <select id="watch-law"></select>
+              <button type="button" class="btn primary" id="watch-go"><span data-icon="search"></span>탐색 시작</button>
+              <button type="button" class="btn tertiary small" id="watch-rebase" title="비교하지 않고 이 판의 결과를 기준으로만 기록합니다 (설치 첫날, 기준 다시 잡기)">기준으로만 기록</button>
+            </div>
+            <p class="hint" id="watch-last"></p>
+          </section>
+          <section id="watch-result"></section>
+          <section id="lawname"></section>
+        </div>
+      </section>
+      <section class="col side-panel" aria-label="탐색 기록">
+        <div class="side" id="watch-history"></div>
       </section>
     </main>
   </div>
