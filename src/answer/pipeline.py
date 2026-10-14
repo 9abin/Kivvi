@@ -16,8 +16,10 @@
   a.close()
 """
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 
-from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARTIAL_SHOW, QUERY_PLAN, TOP_K
+from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARALLEL_CALLS, PARTIAL_SHOW, QUERY_PLAN, TOP_K
 from src.answer.generate import (Generator, flatten, order_entries, revision_notes,
                                  state_notes)
 from src.search.glossary import filter_by_glossary
@@ -59,18 +61,39 @@ def partial_answer(related):
 
 
 class Assistant:
-    def __init__(self, scope_filter=True, use_glossary=True, use_plan=QUERY_PLAN):
+    def __init__(self, scope_filter=True, use_glossary=True, use_plan=QUERY_PLAN, parallel=PARALLEL_CALLS, defer_checks=False):
         self.use_glossary = use_glossary  # 용어집의 수치 근거 제외 (search/glossary.py). 전후 비교를 위해 끌 수 있다
         self.scope_filter = scope_filter  # 표 범위 필터 (guard.py). 전후 비교를 위해 끌 수 있다
         self.use_plan = use_plan  # 질문 나누기 (search_plan). 끄면 질문 한 줄 + 바꿔 쓴 검색어로 검색한다. 전후 비교용
         self.last_plan = None
+        self.parallel = parallel  # 서로 독립인 모델 호출을 동시에 실행한다(config.PARALLEL_CALLS). 끄면 순서대로 실행(전후 시간 비교용)
+        # 답을 먼저 돌려주고 문장 근거 검사·충돌 확인(경고만 붙이는 LLM 호출)은 뒤에 끝낸다. 결과의 finalize()나 finish(result)로 마무리한다.
+        self.defer_checks = defer_checks
+        self.pool = ThreadPoolExecutor(max_workers=3)
         self.searcher = Searcher()
         self.generator = Generator()
 
     def close(self):
+        self.pool.shutdown(wait=False)
         self.searcher.close()
 
-    def _retrieve(self, question, k, filters):
+    @staticmethod
+    def _timed(timing, name, fn, *args):
+        """fn(*args)를 부르고 걸린 시간(초)을 timing[name]에 적는다."""
+        t = time.time()
+        out = fn(*args)
+        timing[name] = round(time.time() - t, 2)
+        return out
+
+    @staticmethod
+    def finish(result):
+        """defer_checks로 받은 결과의 검사(문장 근거 검사, 충돌 확인)를 끝내고 경고를 합친다. 이미 끝났으면 아무것도 안 한다."""
+        fin = result.pop("finalize", None)
+        if fin:
+            fin()
+        return result
+
+    def _retrieve(self, question, k, filters, timing):
         self.searcher.glossary_filter = self.use_glossary
         if self.use_plan:
             # 질문을 하위 질문으로 나눠 각각 검색한다 (search_plan). 나누지 않는 질문은 지금까지와 같은 검색이다.
@@ -78,18 +101,18 @@ class Assistant:
             retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters, plan=self.last_plan)
         else:
             self.last_plan = None
-            retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters,
-                                            rewritten=self.generator.rewrite_query(question))
+            if self.parallel:
+                # 바꿔쓰기(모델 호출)를 시작해 두고, 그동안 원질문 검색을 한다. 바꿔 쓴 검색어는 Searcher가 필요할 때 받는다.
+                rewritten = self.pool.submit(self._timed, timing, "rewrite", self.generator.rewrite_query, question)
+            else:
+                rewritten = self._timed(timing, "rewrite", self.generator.rewrite_query, question)
+            retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters, rewritten=rewritten)
         return [document_to_entry(d) for d in retriever.invoke(question)]
 
-    def _check(self, question, answer, entries):
-        """(근거 밖 문장, 검사 성공 여부, 질문에는 있고 근거에는 없는데 답에 쓰인 말)."""
-        unsupported, ok = self.generator.verify(question, answer, entries)
-        evidence = [f"{e['문서명']} {e['body']}" for e in entries]
-        return unsupported, ok, missing_terms(self.searcher.kiwi, question, evidence, answer)
-
     def ask(self, question, k=TOP_K, filters=None):
-        results = self._retrieve(question, k, filters)
+        t0 = time.time()
+        timing = {}  # 단계별 걸린 시간(초). 동시에 도는 단계는 서로 겹쳐서 합이 total보다 크다
+        results = self._timed(timing, "retrieve", self._retrieve, question, k, filters, timing)
         assembled = self.searcher.assemble(results)
         entries = order_entries(flatten(assembled))  # 현행 먼저, 부칙·삭제는 뒤로
         scope_excluded = []
@@ -112,21 +135,30 @@ class Assistant:
         base = {"mode": mode, "top_score": top_score, "entries": entries, "assembled": assembled,
                 "results": results, "conflicts": [], "cited": [], "warnings": [], "model": None,
                 "unsupported": [], "scope_excluded": scope_excluded, "glossary_excluded": glossary_excluded,
-                "search_hint": self.searcher.last_hint, "plan": self.last_plan}
+                "search_hint": self.searcher.last_hint, "plan": self.last_plan, "timing": timing}
 
         if mode == "none":
+            timing["answer_ready"] = timing["total"] = round(time.time() - t0, 2)
             return {**base, "answer": NONE_MESSAGE, "entries": []}
 
         if mode == "partial":
             related = [r for r in results if r.get("match") != "정확조회"][:PARTIAL_SHOW]
             related = [{**e, "역할": "관련 조문"} for e in related]
+            timing["answer_ready"] = timing["total"] = round(time.time() - t0, 2)
             return {**base, "answer": partial_answer(related), "entries": related}
 
-        out = self.generator.answer(question, entries)
+        # 충돌 확인은 근거만 있으면 되고 답변이 필요 없다. 답변 생성과 동시에 돌린다.
+        conflicts_fut = (self.pool.submit(self._timed, timing, "conflicts", self.generator.conflicts, question, entries)
+                         if self.parallel else None)
+        out = self._timed(timing, "answer", self.generator.answer, question, entries)
 
         # 문장 단위 근거 검사: 모델이 쓴 각 불릿이 인용한 근거 본문과 맞는지 다시 확인한다 (답변_설계.md 10절).
         # ok=False(응답을 해석하지 못함)와 "검사 통과"(빈 목록)를 구분해서 각각 경고한다.
-        unsupported, verify_ok, missing = self._check(question, out["answer"], entries)
+        # 답변이 나오자마자 시작하고, 아래 코드 검사와 동시에 돈다. 순서대로 실행하는 설정에서는 여기서 끝낸다.
+        checked_answer = out["answer"]
+        verify_fut = (self.pool.submit(self._timed, timing, "verify", self.generator.verify, question, checked_answer, entries)
+                      if self.parallel else None)
+        verify_res = None if self.parallel else self._timed(timing, "verify", self.generator.verify, question, checked_answer, entries)
 
         # 숫자·단위가 인용한 근거에 없으면(코드 검사, 오탐이 거의 없음) 답을 내지 않고 관련 조문만 보여 준다.
         bad_numbers = unsupported_numbers(question, out["answer"], entries)
@@ -138,34 +170,51 @@ class Assistant:
                 reasons.append("답의 숫자(" + ", ".join(n for nums, _ in bad_numbers for n in nums) + ")가 근거 본문에 없어")
             if bad_dims:
                 reasons.append("표가 '" + bad_dims[0][1] + " 구분 없이'라고 정한 '" + bad_dims[0][0] + "'을(를) 답이 " + bad_dims[0][1] + "으로 설명해")
+            timing["answer_ready"] = timing["total"] = round(time.time() - t0, 2)
             return {**base, "mode": "partial", "answer": partial_answer(related), "entries": related,
                     "warnings": [" ".join(reasons) + " 답 대신 관련 조문만 보여 줍니다."],
                     "withheld": out["answer"]}
-
-        # 검사 결과로 답을 막거나 다시 쓰는 방식은 실측에서 정상 답변 29건 중 22건을 막아서 경고만 붙이는 방식으로 되돌렸다.
-        # 검사 모델이 "맞습니다. …" 같은 결론 문장과 맞는 문장까지 근거 밖으로 자주 표시한다 (정밀도 낮음).
-        if not verify_ok:
-            out["warnings"] = out["warnings"] + ["문장 근거 검사 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
-        elif unsupported:
-            out["warnings"] = out["warnings"] + [f"근거와 맞지 않을 수 있음: {s}" for s in unsupported]
-        # 질문의 핵심 말이 근거에 없는데 답이 그 말로 답했으면 주제가 바뀌었을 수 있다 (예: 질문 계약보증금, 근거 임차보증금).
-        out["warnings"] = out["warnings"] + [f'질문의 "{t}"이(가) 근거 본문에 없음: 비슷한 다른 항목으로 답했을 수 있음' for t in missing]
-
-        if glossary_excluded:
-            out["warnings"] = out["warnings"] + [f"용어집: {m} {a}를 근거에서 제외({r})" for m, a, r in glossary_excluded]
-        if scope_excluded:
-            out["warnings"] = out["warnings"] + [f"표 범위 필터: {m} {a}({t} 대상)는 {r}이라 근거에서 제외" for m, a, t, r in scope_excluded]
 
         notes = state_notes(entries, out["cited"]) + revision_notes(entries, out["cited"])
         if notes:
             out["answer"] = out["answer"] + "\n\n" + "\n".join(notes)
 
-        pairs, conflicts_ok = self.generator.conflicts(question, entries)
-        if not conflicts_ok:
-            out["warnings"] = out["warnings"] + ["충돌 확인 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
-        pairs = [p for p in pairs if not _same_article(entries[p[0] - 1], entries[p[1] - 1])]
-        conflicts = [{"pair": (a, b), "items": (entries[a - 1], entries[b - 1])} for a, b in pairs]
-        return {**base, **out, "conflicts": conflicts, "unsupported": unsupported}
+        result = {**base, **out, "conflicts": [], "unsupported": []}
+
+        def finalize():
+            """모델 호출 두 개(문장 근거 검사, 충돌 확인)의 결과를 받아 경고를 합친다. 두 호출은 답을 막거나 고치지 않고 경고만 붙인다."""
+            unsupported, verify_ok = verify_fut.result() if verify_fut is not None else verify_res
+            pairs, conflicts_ok = (conflicts_fut.result() if conflicts_fut is not None
+                                   else self._timed(timing, "conflicts", self.generator.conflicts, question, entries))
+            evidence = [f"{e['문서명']} {e['body']}" for e in entries]
+            missing = missing_terms(self.searcher.kiwi, question, evidence, checked_answer)
+            warnings = list(result["warnings"])
+
+            # 검사 결과로 답을 막거나 다시 쓰는 방식은 실측에서 정상 답변 29건 중 22건을 막아서 경고만 붙이는 방식으로 되돌렸다.
+            # 검사 모델이 "맞습니다. …" 같은 결론 문장과 맞는 문장까지 근거 밖으로 자주 표시한다 (정밀도 낮음).
+            if not verify_ok:
+                warnings += ["문장 근거 검사 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
+            elif unsupported:
+                warnings += [f"근거와 맞지 않을 수 있음: {s}" for s in unsupported]
+            # 질문의 핵심 말이 근거에 없는데 답이 그 말로 답했으면 주제가 바뀌었을 수 있다 (예: 질문 계약보증금, 근거 임차보증금).
+            warnings += [f'질문의 "{t}"이(가) 근거 본문에 없음: 비슷한 다른 항목으로 답했을 수 있음' for t in missing]
+            if glossary_excluded:
+                warnings += [f"용어집: {m} {a}를 근거에서 제외({r})" for m, a, r in glossary_excluded]
+            if scope_excluded:
+                warnings += [f"표 범위 필터: {m} {a}({t} 대상)는 {r}이라 근거에서 제외" for m, a, t, r in scope_excluded]
+            if not conflicts_ok:
+                warnings += ["충돌 확인 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
+            pairs = [p for p in pairs if not _same_article(entries[p[0] - 1], entries[p[1] - 1])]
+            result.update(warnings=warnings, unsupported=unsupported,
+                          conflicts=[{"pair": (a, b), "items": (entries[a - 1], entries[b - 1])} for a, b in pairs])
+            timing["total"] = round(time.time() - t0, 2)
+
+        timing["answer_ready"] = round(time.time() - t0, 2)  # 답 본문이 준비된 시간. 검사를 기다리기 전
+        if self.defer_checks:
+            result["finalize"] = finalize
+            return result
+        finalize()
+        return result
 
 
 def _same_article(a, b):

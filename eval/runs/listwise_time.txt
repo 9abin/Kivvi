@@ -1,0 +1,8 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 35396.88it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   4%|▍         | 16/393 [00:00<00:02, 154.06it/s]Loading weights:   8%|▊         | 32/393 [00:00<00:03, 113.64it/s]Loading weights:  11%|█         | 44/393 [00:00<00:03, 113.68it/s]Loading weights:  15%|█▌        | 60/393 [00:00<00:02, 123.14it/s]Loading weights:  19%|█▉        | 76/393 [00:00<00:02, 132.61it/s]Loading weights:  23%|██▎       | 91/393 [00:00<00:02, 136.12it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 496.30it/s]
+  10/30
+  20/30
+  30/30
+전부 교체: 호출 60번 | 평균 5.4초 중앙값 5.0초 90퍼센타일 7.8초 최대 12.8초 | 입력 평균 4836자 | 같은 입력 두 번: 앞 8개 순서까지 같음 11/30, 앞 8개 집합 평균 겹침 4.0/8
+보완(16개): 호출 60번 | 평균 4.5초 중앙값 4.6초 90퍼센타일 5.8초 최대 7.0초 | 입력 평균 2785자 | 같은 입력 두 번: 앞 8개 순서까지 같음 12/30, 앞 8개 집합 평균 겹침 3.4/8

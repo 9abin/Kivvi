@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\src\eval\rank_trace.py", line 117, in <module>
+    main()
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\src\eval\rank_trace.py", line 67, in main
+    s = make_searcher(args.device)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\src\eval\rank_trace.py", line 33, in make_searcher
+    return Searcher()
+           ^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\src\search\search.py", line 80, in __init__
+    self.store = PgStore()
+                 ^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\src\store\pgstore.py", line 37, in __init__
+    self.conn = _connect()
+                ^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\src\store\pgstore.py", line 18, in _connect
+    conn = psycopg.connect(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\psycopg\connection.py", line 134, in connect
+    raise new_ex.with_traceback(None)
+psycopg.errors.ConnectionTimeout: connection timeout expired
+Multiple connection attempts failed. All failures were:
+- host: 'localhost', port: '5432', hostaddr: '::1': connection timeout expired
+- host: 'localhost', port: '5432', hostaddr: '127.0.0.1': connection timeout expired

@@ -315,7 +315,8 @@ def parse_unsupported(text):
 
 class Generator:
     def __init__(self, model=OPENAI_MODEL):
-        self.model = ChatOpenAI(model=model, temperature=0)
+        # 응답 없이 걸리는 호출 하나가 실행 전체를 멈추지 않게 제한 시간과 재시도를 둔다
+        self.model = ChatOpenAI(model=model, temperature=0, timeout=120, max_retries=2)
         self.model_name = model
 
     def _ask(self, system, user):

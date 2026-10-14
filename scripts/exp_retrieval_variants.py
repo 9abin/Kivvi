@@ -55,10 +55,11 @@ def key(doc, art):
     return f"{doc}:" + re.sub(r"\s+", "", art or "")
 
 
-def rewrites(questions):
-    path = os.path.join("eval", "runs", "rewrite-cache.json")
+def rewrites(questions, path):
     cache = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
     todo = [q for q in questions if q not in cache]
+    if todo and not path.endswith("rewrite-cache.json"):
+        raise SystemExit(f"바꿔쓰기 캐시에 없는 질문 {len(todo)}개: scripts/gen_rewrites.py로 먼저 만든다")
     if todo:
         from langchain_openai import ChatOpenAI
 
@@ -77,12 +78,17 @@ def main():
     ap.add_argument("--questions", default="eval/answer_eval_100.jsonl")
     ap.add_argument("--out", default="exp_variants_100.json")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--rewrite-cache", default=os.path.join("eval", "runs", "rewrite-cache.json"),
+                    help="질문 → 바꿔 쓴 검색어 캐시 (바꿔쓰기 방식 비교용). 기본은 현재 REWRITE_PROMPT 결과")
+    ap.add_argument("--only", default="", help="이 이름의 설정만 비교 (쉼표로 구분, 예: \"A 기준,B+C+D\")")
     args = ap.parse_args()
 
     gold = [json.loads(line) for line in open(args.questions, encoding="utf-8") if line.strip()]
     if args.limit:
         gold = gold[:args.limit]
-    rew = rewrites([g["q"] for g in gold])
+    rew = rewrites([g["q"] for g in gold], args.rewrite_cache)
+    only = {x.strip() for x in args.only.split(",") if x.strip()}
+    variants = {n: v for n, v in VARIANTS.items() if not only or n in only}
 
     s = Searcher()
     s.glossary_filter = True
@@ -114,7 +120,7 @@ def main():
 
     # 2) 설정별로 근거 조립 후 Recall 계산
     results, per_q = {}, {}
-    for name, v in VARIANTS.items():
+    for name, v in variants.items():
         ss.CITE_WHOLE_ARTICLE = bool(v.get("whole"))
         ss.SIBLING_LIMIT = 10 ** 9 if v.get("unlimited") else 3000
         budget = 10 ** 9 if v.get("unlimited") else config.CONTEXT_CHAR_BUDGET

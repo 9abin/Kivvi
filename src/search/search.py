@@ -294,6 +294,8 @@ class Searcher:
         vec_hits = self.vector_hits(text, doc_ids)
         key_hits = self.bm25_hits(text, doc_ids)
         # 바꿔 쓴 검색어와 동의어 사전의 규정 용어를 합쳐 후보 찾기에만 더한다 (리랭킹은 원래 질문).
+        if hasattr(rewritten, "result"):  # 바꿔쓰기를 동시에 돌리는 중이면 원질문 검색을 마친 뒤에 결과를 받는다
+            rewritten = rewritten.result()
         hint = " ".join(x for x in (rewritten, synonyms.expand(text, self.synonym_table),
                                     glossary.signal_terms(text, self.glossary)) if x)
         self.last_hint = hint  # 기록용: 이번 검색에서 후보 찾기에 더해진 검색어(바꿔 쓴 검색어, 동의어 사전, 용어집 신호)
