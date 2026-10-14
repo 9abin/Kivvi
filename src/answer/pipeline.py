@@ -16,8 +16,11 @@
   a.close()
 """
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 
-from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARTIAL_SHOW, QUERY_PLAN
+from config import (ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, FAST_PIPELINE, PARTIAL_SHOW, QUERY_PLAN,
+                    USE_REWRITE)
 from src.answer.generate import (Generator, flatten, order_entries, revision_notes,
                                  state_notes)
 from src.search.glossary import filter_by_glossary
@@ -66,8 +69,11 @@ class Assistant:
         self.last_plan = None
         self.searcher = Searcher()
         self.generator = Generator()
+        self.pool = ThreadPoolExecutor(max_workers=4) if FAST_PIPELINE else None  # GPT 호출 동시 실행용
 
     def close(self):
+        if self.pool:
+            self.pool.shutdown(wait=True)
         self.searcher.close()
 
     def _retrieve(self, question, k, filters):
@@ -76,19 +82,51 @@ class Assistant:
             # 질문을 하위 질문으로 나눠 각각 검색한다 (search_plan). 나누지 않는 질문은 지금까지와 같은 검색이다.
             self.last_plan = self.generator.plan_queries(question)
             retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters, plan=self.last_plan)
+        elif not USE_REWRITE:
+            self.last_plan = None
+            retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters)
+        elif self.pool:
+            # 바꿔쓰기(GPT)를 기다리는 동안 원래 질문 검색을 먼저 한다 (Searcher.search의 rewritten_future)
+            self.last_plan = None
+            retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters,
+                                            rewritten_future=self.pool.submit(self.generator.rewrite_query, question))
         else:
             self.last_plan = None
             retriever = RegulationRetriever(searcher=self.searcher, k=k, filters=filters,
                                             rewritten=self.generator.rewrite_query(question))
         return [document_to_entry(d) for d in retriever.invoke(question)]
 
-    def _check(self, question, answer, entries):
-        """(근거 밖 문장, 검사 성공 여부, 질문에는 있고 근거에는 없는데 답에 쓰인 말)."""
-        unsupported, ok = self.generator.verify(question, answer, entries)
-        evidence = [f"{e['문서명']} {e['body']}" for e in entries]
-        return unsupported, ok, missing_terms(self.searcher.kiwi, question, evidence, answer)
+    def ask(self, question, k=5, filters=None, on_token=None, wait_checks=True):
+        """질문 하나에 답한다. 반환의 timing: 질문부터 첫 글자(first_token, on_token을 줄 때)·답 완성(answer)까지 초.
 
-    def ask(self, question, k=5, filters=None):
+        on_token: 주면 답변을 스트리밍한다(글이 생기는 대로 on_token(조각)). 다시 쓴 답(retried)은 스트리밍되지 않으니
+                  화면은 마지막에 answer로 바꿔 보여 준다.
+        wait_checks: False면(FAST_PIPELINE일 때) 문장 근거 검사가 끝나기 전에 돌려준다. 경고까지 받으려면 finish(결과)를
+                  부른다. 기본 True는 예전처럼 경고까지 다 붙여 돌려준다."""
+        t0 = time.time()
+        first = []
+
+        def stream(piece):
+            if not first:
+                first.append(time.time() - t0)
+            on_token(piece)
+
+        result = self._ask(question, k, filters, stream if on_token else None)
+        result["timing"] = {"t0": t0, "first_token": first[0] if first else None, "answer": time.time() - t0}
+        return self.finish(result) if wait_checks else result
+
+    def finish(self, result):
+        """뒤에서 하던 문장 근거 검사를 기다려 경고를 붙인다. 이미 끝났거나 FAST_PIPELINE이 아니면 그대로 돌려준다."""
+        pending = result.pop("pending_verify", None)
+        if pending is not None:
+            unsupported, verify_ok = pending.result()
+            result["warnings"] = result["warnings"] + _verify_warnings(unsupported, verify_ok)
+            result["unsupported"] = unsupported
+        if "timing" in result:
+            result["timing"]["checks"] = time.time() - result["timing"]["t0"]
+        return result
+
+    def _ask(self, question, k, filters, on_token):
         results = self._retrieve(question, k, filters)
         assembled = self.searcher.assemble(results)
         entries = order_entries(flatten(assembled))  # 현행 먼저, 부칙·삭제는 뒤로
@@ -122,11 +160,21 @@ class Assistant:
             related = [{**e, "역할": "관련 조문"} for e in related]
             return {**base, "answer": partial_answer(related), "entries": related}
 
-        out = self.generator.answer(question, entries)
+        # 충돌 확인은 근거만 보므로 답변 작성과 동시에 시작한다 (FAST_PIPELINE)
+        conflicts_job = self.pool.submit(self.generator.conflicts, question, entries) if self.pool else None
+        out = self.generator.answer(question, entries, on_token=on_token)
 
         # 문장 단위 근거 검사: 모델이 쓴 각 불릿이 인용한 근거 본문과 맞는지 다시 확인한다 (답변_설계.md 10절).
         # ok=False(응답을 해석하지 못함)와 "검사 통과"(빈 목록)를 구분해서 각각 경고한다.
-        unsupported, verify_ok, missing = self._check(question, out["answer"], entries)
+        # 경고만 붙이므로 FAST_PIPELINE이면 뒤에서 돌리고 finish()에서 붙인다.
+        evidence = [f"{e['문서명']} {e['body']}" for e in entries]
+        missing = missing_terms(self.searcher.kiwi, question, evidence, out["answer"])
+        if self.pool:
+            verify_job = self.pool.submit(self.generator.verify, question, out["answer"], entries)
+            unsupported, verify_ok = [], True
+        else:
+            verify_job = None
+            unsupported, verify_ok = self.generator.verify(question, out["answer"], entries)
 
         # 숫자·단위가 인용한 근거에 없으면(코드 검사, 오탐이 거의 없음) 답을 내지 않고 관련 조문만 보여 준다.
         bad_numbers = unsupported_numbers(question, out["answer"], entries)
@@ -144,10 +192,7 @@ class Assistant:
 
         # 검사 결과로 답을 막거나 다시 쓰는 방식은 실측에서 정상 답변 29건 중 22건을 막아서 경고만 붙이는 방식으로 되돌렸다.
         # 검사 모델이 "맞습니다. …" 같은 결론 문장과 맞는 문장까지 근거 밖으로 자주 표시한다 (정밀도 낮음).
-        if not verify_ok:
-            out["warnings"] = out["warnings"] + ["문장 근거 검사 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
-        elif unsupported:
-            out["warnings"] = out["warnings"] + [f"근거와 맞지 않을 수 있음: {s}" for s in unsupported]
+        out["warnings"] = out["warnings"] + _verify_warnings(unsupported, verify_ok)
         # 질문의 핵심 말이 근거에 없는데 답이 그 말로 답했으면 주제가 바뀌었을 수 있다 (예: 질문 계약보증금, 근거 임차보증금).
         out["warnings"] = out["warnings"] + [f'질문의 "{t}"이(가) 근거 본문에 없음: 비슷한 다른 항목으로 답했을 수 있음' for t in missing]
 
@@ -160,12 +205,22 @@ class Assistant:
         if notes:
             out["answer"] = out["answer"] + "\n\n" + "\n".join(notes)
 
-        pairs, conflicts_ok = self.generator.conflicts(question, entries)
+        pairs, conflicts_ok = conflicts_job.result() if conflicts_job else self.generator.conflicts(question, entries)
         if not conflicts_ok:
             out["warnings"] = out["warnings"] + ["충돌 확인 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
         pairs = [p for p in pairs if not _same_article(entries[p[0] - 1], entries[p[1] - 1])]
         conflicts = [{"pair": (a, b), "items": (entries[a - 1], entries[b - 1])} for a, b in pairs]
-        return {**base, **out, "conflicts": conflicts, "unsupported": unsupported}
+        result = {**base, **out, "conflicts": conflicts, "unsupported": unsupported}
+        if verify_job:
+            result["pending_verify"] = verify_job
+        return result
+
+
+def _verify_warnings(unsupported, verify_ok):
+    """문장 근거 검사 결과를 경고 문장으로. 검사 실패(응답 해석 못 함)와 통과(빈 목록)를 구분한다."""
+    if not verify_ok:
+        return ["문장 근거 검사 실패: 검사 모델 응답을 해석하지 못해 확인을 건너뛰었습니다."]
+    return [f"근거와 맞지 않을 수 있음: {s}" for s in unsupported]
 
 
 def _same_article(a, b):

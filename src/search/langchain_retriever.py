@@ -4,7 +4,7 @@
 이 파일은 LangChain의 `BaseRetriever` 인터페이스에 맞춰 결과를 `Document`로 바꾸는 얇은 어댑터다.
 LangSmith로 추적하거나, 다른 LangChain 체인에 끼워 넣을 때 이 클래스를 쓴다.
 """
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
@@ -40,10 +40,12 @@ class RegulationRetriever(BaseRetriever):
     filters: Optional[dict] = None
     rewritten: Optional[str] = None  # 규정 용어로 바꿔 쓴 검색어 (후보 찾기에만 더한다)
     plan: Optional[list] = None  # 하위 질문 목록 (Generator.plan_queries). 있으면 rewritten 대신 이것으로 검색한다
+    rewritten_future: Optional[Any] = None  # rewritten을 GPT가 만드는 중일 때 (Searcher.search 참고)
 
     def _get_relevant_documents(self, query, *, run_manager: CallbackManagerForRetrieverRun) -> List[Document]:
         if self.plan:
             results = self.searcher.search_plan(self.plan, k=self.k, filters=self.filters)
         else:
-            results = self.searcher.search(query, k=self.k, filters=self.filters, rewritten=self.rewritten)
+            results = self.searcher.search(query, k=self.k, filters=self.filters, rewritten=self.rewritten,
+                                           rewritten_future=self.rewritten_future)
         return [entry_to_document(e) for e in results]

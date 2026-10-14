@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-from config import OPENAI_MODEL
+from config import HIGHLIGHT_HITS, OPENAI_MODEL
 
 load_dotenv()
 
@@ -141,6 +141,15 @@ PLAN_PROMPT = """직원이 사내 규정 검색창에 쓴 질문을 검색 계�
 
 MAX_SUBQUERIES = 3
 
+# config.HIGHLIGHT_HITS일 때: 근거 머리에 역할을 적고(ROLE_LABEL) 질문 뒤에 HIT_NOTE를 붙인다. 기본 프롬프트는 그대로다.
+# 인용으로 따라온 조문이 검색으로 찾은 조문과 같은 모양이라, 인용이 많으면 핵심 조문이 묻혔다.
+HIT_NOTE = ("[참고] 근거마다 '역할'이 적혀 있다. '질문으로 찾은 조문'을 먼저 보고 답한다. 그 본문에서 ▶로 시작하는 항이 "
+            "검색이 질문과 가장 가깝다고 찾은 항이다. 같은 조의 다른 항(조건, 예외, 단서)도 함께 확인한다. "
+            "'인용된 조문(참고)'은 찾은 조문이 가리키는 다른 조문이다. 찾은 조문을 보충하거나 그 조문이 '~에 따른다'고 "
+            "넘긴 내용을 확인할 때만 쓰고, 질문에 직접 답하는 근거로 먼저 쓰지 않는다. ▶ 표시는 답변에 옮겨 쓰지 않는다.")
+ROLE_LABEL = {"검색": "질문으로 찾은 조문", "정확조회": "질문으로 찾은 조문", "인용": "인용된 조문(참고)",
+              "형제항": "같은 조 다른 항"}
+
 _CITE = re.compile(r"\[(\d+)\]")
 
 
@@ -150,6 +159,10 @@ def format_context(entries):
     for i, e in enumerate(entries, start=1):
         # 개정표기는 모델에게 주지 않는다. 문서 개정일을 조문 날짜로 잘못 읽는 일이 있었다 (화면에는 표시).
         head = f"[{i}] {e['문서명']} {e['article']} | 조문상태: {e['조문상태']} | 위계: {e.get('위계') or '-'}"
+        if HIGHLIGHT_HITS and e.get("역할") in ROLE_LABEL:
+            head += f" | 역할: {ROLE_LABEL[e['역할']]}"
+            if e["역할"] == "인용" and e.get("인용원문"):
+                head += f" ('{e['인용원문']}'이 가리킴)"
         lines = [head, e["body"]]
         if e.get("정정안내"):
             lines.append("정정안내: " + " / ".join(e["정정안내"]))
@@ -323,6 +336,16 @@ class Generator:
         chain = prompt | self.model
         return chain.invoke({"input": user}).content.strip()
 
+    def _ask_stream(self, system, user, on_token):
+        """_ask와 같지만 모델이 쓰는 글자를 생기는 대로 on_token(조각)으로 넘긴다 (화면 스트리밍). 반환은 전체 글."""
+        prompt = ChatPromptTemplate.from_messages([("system", system), ("human", "{input}")])
+        parts = []
+        for chunk in (prompt | self.model).stream({"input": user}):
+            if chunk.content:
+                parts.append(chunk.content)
+                on_token(chunk.content)
+        return "".join(parts).strip()
+
     def rewrite_query(self, question):
         """질문을 규정 용어로 바꾼 검색어. 실패하거나 비면 None(원래 질문만으로 검색한다)."""
         text = self._ask(REWRITE_PROMPT, question).strip().strip('"').splitlines()
@@ -338,9 +361,15 @@ class Generator:
         m = re.search(r'"모순"\s*:\s*(true|false)', raw)
         return bool(m and m.group(1) == "true")
 
-    def answer(self, question, entries):
-        user = f"질문: {question}\n\n근거:\n{format_context(entries)}"
-        text = assemble_sections(self._ask(SYSTEM_PROMPT, user))
+    def answer(self, question, entries, on_token=None):
+        """on_token을 주면 첫 답변을 스트리밍으로 받는다 (글이 생기는 대로 on_token에 넘김). 결과는 같다.
+        결론이 불릿과 모순되어 다시 쓰는 경우, 다시 쓴 답은 스트리밍하지 않는다 (화면은 최종 answer로 바꿔 보여 줘야 한다)."""
+        context = format_context(entries)
+        user = f"질문: {question}\n\n근거:\n{context}"
+        if HIGHLIGHT_HITS:
+            user += "\n\n" + HIT_NOTE
+        raw = self._ask_stream(SYSTEM_PROMPT, user, on_token) if on_token else self._ask(SYSTEM_PROMPT, user)
+        text = assemble_sections(raw)
         retried = False
         if has_bullets(text) and self.contradicts(question, text):
             retry = (user + "\n\n[주의] 직전 답변은 결론이 세부 불릿과 모순되었다. 근거 본문과 세부 불릿을 기준으로 "
@@ -350,7 +379,7 @@ class Generator:
         cited, warnings = check(text, len(entries))
         if retried:
             warnings = warnings + ["결론이 세부 내용과 모순되어 한 번 다시 작성함"]
-        return {"answer": text, "cited": cited, "warnings": warnings, "model": self.model_name}
+        return {"answer": text, "cited": cited, "warnings": warnings, "model": self.model_name, "retried": retried}
 
     def conflicts(self, question, entries):
         """근거 중 서로 충돌하는 조문 쌍을 찾는다. 근거가 2개 미만이면 호출하지 않는다.

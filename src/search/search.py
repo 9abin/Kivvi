@@ -20,8 +20,8 @@ from collections import defaultdict
 from kiwipiepy import Kiwi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
-from config import (EMBED_MODEL, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
-                    RERANK_HEADER, RERANK_MODEL, RRF_K, USE_SYNONYMS)
+from config import (EMBED_MODEL, HIGHLIGHT_HITS, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
+                    LAW_CITES_FROM_HITS, RERANK_HEADER, RERANK_MODEL, RETURN_ARTICLE, RRF_K, USE_SYNONYMS)
 from src.search import glossary, synonyms
 from src.search.bm25 import BM25
 from config import CONTEXT_CHAR_BUDGET
@@ -33,6 +33,7 @@ RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
+HIT_MARK = "▶ "         # HIGHLIGHT_HITS: 조 전체 안에서 검색이 찾은 항 표시 (generate.HIT_NOTE가 뜻을 알려 준다)
 
 # 키워드 질의에서 뺄 형태소 태그: 조사, 어미, 문장부호
 _SKIP_TAGS = ("J", "E", "SF", "SP", "SS", "SE", "SO")
@@ -245,11 +246,14 @@ class Searcher:
 
     # 전체 -------------------------------------------------------------------
     def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True,
-              vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT, rewritten=None):
+              vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT, rewritten=None,
+              rewritten_future=None):
         """질의 하나에 대해 상위 k개 청크를 돌려준다.
 
         filters: {"tier": "지침", "doc_ids": ["23234"], "min_year": 2025} (모두 선택)
         rewritten: 질문을 규정 용어로 바꿔 쓴 검색어 (선택). 후보를 찾을 때만 더하고, 리랭킹은 원래 질문으로 한다.
+        rewritten_future: rewritten 대신 아직 GPT가 만드는 중인 검색어(concurrent.futures.Future). 원래 질문의
+                    벡터·BM25 검색을 먼저 한 뒤에 기다린다. 결과는 rewritten을 넘긴 것과 같고 기다리는 시간만 줄어든다.
         vector_weight, keyword_weight: 기본값은 config.py 값. 가중치 비교(src/eval/sweep_weights.py)에서만 넘긴다.
         반환: [{"chunk_id", "doc_id", "article", "body", "score", "rerank", "match",
                 "siblings": [...], "cited": [...]}, ...]
@@ -261,6 +265,8 @@ class Searcher:
         doc_ids = self._allowed_doc_ids(filters)
         vec_hits = self.vector_hits(text, doc_ids)
         key_hits = self.bm25_hits(text, doc_ids)
+        if rewritten_future is not None:
+            rewritten = rewritten_future.result()
         # 바꿔 쓴 검색어와 동의어 사전의 규정 용어를 합쳐 후보 찾기에만 더한다 (리랭킹은 원래 질문).
         hint = " ".join(x for x in (rewritten, synonyms.expand(text, self.synonym_table),
                                     glossary.signal_terms(text, self.glossary)) if x)
@@ -278,6 +284,8 @@ class Searcher:
         self.last_glossary_excluded = []
         if self.glossary_filter:
             fused, self.last_glossary_excluded = glossary.filter_candidates(text, fused, self.glossary)
+        if RETURN_ARTICLE:
+            return self._as_articles(exact + fused, k, expand_cites)
         top = (exact + fused)[:k]
 
         out = []
@@ -291,6 +299,56 @@ class Searcher:
                 "cited": self._cited(h) if expand_cites else [],
             })
             out.append(item)
+        return out
+
+    def _as_articles(self, ranked, k, expand_cites=True):
+        """항 단위로 찾고 조 전체를 넘기기 (config.RETURN_ARTICLE). ranked는 항 청크의 최종 순위(정확 조회 + 리랭크).
+
+        같은 조의 항은 처음 나온 순위 하나로 합쳐 서로 다른 조 k개를 고르고, 각 조의 모든 항을 항 순서대로 이어 붙인다.
+        점수·리랭크·조문 상태는 그 조에서 가장 앞선 항의 값을 쓴다. 용어집 후보 필터가 뺀 항은 이어 붙일 때도 뺀다.
+        인용 대상은 그 조의 모든 항이 가진 cites를 합쳐 한 번씩만 따라간다. 형제 항은 이미 다 들어 있어 붙이지 않는다.
+        HIGHLIGHT_HITS: 이 조를 상위로 올린 항 앞에 HIT_MARK를 붙인다 (조에 항이 둘 이상일 때만).
+        LAW_CITES_FROM_HITS: 외부 법령 인용(외부연결)은 검색 결과에 오른 항이 가진 것만 따라간다."""
+        dropped = {(d, a) for d, a, _ in self.last_glossary_excluded}
+        hit_ids = {h["chunk_id"] for h in ranked}
+        firsts, seen = [], set()
+        for h in ranked:
+            key = (h["doc_id"], _article_base(h["article"]))
+            if key not in seen:
+                seen.add(key)
+                firsts.append(h)
+            if len(firsts) >= k:
+                break
+        out = []
+        for h in firsts:
+            doc_id, base = h["doc_id"], _article_base(h["article"])
+            rows = [r for r in self.store.find_article(doc_id, base) if (doc_id, r["article"]) not in dropped]
+            rows.sort(key=lambda r: _order_key(r["article"]))
+            mark = HIGHLIGHT_HITS and len(rows) > 1
+            item = self._entry(h, status=h.get("status"))
+            item.update({
+                "chunk_id": f"{doc_id}_{base}", "article": base,
+                # ▶는 이 조를 상위 k개로 올린 항(조에서 가장 앞선 항) 하나에만 붙인다
+                "body": "\n".join((HIT_MARK if mark and r["chunk_id"] == h["chunk_id"] else "") + r["body"] for r in rows) or h["body"],
+                "score": h.get("score"), "rerank": h.get("rerank"), "match": h.get("match", "정확조회"),
+                "siblings": [], "cited": [],
+            })
+            if expand_cites:
+                members = {r["chunk_id"] for r in rows}
+                cited, taken = [], set()
+                for r in rows:
+                    for c in self._cited({"chunk_id": r["chunk_id"], "doc_id": doc_id, "article": r["article"]}):
+                        if LAW_CITES_FROM_HITS and c.get("연결상태") == "외부연결" and r["chunk_id"] not in hit_ids:
+                            continue  # 찾은 항이 아닌 다른 항의 법령 인용
+                        if c["chunk_id"] not in taken and c["chunk_id"] not in members:
+                            taken.add(c["chunk_id"])
+                            cited.append(c)
+                item["cited"] = cited
+            out.append(item)
+        # 이미 조 전체로 들어간 조의 항을 가리키는 인용은 같은 내용이 두 번 들어가므로 뺀다
+        chosen = {(e["doc_id"], e["article"]) for e in out}
+        for e in out:
+            e["cited"] = [c for c in e["cited"] if (c["doc_id"], _article_base(c["article"])) not in chosen]
         return out
 
     def search_plan(self, plan, k=5, filters=None, **kw):

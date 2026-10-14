@@ -1,6 +1,6 @@
 """190문항 답변 채점 (LLM 채점, config.JUDGE_MODEL, temperature 0). 어느 색인의 답인지 채점 모델에 알리지 않는다.
 
-실행 (저장소 루트에서): uv run python -m src.eval.judge_answers <tag> [<tag> ...]
+실행 (저장소 루트에서): uv run python -m src.eval.judge_answers <tag> [<tag> ...] [--questions eval/answer_eval_100.jsonl]
 입력: eval/answer_runs/<tag>/runs.jsonl, 정답: eval/answer_eval.jsonl (정답요지, 금지내용, 근거 인용, 답가능여부)
 출력: eval/answer_runs/<tag>/judged.jsonl
 """
@@ -59,8 +59,8 @@ def judge(model, g, rec):
     return {"판정": "채점실패", "이유": locals().get("last", "형식 오류")}
 
 
-def main(tags):
-    gold = {g["id"]: g for g in (json.loads(l) for l in open("eval/answer_eval.jsonl", encoding="utf-8") if l.strip())}
+def main(tags, questions="eval/answer_eval.jsonl"):
+    gold = {g["id"]: g for g in (json.loads(l) for l in open(questions, encoding="utf-8") if l.strip())}
     model = ChatOpenAI(model=JUDGE_MODEL, temperature=0)
     for tag in tags:
         runs = [json.loads(l) for l in open(f"eval/answer_runs/{tag}/runs.jsonl", encoding="utf-8") if l.strip()]
@@ -74,4 +74,9 @@ def main(tags):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("tags", nargs="+")
+    ap.add_argument("--questions", default="eval/answer_eval.jsonl", help="채점 기준 평가셋 (답변 실행에 쓴 파일과 같게)")
+    args = ap.parse_args()
+    main(args.tags, args.questions)

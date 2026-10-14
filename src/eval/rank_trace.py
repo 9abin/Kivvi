@@ -58,6 +58,8 @@ def main():
     ap.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
     ap.add_argument("--questions", default=QUESTIONS)
     ap.add_argument("--no-synonyms", action="store_true", help="동의어 사전을 끄고 실행 (전후 비교용)")
+    ap.add_argument("--synonyms", action="store_true", help="config와 상관없이 동의어 사전을 켜고 실행 (전후 비교용)")
+    ap.add_argument("--no-rewrite", action="store_true", help="GPT가 바꿔 쓴 검색어를 쓰지 않고 실행 (전후 비교용)")
     ap.add_argument("--out", default="rank_trace.json", help="eval/runs/ 아래 저장할 파일 이름")
     args = ap.parse_args()
     questions = [json.loads(line) for line in open(args.questions, encoding="utf-8") if line.strip()]
@@ -67,10 +69,12 @@ def main():
     s = make_searcher(args.device)
     if args.no_synonyms:
         s.synonym_table = {}
+    if args.synonyms:
+        s.synonym_table = synonyms.load()
     rows = []
     for i, q in enumerate(questions, 1):
         text, groups = q["q"], gold_groups(q)
-        rewritten = cache.get(text, {}).get("rewritten")
+        rewritten = None if args.no_rewrite else cache.get(text, {}).get("rewritten")
         vec, key = s.vector_hits(text, None), s.bm25_hits(text, None)
         hint = " ".join(x for x in (rewritten, synonyms.expand(text, s.synonym_table),
                                     glossary.signal_terms(text, s.glossary)) if x)
@@ -83,6 +87,8 @@ def main():
                "벡터": rank(by_article(vec), groups), "키워드": rank(by_article(key), groups),
                "보조벡터": rank(by_article(extra[0][1]), groups) if extra else None,
                "합침": rank(by_article(fused), groups), "리랭크": rank(by_article(reranked), groups)}
+        row["리랭크_순위"] = by_article(reranked)  # Recall@k 계산용 (조 ID, 리랭크 순서)
+        row["정답묶음"] = [sorted(g) for g in groups]
         flat = set().union(*groups)
         row["top"] = [(article_id(h["chunk_id"]), round(h["rerank"], 4), h["chunk_id"] in flat or article_id(h["chunk_id"]) in flat,
                        s.rerank_text(h["chunk_id"])[:90].replace("\n", " ")) for h in reranked[:6]]
