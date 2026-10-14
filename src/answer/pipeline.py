@@ -17,7 +17,7 @@
 """
 import sys
 
-from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARTIAL_SHOW, QUERY_PLAN
+from config import ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, PARTIAL_SHOW, QUERY_PLAN, TOP_K
 from src.answer.generate import (Generator, flatten, order_entries, revision_notes,
                                  state_notes)
 from src.search.glossary import filter_by_glossary
@@ -88,7 +88,7 @@ class Assistant:
         evidence = [f"{e['문서명']} {e['body']}" for e in entries]
         return unsupported, ok, missing_terms(self.searcher.kiwi, question, evidence, answer)
 
-    def ask(self, question, k=5, filters=None):
+    def ask(self, question, k=TOP_K, filters=None):
         results = self._retrieve(question, k, filters)
         assembled = self.searcher.assemble(results)
         entries = order_entries(flatten(assembled))  # 현행 먼저, 부칙·삭제는 뒤로

@@ -33,6 +33,8 @@ RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
+GROUP_BY_ARTICLE = True  # 상위 k개를 고를 때 같은 조의 항을 한 자리로 묶어 서로 다른 조를 k개 확보한다(같은 조의 다른 항은 형제 항 확장이 붙인다). 조 단위 색인에서는 효과가 없다
+CITE_WHOLE_ARTICLE = True  # 조 전체를 가리키는 인용을 항 단위 색인에서도 따라간다(_whole_article). 전후 비교를 위해 끌 수 있다
 
 # 키워드 질의에서 뺄 형태소 태그: 조사, 어미, 문장부호
 _SKIP_TAGS = ("J", "E", "SF", "SP", "SS", "SE", "SO")
@@ -60,6 +62,18 @@ def _order_key(article):
 
 def _article_base(article):
     return (article or "").split(" ")[0]
+
+
+def group_by_article(hits):
+    """순위를 유지한 채 같은 (문서, 조)의 항은 처음 나온 하나만 남긴다. 한 조의 항들이 상위 k개를 독차지하지 않게 하려는 것이다.
+    남은 항에는 형제 항 확장이 같은 조의 다른 항을 붙인다."""
+    seen, out = set(), []
+    for h in hits:
+        key = (h["doc_id"], _article_base(h["article"]))
+        if key not in seen:
+            seen.add(key)
+            out.append(h)
+    return out
 
 
 def interleave(lists, limit):
@@ -241,6 +255,24 @@ class Searcher:
                 entry["인용원문"] = t["원문"]
                 entry["연결상태"] = t["상태"]
                 out.append(entry)
+            elif CITE_WHOLE_ARTICLE:
+                out.extend(self._whole_article(t))
+        return out
+
+    def _whole_article(self, cite):
+        """조 전체를 가리키는 인용('제16조')은 대상 ID에 항이 없다. 그 조가 항별 청크로 쪼개져 있으면
+        같은 ID의 청크가 없으므로, 그 조의 항을 항 순서대로 가져온다(글자 수 상한은 형제 항과 같다).
+        조 단위 색인에서는 같은 ID의 청크가 있어 이 길로 오지 않는다."""
+        doc_id, _, article = cite["대상"].partition("_")
+        used, out = 0, []
+        for r in self.store.siblings(doc_id, article):
+            if used + len(r["body"]) > SIBLING_LIMIT:
+                break
+            entry = self._entry(r)
+            entry["인용원문"] = cite["원문"]
+            entry["연결상태"] = cite["상태"]
+            out.append(entry)
+            used += len(r["body"])
         return out
 
     # 전체 -------------------------------------------------------------------
@@ -278,6 +310,8 @@ class Searcher:
         self.last_glossary_excluded = []
         if self.glossary_filter:
             fused, self.last_glossary_excluded = glossary.filter_candidates(text, fused, self.glossary)
+        if GROUP_BY_ARTICLE:
+            fused = group_by_article(fused)
         top = (exact + fused)[:k]
 
         out = []
