@@ -59,8 +59,8 @@ def judge(model, g, rec):
     return {"판정": "채점실패", "이유": locals().get("last", "형식 오류")}
 
 
-def main(tags):
-    gold = {g["id"]: g for g in (json.loads(l) for l in open("eval/answer_eval.jsonl", encoding="utf-8") if l.strip())}
+def main(tags, questions="eval/answer_eval.jsonl"):
+    gold = {g["id"]: g for g in (json.loads(l) for l in open(questions, encoding="utf-8") if l.strip())}
     model = ChatOpenAI(model=JUDGE_MODEL, temperature=0)
     for tag in tags:
         runs = [json.loads(l) for l in open(f"eval/answer_runs/{tag}/runs.jsonl", encoding="utf-8") if l.strip()]
@@ -74,4 +74,10 @@ def main(tags):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    argv = sys.argv[1:]
+    q = "eval/answer_eval.jsonl"
+    if "--questions" in argv:
+        i = argv.index("--questions")
+        q = argv[i + 1]
+        argv = argv[:i] + argv[i + 2:]
+    main(argv, q)

@@ -11,7 +11,7 @@ import time
 
 from dotenv import load_dotenv
 
-from config import BASE_DIR
+from config import BASE_DIR, TOP_K
 
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
@@ -25,10 +25,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", required=True)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--k", type=int, default=TOP_K, help="검색에서 가져오는 청크 수 (기본: config.TOP_K)")
+    ap.add_argument("--questions", default=GOLD, help="질문·정답 파일 (기본: eval/answer_eval.jsonl)")
     ap.add_argument("--no-plan", action="store_true", help="질문 나누기를 끄고 실행 (전후 비교용)")
     args = ap.parse_args()
 
-    gold = [json.loads(l) for l in open(GOLD, encoding="utf-8") if l.strip()]
+    gold = [json.loads(l) for l in open(args.questions, encoding="utf-8") if l.strip()]
     if args.limit:
         gold = gold[:args.limit]
     outdir = os.path.join(BASE_DIR, "eval", "answer_runs", args.tag)
@@ -45,7 +47,7 @@ def main():
             continue
         t = time.time()
         try:
-            r = assistant.ask(g["q"])
+            r = assistant.ask(g["q"], k=args.k)
             rec = {"id": g["id"], "mode": r["mode"], "answer": r["answer"], "withheld": r.get("withheld"),
                    "warnings": r.get("warnings", []), "glossary_excluded": r.get("glossary_excluded", []),
                    "entries": [{"문서명": e["문서명"], "article": e["article"], "상태": e["조문상태"]} for e in r["entries"]],
