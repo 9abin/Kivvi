@@ -27,7 +27,33 @@ PROMPT = """너는 한국어 공문서 교정자다. 아래 [문장]에서 오�
 {text}"""
 
 
+def _ask_openai(text: str, model: str) -> list[dict]:
+    """외부 모델 (평가 비교 전용). 폐쇄망 운영에서는 쓰지 않는다 — 공개된 규정 문장으로만 시험할 것.
+    키는 .env의 OPENAI_API_KEY (출력하지 않음). 모델 이름은 「openai:모델명」"""
+    from openai import OpenAI
+
+    from .db import load_env
+    client = OpenAI(api_key=load_env().get("OPENAI_API_KEY"), timeout=120)
+    msgs = [{"role": "user", "content": PROMPT.format(text=text)}]
+    try:
+        r = client.chat.completions.create(model=model, messages=msgs, response_format={"type": "json_object"}, temperature=0)
+    except Exception as e:   # 일부 모델은 temperature를 받지 않는다
+        if "temperature" not in str(e):
+            return []
+        try:
+            r = client.chat.completions.create(model=model, messages=msgs, response_format={"type": "json_object"})
+        except Exception:
+            return []
+    try:
+        errs = json.loads(r.choices[0].message.content or "{}").get("errors", [])
+    except (json.JSONDecodeError, AttributeError):
+        return []
+    return [e for e in errs if isinstance(e, dict) and e.get("wrong") and e.get("right")]
+
+
 def _ask(text: str, model: str, timeout: int = 300) -> list[dict]:
+    if model.startswith("openai:"):
+        return _ask_openai(text, model.split(":", 1)[1])
     body = {"model": model, "stream": False, "think": False, "format": "json",
             "messages": [{"role": "user", "content": PROMPT.format(text=text)}],
             "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 400}}   # 출력 상한: 30B가 끝없이 쓰다 시간 초과된 적 있음
