@@ -258,3 +258,19 @@ h1, h2, h3, h4 { letter-spacing: -.01em; }
 /* 최종안 미리보기 */
 .doc section.final { border: 2px solid var(--secondary); }
 .doc section.final h2 { color: var(--secondary); }
+
+/* 법령 대조: 관련 법조문 · 숫자 대조 · 해석례 */
+.lawcheck { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding: 12px; background: var(--primary-5); border-radius: var(--radius); }
+.law-art b { font-size: 15px; }
+.law-art q { display: block; font-size: 14px; color: var(--gray-70); margin-top: 4px; background: var(--gray-0); }
+.cmp-num { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--gray-0); border-radius: var(--radius); overflow: hidden; }
+.cmp-num th, .cmp-num td { border: 1px solid var(--gray-20); padding: 6px 8px; text-align: left; vertical-align: middle; }
+.cmp-num th { background: var(--secondary-5); color: var(--secondary); font-weight: 700; font-size: 13px; }
+.interp { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.interp-row { background: var(--gray-0); border: 1px solid var(--gray-20); border-radius: var(--radius); padding: 8px 10px; }
+.interp-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.interp-top small { color: var(--gray-60); }
+.interp-title { display: block; font-size: 14px; color: var(--gray-90); margin-top: 4px; }
+a.interp-title { color: var(--primary-hover); text-decoration: underline; text-underline-offset: 3px; }
+.interp-answer { margin: 4px 0 0; font-size: 13px; color: var(--gray-60); line-height: 1.55; }
+.sect .item .interp { margin-top: 8px; }

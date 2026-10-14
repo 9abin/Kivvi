@@ -259,8 +259,8 @@
     };
     sect("이 조를 인용하는 곳", m.inbound.map((x) => [x.where, x.quote ? `…${x.quote}…` : ""]), "인용하는 내규 없음");
     sect("점검 결과", m.findings.map((x) => [x.type, [x.quote && `「${x.quote}」`, x.note].filter(Boolean).join(" · ")]), "이 조에 걸린 점검 결과 없음");
-    sect("이 조가 인용하는 법령", m.laws.map((x) => [x.where, x.quote]), "인용하는 법령 없음");
-    sect("제목이 같은 법령 조문", m.sameTitleLaws.map((x) => [`${x.law} ${x.article}`, x.text]), "해당 없음");
+    lawSect(A, "이 조가 인용하는 법령", m.laws.map((x) => ({ head: x.where, text: x.quote, interp: x.interp })), "인용하는 법령 없음");
+    lawSect(A, "관련 법령 조문", m.sameTitleLaws.map((x) => ({ head: `${x.law} ${x.article}`, tag: x.why, text: x.text, interp: x.interp })), "해당 없음");
     const row = el("div", "actions-row");
     const form = el("form", "draft-form");
     const ta = el("textarea"); ta.placeholder = `이 조를 어떻게 바꿀지 적어 주세요 — 예: 분할 횟수를 3회로 늘린다`; ta.maxLength = 300; ta.setAttribute("aria-label", "개정 요청");
@@ -271,6 +271,63 @@
     A.append(row);
     const n = m.inbound.length + m.findings.length + m.open.length;
     $("#amend-count").textContent = n ? String(n) : "";
+  }
+  // 법제처 해석례 목록 — 판정은 「해석한 조문이 지금도 그대로인가」 (해석이 옳은지가 아님)
+  function interpList(list) {
+    const box = el("div", "interp");
+    box.append(el("span", "label", `법제처 해석례 ${list.length}건`));
+    list.forEach((i) => {
+      const row = el("div", "interp-row");
+      const tone = i.status === "현행과 같음" ? "pos" : i.status === "조 번호 없음" ? "" : i.size && i.size.includes("자구") ? "" : "warn";
+      const lab = i.status === "현행과 같음" ? "해석 뒤 조문 그대로" : i.status === "조 번호 없음" ? "조문 특정 안 됨" :
+        `해석 뒤 조문 바뀜${i.size ? " · " + i.size.replace(/\(|\)/g, " ").trim() : ""}`;
+      const top = el("div", "interp-top"); top.append(el("span", "tag " + tone, lab), el("b", null, i.case_no), el("small", null, i.date || ""));
+      const t = i.url ? el("a", "interp-title", i.title) : el("span", "interp-title", i.title);
+      if (i.url) { t.href = i.url; t.target = "_blank"; t.rel = "noopener noreferrer"; }
+      row.append(top, t);
+      if (i.answer) row.append(el("p", "interp-answer", i.answer));
+      box.append(row);
+    });
+    return box;
+  }
+  function lawSect(A, title, items, emptyText) {
+    const s = el("section", "sect"), h = el("h3");
+    h.append(title, el("span", "num" + (items.length ? " on" : ""), String(items.length).padStart(2, "0"))); s.append(h);
+    if (!items.length) s.append(el("div", "none", emptyText));
+    items.forEach((x) => {
+      const r = el("div", "item"), b = el("b", null, x.head);
+      if (x.tag) b.append(" ", el("span", "tag " + (x.tag.includes("가까운") ? "accent" : ""), x.tag));
+      r.append(b); if (x.text) r.append(el("q", null, x.text));
+      if (x.interp?.length) r.append(interpList(x.interp));
+      s.append(r);
+    });
+    A.append(s);
+  }
+  // 개정안 검토 화면의 「법령 대조」 카드 아래 상세: 관련 법조문 · 숫자 대조 · 해석례
+  function lawDetail(card, note) {
+    const box = el("div", "lawcheck");
+    card.related.forEach((r) => {
+      const d = el("div", "law-art"), h = el("b", null, `${card.law} ${r.article}(${r.title})`);
+      h.append(" ", el("span", "tag " + (r.why.includes("가까운") ? "accent" : ""), r.why));
+      d.append(h, el("q", null, r.text.slice(0, 200)));
+      if (r.interp?.length) d.append(interpList(r.interp));
+      box.append(d);
+    });
+    if (card.compare.length) {
+      const t = el("table", "cmp-num"), hd = el("tr");
+      ["단위", "법령 조문 값", "현행 → 개정안", "비교"].forEach((x) => hd.append(el("th", null, x)));
+      t.append(hd);
+      card.compare.forEach((c) => {
+        const tr = el("tr");
+        tr.append(el("td", null, c.unit), el("td", null, c.law.length ? c.law.map((v) => v + c.unit).join(", ") : "—"),
+                  el("td", null, `${c.old.join(", ")}${c.unit} → ${c.new.join(", ")}${c.unit}`));
+        const td = el("td"); td.append(c.note ? el("span", "tag " + (c.note.includes("같아짐") ? "pos" : "warn"), c.note) : el("span", "hint", "문맥이 달라 비교 안 함"));
+        tr.append(td); t.append(tr);
+      });
+      box.append(t);
+    }
+    box.append(el("p", "hint", note));
+    return box;
   }
   async function draft(request, form, btn) {
     if (!CURRENT) return;
@@ -331,6 +388,17 @@
     }
     if (F.addendum_draft) { const d = el("div", "comp"); d.append(el("b", null, "부칙"), el("p", null, F.addendum_draft)); s.append(d); }
     doc.prepend(s);
+  }
+  async function fillLawCards(C) {
+    const slots = [...document.querySelectorAll("#side .law-slot")];
+    if (!LIVE || !slots.length) return;
+    let L;
+    try { L = await api(`/api/lawcheck?id=${encodeURIComponent(C.id)}`); } catch (e) { return; }
+    if (CS !== C) return;
+    slots.forEach((s) => {
+      const card = L.cards.find((c) => c.quoted === s.dataset.quote) || L.cards[0];
+      if (card) s.append(lawDetail(card, L.note));
+    });
   }
   function renderActions(C) {
     const row = clear($(".review-foot .row2"));
@@ -394,6 +462,7 @@
       body.append(top);
       if (x.quote) body.append(el("q", null, x.quote));
       body.append(el("div", "why", x.reason));
+      if (x.kind === "law") { const slot = el("div", "law-slot"); slot.dataset.quote = x.quote || ""; body.append(slot); }
       const dc = el("div", "decide");
       const acc = el("button", "acc"), rej = el("button", "rej"); acc.type = rej.type = "button";
       acc.append(icon("check"), "수락"); rej.append(icon("x"), "기각");
@@ -413,6 +482,7 @@
       dc.append(acc, rej); body.append(dc); li.append(body); ol.append(li); paint();
     });
     SD.append(ol);
+    fillLawCards(C);
     renderActions(C);
     renderFinal(C, doc);
     tally();
