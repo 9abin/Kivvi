@@ -15,6 +15,7 @@
   print(res["answer"])
   a.close()
 """
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -27,7 +28,7 @@ from src.search.glossary import filter_by_glossary
 from src.answer.guard import (contradicted_distinctions, filter_tables_by_scope, missing_terms,
                               unsupported_numbers)
 from src.search.langchain_retriever import RegulationRetriever, document_to_entry
-from src.search.search import Searcher
+from src.search.search import Searcher, strip_marks
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -55,10 +56,20 @@ def partial_answer(related):
     """애매함 구간의 고정 문구. 모델을 부르지 않으므로 추측이 들어가지 않는다."""
     lines = ["질문하신 내용은 제공된 규정에서 찾을 수 없었습니다. 다만 관련된 조문은 다음과 같습니다."]
     for i, e in enumerate(related, start=1):
-        snippet = e["body"].replace("\n", " ")[:60]
+        snippet = strip_marks(e["body"]).replace("\n", " ")[:60]
         lines.append(f"- [{i}] {e['문서명']} {e['article']}: {snippet}…")
     lines.append("정확한 내용은 담당 부서에 확인해 주세요.")
     return "\n".join(lines)
+
+
+# 과거 기준·시행일·개정 질문은 현행 규정으로만 답하고 이 안내를 붙인다 (SYSTEM_PROMPT 규칙 18).
+# 프롬프트만으로는 답변 모델이 안내를 4문항 중 0번 붙여서(2026.10.14, Q163·Q178·Q179·Q181) 코드로 붙인다.
+CURRENT_NOTICE = "※ 이 안내는 현행 규정 기준입니다. 과거 기준이나 시행일은 담당 부서에 확인해 주세요."
+_PAST = re.compile(r"예전|과거|옛날|개정\s*전|시행일|새로\s*(생|도입)|도입된다|바뀌었|바뀐다|바뀐대|바뀌어서|20\d\d년부터")
+
+
+def asks_past(question):
+    return bool(_PAST.search(question))
 
 
 class Assistant:
@@ -96,13 +107,14 @@ class Assistant:
                                             rewritten=self.generator.rewrite_query(question))
         return [document_to_entry(d) for d in retriever.invoke(question)]
 
-    def ask(self, question, k=5, filters=None, on_token=None, wait_checks=True):
+    def ask(self, question, k=5, filters=None, on_token=None, wait_checks=True, asker=None):
         """질문 하나에 답한다. 반환의 timing: 질문부터 첫 글자(first_token, on_token을 줄 때)·답 완성(answer)까지 초.
 
         on_token: 주면 답변을 스트리밍한다(글이 생기는 대로 on_token(조각)). 다시 쓴 답(retried)은 스트리밍되지 않으니
                   화면은 마지막에 answer로 바꿔 보여 준다.
         wait_checks: False면(FAST_PIPELINE일 때) 문장 근거 검사가 끝나기 전에 돌려준다. 경고까지 받으려면 finish(결과)를
-                  부른다. 기본 True는 예전처럼 경고까지 다 붙여 돌려준다."""
+                  부른다. 기본 True는 예전처럼 경고까지 다 붙여 돌려준다.
+        asker: 질문자의 직군·직책(로그인 정보). 검색에는 쓰지 않고 답변 모델에만 넘긴다 (generate.ASKER_NOTE)."""
         t0 = time.time()
         first = []
 
@@ -111,7 +123,7 @@ class Assistant:
                 first.append(time.time() - t0)
             on_token(piece)
 
-        result = self._ask(question, k, filters, stream if on_token else None)
+        result = self._ask(question, k, filters, stream if on_token else None, asker)
         result["timing"] = {"t0": t0, "first_token": first[0] if first else None, "answer": time.time() - t0}
         return self.finish(result) if wait_checks else result
 
@@ -126,7 +138,7 @@ class Assistant:
             result["timing"]["checks"] = time.time() - result["timing"]["t0"]
         return result
 
-    def _ask(self, question, k, filters, on_token):
+    def _ask(self, question, k, filters, on_token, asker=None):
         results = self._retrieve(question, k, filters)
         assembled = self.searcher.assemble(results)
         entries = order_entries(flatten(assembled))  # 현행 먼저, 부칙·삭제는 뒤로
@@ -162,7 +174,7 @@ class Assistant:
 
         # 충돌 확인은 근거만 보므로 답변 작성과 동시에 시작한다 (FAST_PIPELINE)
         conflicts_job = self.pool.submit(self.generator.conflicts, question, entries) if self.pool else None
-        out = self.generator.answer(question, entries, on_token=on_token)
+        out = self.generator.answer(question, entries, on_token=on_token, asker=asker)
 
         # 문장 단위 근거 검사: 모델이 쓴 각 불릿이 인용한 근거 본문과 맞는지 다시 확인한다 (답변_설계.md 10절).
         # ok=False(응답을 해석하지 못함)와 "검사 통과"(빈 목록)를 구분해서 각각 경고한다.
@@ -202,6 +214,8 @@ class Assistant:
             out["warnings"] = out["warnings"] + [f"표 범위 필터: {m} {a}({t} 대상)는 {r}이라 근거에서 제외" for m, a, t, r in scope_excluded]
 
         notes = state_notes(entries, out["cited"]) + revision_notes(entries, out["cited"])
+        if asks_past(question) and "현행 규정 기준입니다" not in out["answer"]:
+            notes.append(CURRENT_NOTICE)
         if notes:
             out["answer"] = out["answer"] + "\n\n" + "\n".join(notes)
 

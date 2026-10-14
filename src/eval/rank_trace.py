@@ -87,6 +87,10 @@ def main():
                "벡터": rank(by_article(vec), groups), "키워드": rank(by_article(key), groups),
                "보조벡터": rank(by_article(extra[0][1]), groups) if extra else None,
                "합침": rank(by_article(fused), groups), "리랭크": rank(by_article(reranked), groups)}
+        # 근거가 어느 단계에서 빠졌는지 나누려고 단계별 조 목록을 남긴다 (src/eval/loss_breakdown.py)
+        row["후보"] = sorted(set(by_article(vec)) | set(by_article(key))
+                           | (set(by_article(extra[0][1])) | set(by_article(extra[1][1])) if extra else set()))
+        row["합침_순위"] = by_article(fused)[:60]
         row["리랭크_순위"] = by_article(reranked)  # Recall@k 계산용 (조 ID, 리랭크 순서)
         row["정답묶음"] = [sorted(g) for g in groups]
         flat = set().union(*groups)

@@ -56,6 +56,29 @@ class NumberTests(unittest.TestCase):
         self.assertEqual(unsupported_numbers("몇 배?", "통상임금의 1.5배로 계산됩니다 [1].", ent), [])
         self.assertEqual(unsupported_numbers("몇 배?", "통상임금의 2배로 계산됩니다 [1].", ent)[0][0], ["2"])
 
+    def test_computed_number_with_a_correct_formula_passes(self):
+        # Q058: 근거 "1시간당 40만원", "100분의 150" → 답 "60만원(40만원 × 150/100)"
+        ent = [{"body": "사례금 상한액은 1시간당 40만원으로 하고, 총액은 그 100분의 150을 초과할 수 없다."}]
+        self.assertEqual(unsupported_numbers("총액은?", "총액 상한은 60만원(40만원 × 150/100)입니다 [1].", ent), [])
+        self.assertEqual(unsupported_numbers("총액은?", "총액 상한은 60만원(40만원 × 100분의 150)입니다 [1].", ent), [])
+        # Q061: "50% 가산" → "150%(100% + 50%)"
+        ent2 = [{"body": "시간외 근로수당은 통상임금에 50%를 가산하여 지급한다."}]
+        self.assertEqual(unsupported_numbers("몇 %?", "통상임금의 150%(100% + 50% 가산)입니다 [1].", ent2), [])
+
+    def test_computed_number_without_formula_or_with_a_wrong_one_is_flagged(self):
+        ent = [{"body": "사례금 상한액은 1시간당 40만원으로 하고, 총액은 그 100분의 150을 초과할 수 없다."}]
+        self.assertEqual(unsupported_numbers("총액은?", "총액 상한은 60만원입니다 [1].", ent)[0][0], ["60"])
+        self.assertEqual(unsupported_numbers("총액은?", "총액 상한은 70만원(40만원 × 150/100)입니다 [1].", ent)[0][0], ["70"])
+
+    def test_formula_with_a_material_not_in_the_evidence_is_flagged(self):
+        # Q054처럼 근거에 없는 1000을 곱해 40을 40,000원으로 만든 경우는 여전히 막는다
+        found = unsupported_numbers("일비는?", "일비는 40,000원(40 × 1000)이다 [1].", self.ENT)
+        self.assertIn("40000", found[0][0])
+
+    def test_half_hour_in_the_question_may_be_written_as_30(self):
+        ent = [{"body": "휴게시간은 12:00부터 13:00까지 1시간으로 한다."}]
+        self.assertEqual(unsupported_numbers("12시 반부터 1시간 반 쓰면 안 되나요?", "12시 30분부터는 정해져 있지 않습니다 [1].", ent), [])
+
     def test_number_found_nowhere_in_the_evidence_is_flagged(self):
         self.assertEqual(unsupported_numbers("q", "휴가는 7일이다 [2].", self.ENT)[0][0], ["7"])
 

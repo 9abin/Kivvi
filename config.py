@@ -21,7 +21,11 @@ LAW_DB = os.path.join(MANUAL_DIR, "law_rag.261012.sqlite3")  # 외부 법령 원
 HWP_SUBPROCESS_PYTHON = None  # None이면 현재 실행 중인 Python 사용
 
 # 검색 색인 (BGE-m3 임베딩, 저장은 PostgreSQL + pgvector: docs/DB_설정.md)
-EMBED_MODEL = "BAAI/bge-m3"          # 첫 실행 때 내려받음 (약 2.2GB)
+# 임베딩 모델 비교(2026.10.14): 환경 변수 EMBED_MODEL로 바꾼다. DB의 벡터도 같은 모델로 만든 것이어야 한다
+# (scripts/embed_variant.py가 모델별 DB 사본을 만든다). 질문용 접두어가 있는 모델은 search.py가 알아서 붙인다.
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-m3")  # 첫 실행 때 내려받음 (약 2.2GB)
+# 지시문을 받는 임베딩 모델(Qwen3-Embedding)용 질문 지시문
+EMBED_QUERY_INSTRUCT = "Instruct: Given an employee's question, retrieve the internal regulation clause that answers it\nQuery: "
 EMBED_DIM = 1024
 EMBED_BATCH = 32
 

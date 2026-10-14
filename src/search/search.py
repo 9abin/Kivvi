@@ -20,7 +20,7 @@ from collections import defaultdict
 from kiwipiepy import Kiwi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
-from config import (EMBED_MODEL, HIGHLIGHT_HITS, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
+from config import (EMBED_MODEL, EMBED_QUERY_INSTRUCT, HIGHLIGHT_HITS, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
                     LAW_CITES_FROM_HITS, RERANK_HEADER, RERANK_MODEL, RETURN_ARTICLE, RRF_K, USE_SYNONYMS)
 from src.search import glossary, synonyms
 from src.search.bm25 import BM25
@@ -33,7 +33,37 @@ RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
-HIT_MARK = "▶ "         # HIGHLIGHT_HITS: 조 전체 안에서 검색이 찾은 항 표시 (generate.HIT_NOTE가 뜻을 알려 준다)
+# HIGHLIGHT_HITS: 조 전체를 넘길 때의 표시 (generate.HIT_NOTE가 답변 모델에 뜻을 알려 준다)
+HIT_MARK = "▶▶ [찾은 항] "    # 검색이 실제로 찾은 항 (강하게)
+SIB_MARK = "▷ [같은 조] "     # 같은 조의 나머지 항 (약하게)
+PROVISO_MARK = "【단서】"       # 단서·예외·한정 문장. 빠뜨리기 쉬운 조건이라 항 구분 없이 붙인다
+_PROVISO = re.compile(r"다만|^단\s*,|제외한다|제외하고|제외된다|에 한한다|에 한하여|에 한정|한정한다|한정하여|예외로|그러하지 아니하다")
+
+
+def mark_provisos(text):
+    """조 본문의 문장 중 단서·예외·한정 문장 앞에 PROVISO_MARK를 붙인다.
+    빠뜨린 정답 요지의 대부분이 같은 조의 "다만 …" 단서였다 (불러왔는데 안 쓴 19문항, 2026.10.14 검토)."""
+    out = []
+    for line in text.split("\n"):
+        parts = re.split(r"(?<=다\.)\s+", line)
+        out.append(" ".join(PROVISO_MARK + p if _PROVISO.search(p) and PROVISO_MARK not in p else p for p in parts))
+    return "\n".join(out)
+
+
+def query_prompt(model):
+    """질문 임베딩 접두어. 문서와 질문을 다르게 넣는 모델만 해당한다 (bge-m3·KURE는 없음).
+    Qwen3-Embedding은 작업 지시문을, snowflake-arctic-embed는 모델에 저장된 "query: "를 붙인다."""
+    if "qwen3-embedding" in EMBED_MODEL.lower():
+        return {"prompt": EMBED_QUERY_INSTRUCT}
+    return {"prompt_name": "query"} if "query" in (getattr(model, "prompts", None) or {}) else {}
+
+
+def strip_marks(text):
+    """사람에게 보여 줄 때 HIT_MARK·SIB_MARK·PROVISO_MARK를 지운다 (표시는 답변 모델용)."""
+    for m in (HIT_MARK, SIB_MARK, PROVISO_MARK):
+        text = text.replace(m, "")
+    return text
+
 
 # 키워드 질의에서 뺄 형태소 태그: 조사, 어미, 문장부호
 _SKIP_TAGS = ("J", "E", "SF", "SP", "SS", "SE", "SO")
@@ -130,7 +160,7 @@ class Searcher:
         return [t.form for t in self.kiwi.tokenize(text) if not t.tag.startswith(_SKIP_TAGS)]
 
     def vector_hits(self, text, doc_ids):
-        vec = self.model.encode([text], normalize_embeddings=True, convert_to_numpy=True)[0]
+        vec = self.model.encode([text], normalize_embeddings=True, convert_to_numpy=True, **query_prompt(self.model))[0]
         return self.store.vector_search(vec, k=CANDIDATES, doc_ids=doc_ids)
 
     def bm25_hits(self, text, doc_ids):
@@ -307,7 +337,8 @@ class Searcher:
         같은 조의 항은 처음 나온 순위 하나로 합쳐 서로 다른 조 k개를 고르고, 각 조의 모든 항을 항 순서대로 이어 붙인다.
         점수·리랭크·조문 상태는 그 조에서 가장 앞선 항의 값을 쓴다. 용어집 후보 필터가 뺀 항은 이어 붙일 때도 뺀다.
         인용 대상은 그 조의 모든 항이 가진 cites를 합쳐 한 번씩만 따라간다. 형제 항은 이미 다 들어 있어 붙이지 않는다.
-        HIGHLIGHT_HITS: 이 조를 상위로 올린 항 앞에 HIT_MARK를 붙인다 (조에 항이 둘 이상일 때만).
+        HIGHLIGHT_HITS: 이 조를 상위로 올린 항 앞에 HIT_MARK, 같은 조의 나머지 항 앞에 SIB_MARK를 붙이고
+                        (조에 항이 둘 이상일 때만), 단서·예외 문장 앞에 PROVISO_MARK를 붙인다 (mark_provisos).
         LAW_CITES_FROM_HITS: 외부 법령 인용(외부연결)은 검색 결과에 오른 항이 가진 것만 따라간다."""
         dropped = {(d, a) for d, a, _ in self.last_glossary_excluded}
         hit_ids = {h["chunk_id"] for h in ranked}
@@ -325,11 +356,18 @@ class Searcher:
             rows = [r for r in self.store.find_article(doc_id, base) if (doc_id, r["article"]) not in dropped]
             rows.sort(key=lambda r: _order_key(r["article"]))
             mark = HIGHLIGHT_HITS and len(rows) > 1
+
+            def text(r):
+                body = mark_provisos(r["body"]) if HIGHLIGHT_HITS else r["body"]
+                if not mark:
+                    return body
+                # 찾은 항(이 조를 상위 k개로 올린 항)은 강하게, 같은 조의 나머지 항은 약하게 표시한다
+                return (HIT_MARK if r["chunk_id"] == h["chunk_id"] else SIB_MARK) + body
+
             item = self._entry(h, status=h.get("status"))
             item.update({
                 "chunk_id": f"{doc_id}_{base}", "article": base,
-                # ▶는 이 조를 상위 k개로 올린 항(조에서 가장 앞선 항) 하나에만 붙인다
-                "body": "\n".join((HIT_MARK if mark and r["chunk_id"] == h["chunk_id"] else "") + r["body"] for r in rows) or h["body"],
+                "body": "\n".join(text(r) for r in rows) or h["body"],
                 "score": h.get("score"), "rerank": h.get("rerank"), "match": h.get("match", "정확조회"),
                 "siblings": [], "cited": [],
             })

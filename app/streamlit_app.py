@@ -12,6 +12,7 @@ import streamlit as st
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.answer.pipeline import Assistant  # noqa: E402
+from src.search.search import strip_marks  # noqa: E402
 from src.store.pgstore import PgStore  # noqa: E402
 
 TIERS = ["전체", "정관", "규정", "지침", "헌장", "강령", "기타"]
@@ -50,7 +51,7 @@ def show_entry(e):
     st.caption(f"개정: {e.get('개정표기') or '-'}" + (f" · [출처]({e['출처URL']})" if e.get("출처URL") else ""))
     if e.get("연결상태"):
         st.caption(f"인용 연결: {e['연결상태']} ({e.get('인용원문', '')})")
-    st.text(e["body"])
+    st.text(strip_marks(e["body"]))
     if e.get("정정안내"):
         st.info("정정 안내: " + " / ".join(e["정정안내"]))
 
@@ -69,6 +70,8 @@ with st.sidebar:
         doc_choice = doc_choice.rsplit("(", 1)[1].rstrip(")")
     min_year = st.number_input("개정연도 이상 (0이면 제한 없음)", min_value=0, max_value=2100, value=0, step=1)
     show_debug = st.checkbox("검색 과정 보기", value=False)
+    # 로그인 연동 전 임시 입력: 질문자 직군·직책은 검색에는 쓰지 않고 답변 모델에만 넘긴다
+    asker = st.text_input("내 직군·직책 (선택)", placeholder="예: 일반직 4급 팀원, 공무직, 임원")
 
 question = st.text_input("질문을 입력하세요", placeholder="예: 직위해제 기간 동안 급여는 얼마인가요?")
 ask = st.button("질문하기", type="primary", disabled=not question.strip())
@@ -76,7 +79,8 @@ ask = st.button("질문하기", type="primary", disabled=not question.strip())
 if ask:
     assistant = get_assistant()
     with st.spinner("규정을 찾아 답을 만드는 중입니다..."):
-        result = assistant.ask(question.strip(), filters=build_filters(tier, doc_choice, min_year))
+        result = assistant.ask(question.strip(), filters=build_filters(tier, doc_choice, min_year),
+                               asker=asker.strip() or None)
 
     mode = result.get("mode", "answer")
     score = result.get("top_score")
@@ -103,7 +107,7 @@ if ask:
             with col:
                 st.markdown(f"**[{n}] {e['문서명']} {e['article']}**")
                 st.caption(f"위계: {e.get('위계') or '-'} · 개정: {e.get('개정표기') or '-'}")
-                st.text(e["body"][:300])
+                st.text(strip_marks(e["body"])[:300])
 
     # 경고를 두 종류로 나눈다: 인용 번호 자체가 잘못된 것(심각)과, 문장이 근거와 맞지 않을 수 있다는 것(내용 검사).
     for w in result.get("warnings", []):

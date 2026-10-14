@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--no-plan", action="store_true", help="질문 나누기를 끄고 실행 (전후 비교용)")
     ap.add_argument("--plan", action="store_true", help="config와 상관없이 질문 나누기를 켜고 실행 (전후 비교용)")
     ap.add_argument("--questions", default=GOLD, help="답변 평가셋 (예: eval/answer_eval_100.jsonl)")
+    ap.add_argument("--asker", action="store_true", help="평가셋의 '질문자' 칸을 로그인한 질문자 정보처럼 답변 모델에 넘긴다")
     args = ap.parse_args()
 
     gold = [json.loads(l) for l in open(args.questions, encoding="utf-8") if l.strip()]
@@ -49,7 +50,8 @@ def main():
         t = time.time()
         try:
             # 화면처럼 스트리밍으로 받고, 답을 먼저 받은 뒤 뒤에서 하는 검사를 기다린다 (시간을 나눠 기록하려고)
-            r = assistant.ask(g["q"], on_token=lambda piece: None, wait_checks=False)
+            r = assistant.ask(g["q"], on_token=lambda piece: None, wait_checks=False,
+                              asker=g.get("질문자") if args.asker else None)
             timing = dict(r.get("timing") or {})
             r = assistant.finish(r)
             timing = r.get("timing") or timing
