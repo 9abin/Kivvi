@@ -23,6 +23,9 @@ RE_NUM = re.compile(r"(\d+(?:\.\d+)?)\s*(회|일|년|개월|주|시간|원|만�
 GENERIC_TITLES = {"목적", "정의", "적용범위", "시행일", "기타", "준용", "위임", "경과조치", "다른 규정과의 관계"}
 
 
+_CORPUS: str | None = None   # 오타 확인용 90개 규정 본문 (처음 한 번 읽음)
+
+
 def _nums(text: str) -> set[str]:
     return {a + b for a, b in RE_NUM.findall(text)}
 
@@ -103,7 +106,7 @@ def _strict(phrase: str) -> str:
 
 
 def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: list[dict] | None = None,
-          new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None) -> list[dict]:
+          new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None, spell_model: str | None = None) -> list[dict]:
     """cs: out/changes/{id}/changeset.json, regs: 원문 파싱 결과(규정ID → 레코드), rels: 관련 조항 표.
     new_reg/registry_factory를 주면 바뀐 조의 인용을 다시 해석한다. vector=(model, Index)면 의미 유사 후보를 더한다."""
     rid = cs["reg_id"]
@@ -283,11 +286,45 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                  "para": int(e["src"].split("-")[1]) if "-" in e["src"] else 0, "quote": e["raw"], "context": e["context"],
                  "path": "재검사", "target": e["target_doc"] or reg["name"], "priority": "높음", "handling": "고칠 수 있음",
                  "reason": f"개정안의 인용이 해석되지 않음 ({e['status']}) {e.get('note', '')}".strip()})
+        # 바뀐 조의 법령명 (옛 이름·오기). 원문에 원래 있던 것은 빼고 개정안이 새로 들인 것만 (261014 변경안 골든셋 0/16)
+        if lawdb is not None:
+            from .lawdb import law_changes
+            mine = [e for e in fresh if _label_of(nr, e["src"]) in targets]
+            had = {(e["target_doc"]) for e in baseline_edges if e["src_reg"] == rid and e["src"].split("-")[0] in live}
+            for f in law_changes({rid: nr}, mine, lawdb, registry.law_aliases)[0]:
+                if f["type"] in ("법령명_변경", "법령명_오기") and f["quote"] not in had:
+                    add({"category": "breaks", "reg_id": rid, "reg_name": reg["name"], "unit": f["unit"], "article": f["article"],
+                         "para": f["para"], "quote": f["quote"], "context": f.get("context", ""), "path": "재검사(법령명)",
+                         "target": f.get("suggest", ""), "priority": "높음", "handling": "고칠 수 있음", "suggest": f.get("suggest", ""),
+                         "reason": ("옛 법령명 — " if f["type"] == "법령명_변경" else "법령명 오기 의심 — ") + f["note"]})
         new_bad = {(e["raw"], e["status"]) for e in fresh if _label_of(nr, e["src"]) in targets}
         for raw, st in old_bad - new_bad:
             add({"category": "resolved", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": "", "para": 0,
                  "quote": raw, "path": "재검사", "target": "", "priority": "중간", "handling": "판단 가능",
                  "reason": f"기존 인용 문제({st})가 개정안에서 없어짐"})
+    # 6) 오타·맞춤법: 바뀐 문장만 로컬 LLM에 넣고 확인 규칙을 통과한 지적 중 개정안이 새로 들인 것만 (regcheck.spell)
+    if spell_model and new_reg is not None:
+        from .spell import check as spell_check, corpus_text
+        global _CORPUS
+        if _CORPUS is None:
+            _CORPUS = corpus_text()
+        new_by_origin = {a.get("_origin") or a["id"]: a for a in new_reg["articles"]}
+        pairs = [(next(a for a in reg["articles"] if a["id"] == o), new_by_origin.get(o)) for o in content_changed if lmap.get(o, "") is not None]
+        pairs += [(None, a) for a in new_reg["articles"] if a["label"] in inserted_labels and not a.get("_origin")]
+        for old_art, new_art in pairs:
+            if not new_art:
+                continue
+            items = _changed_items(old_art, new_art) if old_art else [{"path": it["path"], "old": "", "new": it["norm"]} for it in new_art["items"]]
+            for d in items:
+                if not d["new"]:
+                    continue
+                for e in spell_check(d["new"], spell_model, _CORPUS):
+                    if e["wrong"] in d["old"]:
+                        continue   # 원래 있던 표기 (개정안 탓이 아님)
+                    add({"category": "review", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": new_art["label"],
+                         "para": d["path"][0], "quote": e["wrong"], "context": d["new"], "path": "오타 의심", "target": "",
+                         "priority": "중간", "handling": "고칠 수 있음", "suggest": e["right"],
+                         "reason": f"오타·맞춤법 의심: 「{e['wrong']}」 → 「{e['right']}」? ({e.get('reason', '')}) — 로컬 모델 지적, 확인 필요"})
     order = {"breaks": 0, "new_conflicts": 1, "resolved": 2, "review": 3, "law_check": 4, "undeterminable": 5, "info": 6}
     prio = {"높음": 0, "중간": 1, "낮음": 2}
     out.sort(key=lambda x: (order[x["category"]], prio.get(x.get("priority"), 3)))
@@ -347,7 +384,8 @@ def score(found: list[dict], expected: dict) -> dict:
     return res
 
 
-def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5, lawdb=None) -> list[dict]:
+def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5, lawdb=None,
+        spell_model: str | None = None) -> list[dict]:
     """changeset 하나 점검 (개정안 사본을 다시 만들어 재검사까지). scripts/check_change.py와 검토 화면이 같이 쓴다."""
     from .amend import apply, parse_amendment
     from .citations import Registry
@@ -357,4 +395,5 @@ def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], ve
     def factory(nr):
         return Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])
 
-    return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k, lawdb=lawdb)
+    return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k, lawdb=lawdb,
+                 spell_model=spell_model)

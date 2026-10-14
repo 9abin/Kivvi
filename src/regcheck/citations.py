@@ -220,10 +220,12 @@ def _aliases(reg: dict) -> dict[str, str]:
     return out
 
 
-def canon_law(name: str, aliases: dict[str, str], global_aliases: dict[str, str], last_law: str) -> str:
-    """법령 표기를 정식 이름에 가깝게: 약칭·'같은 법 시행령' 풀기, 앞에 붙은 문장 조각 떼기."""
+def canon_law(name: str, aliases: dict[str, str], global_aliases: dict[str, str], last_law: str, quoted: bool = False) -> str:
+    """법령 표기를 정식 이름에 가깝게: 약칭·'같은 법 시행령' 풀기, 앞에 붙은 문장 조각 떼기.
+    quoted: 「」 안의 이름은 그대로가 이름이라 문장 조각을 떼지 않는다 — 「특정범죄신고 등 보호법」(오기)의 「신고」를
+    연결어미 「-고」로 보고 잘라 「보호법」만 남던 문제 (261014 오류 주입 평가)"""
     n = re.sub(r"\s+", " ", name.replace("\n", " ")).strip().strip("「」")
-    if not LAW_PLACEHOLDER.match(n):
+    if not LAW_PLACEHOLDER.match(n) and not quoted:
         n = LAW_LEAD_GARBAGE.sub("", n).strip()
     cands = [last_law, aliases.get("법", ""), global_aliases.get("법", "")]
     base = next((c for c in cands if c and not LAW_PLACEHOLDER.match(c)), "")
@@ -323,8 +325,8 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
     aliases = _aliases(reg)
     edges: list[Edge] = []
 
-    def law(name: str, last: str) -> tuple[str, str]:
-        return ("law", canon_law(name, aliases, registry.law_aliases, last))
+    def law(name: str, last: str, quoted: bool = False) -> tuple[str, str]:
+        return ("law", canon_law(name, aliases, registry.law_aliases, last, quoted))
 
     def prev_law(text: str, pos: int) -> str:
         """pos 앞에서 마지막으로 나온 「…법」 (동법·같은 법이 가리키는 대상)."""
@@ -365,7 +367,7 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                 return ("skip", "")
             if m := re.search(r"「([^」]+)」\s*$", pre_s):
                 if is_law(m.group(1)) or m.group(1) in registry.law_aliases:
-                    return law(m.group(1), last_law)
+                    return law(m.group(1), last_law, quoted=True)
                 if EXTERNAL_HINT.search(pre_s[: m.start()].rstrip()):
                     return ("external", m.group(1))
                 return ("regulation", m.group(1))
@@ -378,7 +380,7 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
             if m := re.search(r"(동법|같은\s*법|동\s*법|위\s*법률)(\s*시행령)?$", pre_s):
                 return law(m.group(0), prev_law(text, start) or last_law)
             if m := re.search(r"「([^」]+)」\s*시행령$", pre_s):
-                return law(m.group(1) + " 시행령", last_law)
+                return law(m.group(1) + " 시행령", last_law, quoted=True)
             for ab, full in {**registry.law_aliases, **aliases}.items():
                 if re.search(rf"(^|[^가-힣]){re.escape(ab)}$", pre_s):
                     return law(full, last_law) if is_law(full) else ("regulation", full)
@@ -443,7 +445,7 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
             if GENERIC_DOC.search(compact(name)) or GENERIC_DOC.search(name):
                 continue  # 규정명이 아닌 일반 표현 (「…이 명기된 규정 및 지침」)
             if is_law(name) or name in registry.law_aliases:
-                name = law(name, last_law)[1]
+                name = law(name, last_law, quoted=True)[1]
                 last_law = name
                 e = Edge(src, kind, m.group(0), _context(text, m.start(), m.end()), "law", name, {}, status="law_pending")
             else:

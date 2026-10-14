@@ -122,12 +122,15 @@ class LawDB:
         key = norm(re.sub(r"\s*\(이하[^)]*\)\s*$", "", name or ""))
         if len(key) < 8:
             return None
-        best, score = None, 0.0
+        best, score, edits = None, 0.0, 99
         for k, law in self.laws.items():
-            sc = SequenceMatcher(None, key, k).ratio()
+            sm = SequenceMatcher(None, key, k)
+            sc = sm.ratio()
             if sc > score:
                 best, score = law["title"], sc
-        return best if score >= cutoff else None
+                edits = sum(max(i2 - i1, j2 - j1) for t, i1, i2, j1, j2 in sm.get_opcodes() if t != "equal")
+        # 글자 하나 차이는 짧은 이름도 오기로 본다 — 0.95만 보면 10자 이름의 한 글자 누락(0.947)을 놓쳤다 (261014 오류 주입 평가)
+        return best if score >= cutoff or edits <= 1 else None
 
     def same_title(self, title: str, limit: int = 5) -> list[tuple[dict, str, dict]]:
         """조문 제목이 같은 법령 조문 [(법령, 조 키, 조문)] — 변경안 점검의 법령 대조 후보 (예: 육아휴직 → 남녀고용평등법 제19조)"""
@@ -176,6 +179,11 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
     arts = {a["id"]: (r, a) for r in regs.values() for a in r["articles"]}
     stats = {"법령 인용": 0, "법령 연결": 0, "조문 연결": 0, "법령 없음": 0, "조 없음": 0}
     out, seen = [], set()
+    def written(e: dict) -> bool:
+        """그 법령 이름이 이 인용 문맥에 실제로 적혀 있나. 「…법(이하 "법")」 뒤의 「법 제5조」는 약칭으로 이어진 것이라
+        이름 오기·옛 이름은 이름이 적힌 곳에서 한 번만 알린다 (같은 오기를 33번 알리던 문제, 261014 오류 주입 평가)"""
+        return norm(e["target_doc"]) in norm(e.get("context") or "")
+
     for e in edges:
         # 본문과 별표·별지 (표 안 「…법률 제7조제1항제1호」도 법령 인용, 261012). 부칙은 옛 문구라 제외
         if e["status"] not in ("law_pending", "external_rule") or e["src_kind"] not in ("본문", "별표", "별지"):
@@ -185,7 +193,7 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
         if not law:
             stats["법령 없음"] += 1
             close = db.close_title(e["target_doc"])
-            if close and (e["src"], "typo", close) not in seen and e["src_kind"] in ("본문", "별표", "별지"):
+            if close and written(e) and (e["src"], "typo", close) not in seen:
                 seen.add((e["src"], "typo", close))
                 stats["법령명 오기 의심"] = stats.get("법령명 오기 의심", 0) + 1
                 out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
@@ -194,14 +202,14 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
             continue
         stats["법령 연결"] += 1
         wrong = {norm(k): v for k, v in MISNAMED.items()}.get(norm(e["target_doc"]))
-        if wrong and (e["src"], "typo", wrong) not in seen:
+        if wrong and written(e) and (e["src"], "typo", wrong) not in seen:
             seen.add((e["src"], "typo", wrong))
             stats["법령명 오기 의심"] = stats.get("법령명 오기 의심", 0) + 1
             out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
                         "type": "법령명_오기", "priority": "중간", "suggest": law["title"],
                         "note": f"정식 이름은 「{law['title']}」 — 법령명 확인"})
         new_name = db.previous_names.get(norm(e["target_doc"]))
-        if new_name and (e["src"], "renamed", new_name) not in seen:
+        if new_name and written(e) and (e["src"], "renamed", new_name) not in seen:
             seen.add((e["src"], "renamed", new_name))
             stats["법령명 변경"] = stats.get("법령명 변경", 0) + 1
             out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],

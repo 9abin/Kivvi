@@ -45,3 +45,9 @@ eval/n_set/runs/
 eval/answer_runs/
 # 평가 검수 artifact용 임시 export
 review_data.json
+
+# 에이전트 평가 문항 중 규정 원문 문장이 들어 있는 것 (KVIC 저작물). 시드로 다시 만든다:
+#   scripts/eval_inject.py --seed N, scripts/eval_spell.py make, scripts/eval_precision.py make (판정 중인 csv는 로컬에만)
+/eval/agent/inject_s*.jsonl
+/eval/agent/spell_s*.jsonl
+/eval/agent/precision_sample.csv
