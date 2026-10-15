@@ -70,6 +70,9 @@ PoC 표시: **필수** = `03-product-plan.md` PoC "반드시" 항목, 선택 = "
 | 외부 | P0 | (가빈 제안 메모) 후보 풀 30→50~100, 용어→정의 항 색인, 질문 나누기 켜기·규정 한정 2단계 검색. 최종 근거 Recall은 리랭커·k 포함해 가빈 쪽에서 재측정 | [261014-1700-40](../reports/261014-1700-40-embed-stage0.md) |
 | todo | P1 | 사람 판정 4건: 점검 정밀도 30건, 질문 생성 표본(v2·v3), 변경 감시 새로 생김 5건, 팀원 개정 요청 15~20개 | [agent-eval](agent-eval.md) |
 | doing | P1 | 인용 없이 이어지는 영향: 정의 용어 경로·확인한 범위 표시·의미 이웃 완료 ([44](../reports/261015-1600-44-semantic-neighbors.md)). 남은 것: 사람 판정 3종(`eval/agent/term_sample.csv`·`neighbor_sample.csv`·`precision_sample.csv` 각 30건), 용어 정의 불일치 기준선 | [261015-1500-43](../reports/261015-1500-43-term-impact.md) |
+| todo | P0 | 공유 DB 갱신(S03 검토 뒤 `amend_load.py`): 점검 결과 279→257·등급·근거 종류·옮겨 간 곳 후보 | [261015-1800-46](../reports/261015-1800-46-baseline-precision.md) |
+| todo | P1 | 신설 조문의 같은 규정 안 중복 확인, 위치 찾기 평가(팀원 요청셋), 「참고」 등급 접기 화면 | [261015-1900-47](../reports/261015-1900-47-agent-loop-rehearsal.md) |
+| todo | P1 | 현업 검수: Claude 판정 중 업무 판단형(모름) 항목, 실제 사례 5~10건(`eval/agent/real_case_request.md`) | [261015-1700-45](../reports/261015-1700-45-relocate.md) |
 | todo | P0 | **다음** 발표 자료 (현황 → KVIC 실측 → 사례 → 벤치마킹 → 시연 → 평가·한계) | |
 
 ## 3주차 (10.18~10.20)
