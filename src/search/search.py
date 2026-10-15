@@ -21,7 +21,7 @@ from kiwipiepy import Kiwi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from config import (EMBED_MODEL, EMBED_QUERY_INSTRUCT, HIGHLIGHT_HITS, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
-                    LAW_CITES_FROM_HITS, RERANK_HEADER, RERANK_MODEL, RETURN_ARTICLE, RRF_K, USE_SYNONYMS)
+                    LAW_CITES_FROM_HITS, LLM_RERANK, RERANK_HEADER, RERANK_MODEL, RETURN_ARTICLE, RRF_K, USE_SYNONYMS)
 from src.search import glossary, synonyms
 from src.search.bm25 import BM25
 from config import CONTEXT_CHAR_BUDGET
@@ -119,6 +119,11 @@ class Searcher:
         self.glossary_filter = True  # 후보 단계 제외 (전후 비교를 위해 끌 수 있다)
         self.last_glossary_excluded = []
         self.last_hint = ""
+        # 2단계 LLM 리랭커 (LLM_RERANK, 검색_설계.md 5절): 교차 인코더 상위 LLM_RERANK_TOP개를 LLM이 다시 채점한다
+        self.llm_reranker = None
+        if LLM_RERANK:
+            from src.search.llm_rerank import LLMReranker
+            self.llm_reranker = LLMReranker()
         self._load_index()
 
     def _load_index(self):
@@ -310,6 +315,8 @@ class Searcher:
 
         if rerank:
             fused = self.rerank(text, fused[:RERANK_TOP])
+            if getattr(self, "llm_reranker", None) is not None:  # 2단계: 상위 LLM_RERANK_TOP개를 LLM이 재채점 (실패 문서는 그 자리)
+                fused = self.llm_reranker.rerank(text, fused, self.rerank_text)
         # 확인된 다른 개념의 수치 근거는 후보 단계에서 빼서 빈자리를 다음 후보가 채우게 한다 (정확 조회 결과는 건드리지 않는다).
         self.last_glossary_excluded = []
         if self.glossary_filter:
@@ -324,6 +331,7 @@ class Searcher:
             item.update({
                 "score": h.get("score"),
                 "rerank": h.get("rerank"),
+                "llm_rerank": h.get("llm_rerank"),  # 2단계 LLM 점수 (0~10). 끄거나 LLM_RERANK_TOP 밖·실패면 None
                 "match": h.get("match", "정확조회"),
                 "siblings": self._siblings_within_limit(h) if expand_siblings else [],
                 "cited": self._cited(h) if expand_cites else [],
@@ -368,8 +376,8 @@ class Searcher:
             item.update({
                 "chunk_id": f"{doc_id}_{base}", "article": base,
                 "body": "\n".join(text(r) for r in rows) or h["body"],
-                "score": h.get("score"), "rerank": h.get("rerank"), "match": h.get("match", "정확조회"),
-                "siblings": [], "cited": [],
+                "score": h.get("score"), "rerank": h.get("rerank"), "llm_rerank": h.get("llm_rerank"),
+                "match": h.get("match", "정확조회"), "siblings": [], "cited": [],
             })
             if expand_cites:
                 members = {r["chunk_id"] for r in rows}

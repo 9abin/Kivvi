@@ -58,6 +58,16 @@ RETURN_ARTICLE = os.environ.get("RETURN_ARTICLE", "1") == "1"
 #  LAW_CITES_FROM_HITS: 외부 법령 인용은 찾은 항이 직접 인용한 것만 따라간다 (조 안 다른 항의 법령 인용은 뺀다).
 HIGHLIGHT_HITS = os.environ.get("HIGHLIGHT_HITS", "1") == "1"
 LAW_CITES_FROM_HITS = os.environ.get("LAW_CITES_FROM_HITS", "1") == "1"
+# 2단계 LLM 리랭킹 (2026.10.15, src/search/llm_rerank.py, 검색_설계.md 5절). 교차 인코더(RERANK_MODEL) 상위 LLM_RERANK_TOP개를
+# LLM이 문서별로 독립 채점(0~10: 질문의 핵심 요건을 직접 규정 8~10 / 간접 관련 3~7 / 무관 0~2, 병렬 호출)해 다시 정렬한다.
+# 동점은 교차 인코더 순서, LLM_RERANK_TOP 밖은 교차 인코더 순서 그대로 뒤에. 호출·파싱 실패 문서는 교차 인코더 자리를 지킨다.
+# 점수는 (모델, 질문, chunk_id) 키로 LLM_RERANK_CACHE에 저장해 평가 재실행 비용을 줄인다. 2026.10.15 측정(93문항 rank_trace):
+# R@5 0.565→0.619(팀 DB 항 단위), 0.578→0.680(조 단위), 문항당 약 +1.2초. 새 100문항 답변 평가: 질문 중심 정답 51→58·오답 6→3,
+# 엄격·단계 채점은 흔들림 범위, 답못함 5→8(별표 조각), 답 완성 +2.5초 (검색_설계.md 5절, 보고서 36). 기본값 미정 — 지금은 끔.
+LLM_RERANK = os.environ.get("LLM_RERANK", "0") == "1"
+LLM_RERANK_TOP = int(os.environ.get("LLM_RERANK_TOP", "15"))
+LLM_RERANK_MODEL = os.environ.get("LLM_RERANK_MODEL", "gpt-4o-mini")  # 문서당 1회라 빠른 모델. 비교 시 환경 변수로 바꾼다
+LLM_RERANK_CACHE = os.path.join(BASE_DIR, "eval", "runs", "llm_rerank_cache.json")
 # 응답 시간 줄이기 (2026.10.14). 호출 순서만 바꿔서 답변 내용은 같다. 끄면(FAST_PIPELINE=0) 예전처럼 하나씩 차례로 한다.
 #  - GPT 질문 바꿔쓰기를 기다리는 동안 원래 질문의 벡터·BM25 검색을 먼저 한다
 #  - 충돌 확인을 답변 작성과 동시에 한다 (근거만 보므로 답변을 기다릴 필요가 없다)
