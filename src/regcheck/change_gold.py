@@ -222,7 +222,14 @@ def make(regs: dict, edges: list[dict], db, seed: int = 1, per: int = 8) -> list
         if not u:
             continue
         r, a, it = items[e["src"]]
-        law_txt = " ".join(x.get("항내용", "") for x in (u.get("항") if isinstance(u.get("항"), list) else [u.get("항")] if u.get("항") else []) if isinstance(x, dict)) or u.get("조문내용", "")
+        paras = [x for x in (u.get("항") if isinstance(u.get("항"), list) else [u.get("항")] if u.get("항") else []) if isinstance(x, dict)]
+        hang = (e.get("target_ref") or {}).get("hang")
+        if hang:   # 「법 제19조제6항」처럼 항을 인용했으면 그 항만 본다 (다른 항의 같은 숫자는 인용과 무관 — G090: ⑥에는 숫자가 없고 ⑧의 7일이 걸렸던 정답 생성기 오류, 261015)
+            circled = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+            paras = [x for x in paras if x.get("항번호") == (circled[hang - 1] if 1 <= hang <= len(circled) else "")]
+            if not paras:
+                continue
+        law_txt = " ".join(x.get("항내용", "") for x in paras) or u.get("조문내용", "")
         for mm in RE_NU.finditer(it["norm"]):
             if mm.group(0) in law_txt and it["norm"].count(mm.group(0)) == 1:
                 numl.append((r, a, it, mm, law["title"], key))

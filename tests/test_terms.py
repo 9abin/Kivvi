@@ -165,3 +165,26 @@ def test_hypothesis_cards_skip_covered_and_stay_low():
     assert "모델의 가설" in out[0]["reason"] and "근거가 아니라 추정" in out[0]["reason"]
     from regcheck.change_check import basis_of
     assert basis_of(out[0]["path"]) == "모델 추정"
+
+
+def test_model_cards_are_capped_and_hypotheses_go_first():
+    from regcheck.change_check import cap_model_cards
+    prio = {"높음": 0, "중간": 1, "낮음": 2, "참고": 3}
+    card = lambda path, p="낮음", n=0: {"category": "review", "path": path, "priority": p, "n": n}  # noqa: E731
+    out = [card("인용받음", "높음")] + [card("의미 유사 (0.74)", n=i) for i in range(4)] + [card("가설(모델 추정)", n=i) for i in range(3)] + [card("의미 이웃 (0.80·간격 작음)", "참고")]
+    kept = cap_model_cards(out, prio, limit=6)
+    paths = [x["path"] for x in kept]
+    assert len([p for p in paths if p != "인용받음"]) == 6 and "인용받음" in paths            # 문서 명시 카드는 건드리지 않음
+    assert "의미 이웃 (0.80·간격 작음)" not in paths                                          # 참고부터 덜어 냄
+    assert sum(p.startswith("가설") for p in paths) == 2 and sum(p.startswith("의미 유사") for p in paths) == 4   # 같은 순위에서는 가설부터
+
+
+def test_spell_failure_does_not_break_the_check(monkeypatch):
+    """오타 검사용 로컬 모델이 꺼져 있어도(예외) 나머지 점검 결과는 그대로 나온다."""
+    import regcheck.spell as spell
+    monkeypatch.setattr(spell, "check", lambda *a, **k: (_ for _ in ()).throw(ConnectionError("ollama down")))
+    rs = regs()
+    new, ch = apply(rs["1"], parse_amendment('제3조 중 "매월"을 "분기마다"로 한다.'))
+    cs = {"reg_id": "1", "reg_name": "갑규정", "amendment": "", "changes": ch, "label_map": label_map(ch)}
+    found = check(cs, rs, RELS, new_reg=new, spell_model="없는모델")
+    assert isinstance(found, list)

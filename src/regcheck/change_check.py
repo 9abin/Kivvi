@@ -22,6 +22,7 @@ from .findings import locate
 
 DUP_MIN = 0.78   # 신설 조문 ↔ 같은 내규 기존 조문 유사도 (0.78~0.82이거나 간격이 작으면 인접 주제라 낮음, 0.82 이상 + 간격 0.04 이상이면 중간)
 DUP_HIGH = 0.82
+MAX_MODEL = 6        # 한 개정안에서 모델 추정 카드(오타 제외)는 최대 6장
 NEIGHBOR_GAP = 0.03   # 의미 이웃: 다음 이웃보다 이만큼 높아야 「낮음」, 아니면 「참고」 (리포트 48)
 DUP_GAP = 0.04    # 1위가 2위보다 이만큼 높아야 「중간」 (진짜 중복 0.06, 연속 신설 조문 중앙 0.03 — 리포트 48)
 RE_NUM = re.compile(r"(\d+(?:\.\d+)?)\s*(회|일|년|개월|주|시간|원|만원|억원|%|퍼센트|명|인|배|세|급|호봉)")
@@ -405,7 +406,11 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
             for d in items:
                 if not d["new"]:
                     continue
-                for e in spell_check(d["new"], spell_model, _CORPUS):
+                try:
+                    errs = spell_check(d["new"], spell_model, _CORPUS)
+                except Exception:   # 로컬 모델이 꺼져 있어도 오타 검사만 빠지고 점검은 계속한다 (확인한 범위의 「오타」는 찾은 곳 0으로 보임)
+                    errs = []
+                for e in errs:
                     if e["wrong"] in d["old"]:
                         continue   # 원래 있던 표기 (개정안 탓이 아님)
                     add({"category": "review", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": new_art["label"],
@@ -414,6 +419,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                          "reason": f"오타·맞춤법 의심: 「{e['wrong']}」 → 「{e['right']}」? ({e.get('reason', '')}) — 로컬 모델 지적, 확인 필요"})
     order = {"breaks": 0, "new_conflicts": 1, "resolved": 2, "review": 3, "law_check": 4, "undeterminable": 5, "info": 6}
     prio = {"높음": 0, "중간": 1, "낮음": 2, "참고": 3}
+    out = cap_model_cards(out, prio)
     out.sort(key=lambda x: (order[x["category"]], prio.get(x.get("priority"), 3)))
     return out
 
@@ -425,6 +431,17 @@ NOT_COVERED = [
     "별표·별지 안의 내용 비교 (인용 깨짐만 확인)",
     "법령과의 충돌은 이 조가 인용한 법령 조문과 제목이 같은 법령 조문만 대조",
 ]
+
+
+def cap_model_cards(out: list[dict], prio: dict, limit: int | None = None) -> list[dict]:
+    """모델 추정 카드(의미 유사·의미 이웃·가설, 오타 제외)를 합쳐 MAX_MODEL장까지. 덜어 내는 순서: 우선순위가 낮은 것부터,
+    같은 우선순위에서는 입증되지 않은 가설을 먼저 (의미 유사는 실제 시나리오 S02의 놓친 항목을 잡았음)."""
+    limit = MAX_MODEL if limit is None else limit
+    cards = [x for x in out if basis_of(x.get("path", "")) == "모델 추정" and x["category"] != "info" and not str(x.get("path", "")).startswith("오타")]
+    if len(cards) <= limit:
+        return out
+    drop = sorted(cards, key=lambda x: (-prio.get(x.get("priority"), 3), 0 if str(x.get("path", "")).startswith("가설") else 1))[:len(cards) - limit]
+    return [x for x in out if not any(x is d for d in drop)]
 
 
 def basis_of(path: str) -> str:

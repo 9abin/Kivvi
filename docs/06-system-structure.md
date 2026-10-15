@@ -24,7 +24,7 @@
 | `data/law_rag.sqlite3`, `data/한국벤처투자_내부규정/` | 우리 코드가 읽는 법률 DB·원문 (git 제외) | 박형건 |
 | `out/` | 가빈 산출물(`chunks.jsonl`, `text/ID.txt` 추적) + 우리 산출물(`parsed/`, `relations/` 등, git 제외) | 둘 다 |
 | `docs/00~06`, `reports/`, `todo/`, `learning/` / `docs/*_설계.md` 등 | 우리 문서 / 가빈 문서 | 각자 |
-| `tests/` | 둘 다 (202개 통과, 261013) | 둘 다 |
+| `tests/` | 둘 다 (261개 통과, 261015) | 둘 다 |
 
 `AGENTS.md`·`CLAUDE.md`는 개인용(git 제외). 공유 규칙은 [05](05-working-agreement.md).
 
@@ -33,11 +33,11 @@
 | 저장소 | 내용 | 수치 |
 |---|---|---|
 | `public.documents` | 규정 문서 | 90 |
-| `public.chunks` | 청크 + 벡터(BGE-m3 1024, HNSW) + 형태소(GIN) + `cites`(인용 JSON) | 4,810 (벡터 4,551) |
+| `public.chunks` | 청크 + 벡터(BGE-m3 1024, HNSW) + 형태소(GIN) + `cites`(인용 JSON) | 4,819 |
 | `amend.chunk_detail` | 항·호·목 원문 + 가빈 `chunk_id` 대응 | 7,382 (대응 99.9%) |
 | `amend.edge` | 관련 조항 표(인용 그래프) | 1,884 |
-| `amend.finding` | 기준선 점검 결과 | 279 |
-| `amend.changeset` / `impact` / `decision_log` | 개정안 / 영향 / 사람 결정 | 3 / 47 / 0 |
+| `amend.finding` | 기준선 점검 결과 (DB는 갱신 전 279, 파일 산출물은 오탐 정리·근거 종류·재탐색 반영 257 — S03 검토 뒤 `amend_load.py`로 갱신) | 279 / 257 |
+| `amend.changeset` / `impact` / `decision_log` | 개정안 / 영향 / 사람 결정 | 10 / 76 / 58 (261015 21시 기준, 기각 4·초안 3·공포 2·검토 1, 시험 개정안 포함 — 08 「시험 흔적」) |
 | 법률 DB (SQLite) | 법령·조문·법령 간 인용 | 법령 284, 조문 청크 27,905 |
 | 우리 벡터 색인 `out/vector/` | 평가용 (가빈 벡터는 보정본에서 만들어 정답이 섞임) | 4,500 |
 
@@ -54,7 +54,7 @@
 7. 답변 모드: answer / partial / none (재순위 점수 기준)
 8. 생성(LLM) → 검증: 숫자 대조, 구분 모순, 문장 근거, 빠진 핵심어, 충돌 확인
 
-LLM: `config.py` `OPENAI_MODEL = "gpt-4o-mini"`(외부 API). 폐쇄망 원칙과 다름 → 로컬 모델로 바꿀 수 있게 해야 함 (가빈과 확인)
+LLM: `config.py` `OPENAI_MODEL = "gpt-5.6-luna"`(외부 API, 261013에 gpt-4o-mini에서 변경, 바꿔 쓰기·답변·채점 모두). 폐쇄망 원칙과 다름 → 로컬 모델로 바꿀 수 있게 해야 함 (가빈과 확인). 로컬 모델 기준 검색·답변 수치는 아직 없음
 
 ## 5. 청킹
 
@@ -101,3 +101,14 @@ LLM: `config.py` `OPENAI_MODEL = "gpt-4o-mini"`(외부 API). 폐쇄망 원칙과
 | 4 | 근거 원문 패널에 「개정 검토 중」·「인용하는 곳 N건」·「개정안 작성」 | 가빈(화면) + 박형건(API) |
 | 5 | LLM을 로컬로 바꿀 수 있게, 정확 조회 보강(「15조」·여러 조·이어지는 질문) | 김가빈 |
 | 발표 뒤 | 검색기 플러그인 틀 + 의도 라우터(모듈러 RAG), 문서 검토(B) 규칙 비교, 2단계 연쇄 | 둘 다 |
+
+## 9. 261015 추가 (조항 수정 에이전트)
+인용·같은 제목 외에 인용 없이 이어지는 영향을 찾는 경로와 근거 종류 표시가 들어갔다. 상세는 리포트 [43](reports/261015-1500-43-term-impact.md)~[50](reports/261015-2300-50-agent-audit.md).
+| 경로 | 근거 종류 | 코드 |
+|---|---|---|
+| 정의 용어 (정의가 바뀌면 쓰는 곳) | 낱말 일치 | `regcheck/terms.py` |
+| 의미 이웃(미리 계산, 점수 + 간격)·실시간 의미 유사·같은 내규 신설 중복 | 모델 추정 | `neighbors.py`, `change_check.py` |
+| 가설 카드 (로컬 9B가 함께 확인할 주제 추론) | 모델 추정 | `hypothesis.py` |
+| 옮겨 간 곳 찾기 (이동 표시 → reranker) | 문서 명시·모델 추정 | `relocate.py`, `scripts/build_relocate.py` |
+| 개정 위치 찾기 (규정·조를 모르는 요청) | 모델 추정 | `target.py` |
+화면: 영향 카드마다 근거 종류, 「확인한 범위」, 감시 결과의 「초안 가능 / 현업 판단 필요」, 공포 후 함께 개정 초안 자동 생성(`web_agent.companion_drafts`). 모델 추정 카드는 개정안당 6장까지(`change_check.MAX_MODEL`).

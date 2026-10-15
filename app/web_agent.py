@@ -150,7 +150,10 @@ def draft(chunk: str, request: str, user: str) -> dict:
     from regcheck.agent import build_package
     from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
     with _lock:   # 로컬 LLM·GPU를 채팅과 나눠 쓰므로 한 번에 하나
-        res = nl_draft(regs, full_request, model=DRAFT_MODEL, reg=reg)
+        try:
+            res = nl_draft(regs, full_request, model=DRAFT_MODEL, reg=reg)
+        except (OSError, TimeoutError) as e:   # 로컬 모델(Ollama)이 꺼져 있거나 모델 이름이 없을 때 (urllib의 URLError·HTTPError는 OSError)
+            return {"error": f"로컬 모델 「{DRAFT_MODEL}」에 연결하지 못했습니다. Ollama가 켜져 있는지, 모델이 설치돼 있는지 확인해 주세요 ({type(e).__name__})"}
         if not res.get("ok"):
             if not res.get("tries") and res.get("error"):   # LLM 전에 걸러진 경우는 그 안내를 그대로
                 return {"error": res["error"], "tries": 0}
@@ -171,7 +174,8 @@ def draft(chunk: str, request: str, user: str) -> dict:
             hypo = lambda r, art, new, diff, skip: hypotheses(lambda m: _llm(HYPO_MODEL, m, timeout=90), regs, r, art, new, diff,  # noqa: E731
                                                               (_vector_obj().vecs, _vector_obj().chunks), embed, rerank, skip)
         pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None, spell_model=SPELL_MODEL,
-                            neighbors=load_neighbors(), dup=(embed, _vector_obj()), hypo=hypo)
+                            neighbors=load_neighbors(), dup=(embed, _vector_obj()), hypo=hypo,
+                            vector=(model, _vector_obj()))   # 의미 유사(실시간): 이웃표(0.78)가 놓치는 용어 변형(당연면직↔당연해직, S02)을 0.7대에서 잡음
     n = _store(cid, reg_id, f"{label} — {request}" if label else request, cs, pkg, chunk, user, request, {"chunk": chunk, "model": DRAFT_MODEL})
     return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
 
