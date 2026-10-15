@@ -56,6 +56,34 @@ def from_edges(edges: list[dict]) -> list[dict]:
 BASIS = {"rule": "문서 명시", "law_db": "문서 명시", "history": "문서 명시", "semantic": "모델 추정"}
 
 
+def attach_relocate(found: list[dict], reloc: dict) -> list[dict]:
+    """「옮겨 간 곳 찾기」 결과(scripts/build_relocate.py)를 붙인다. 판정이 아니라 후보.
+      · 원문 이동 표시로 찾음 → 제안(문서 명시)
+      · 재탐색에서 지금 인용한 그 조가 1위 → 인용이 맞을 가능성이 커 「참고」 (261015 판정 표본 4건 모두 오탐)
+      · 인용한 규정 안에서 맞는 조를 못 찾음 → 근거 소멸 가능성
+    """
+    from .review import key_baseline
+
+    for f in found:
+        x = reloc.get(key_baseline(f))
+        if not x:
+            continue
+        cands = x["candidates"][:3]
+        f["relocate"] = {"kind": x["kind"], "found": x["found"],
+                         "candidates": [{k: c[k] for k in ("reg_name", "label", "title", "score", "tier")} for c in cands]}
+        top = cands[0] if cands else None
+        if x["kind"] == "인용한 그 조가 1위":
+            f["priority"] = "참고"
+            f["note"] = (f.get("note") or "") + " / 재탐색: 지금 인용한 조가 내용상 가장 잘 맞음 (인용이 맞을 가능성)"
+        elif x["kind"] == "못 찾음":
+            f["note"] = (f.get("note") or "") + " / 재탐색: 인용한 규정 안에서 맞는 조를 못 찾음 (근거 소멸 가능성)"
+        elif top:
+            if not f.get("suggest") or x["kind"] == "문서 명시":   # 원문 이동 표시는 모델 추정 제안보다 확실 → 덮어씀
+                f["suggest"] = top["label"] if top["reg_name"] == x.get("target") else f"{top['reg_name']} {top['label']}"
+            f["note"] = (f.get("note") or "") + f" / 옮겨 간 곳 후보: {top['reg_name']} {top['label']}({top['title']}) [{top['tier']}]"
+    return found
+
+
 def tier(found: list[dict]) -> list[dict]:
     """근거 종류(basis)를 붙이고, 원문 대조 정밀도 표본에서 오탐만 나온 묶음을 「참고」로 내린다 (지우지 않음 — 재현율 유지).
       · 의미 비교만 근거(벡터 1단계, 개정 이력 신호 없음): 261015 표본 2차례 13건 중 실제 문제 0 → 참고

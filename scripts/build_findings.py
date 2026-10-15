@@ -18,7 +18,7 @@ from regcheck import runinfo  # noqa: E402
 from regcheck.history import merge, stale_citations  # noqa: E402
 from regcheck.lawdb import DEFAULT as LAW_DB, LawDB, law_changes  # noqa: E402
 from regcheck.citations import Registry  # noqa: E402
-from regcheck.findings import duplicate_articles, duplicate_paragraphs, from_edges, from_semantic, tier  # noqa: E402
+from regcheck.findings import attach_relocate, duplicate_articles, duplicate_paragraphs, from_edges, from_semantic, tier  # noqa: E402
 
 
 def main() -> None:
@@ -39,6 +39,9 @@ def main() -> None:
         law_found, law_stats = law_changes(regs, edges, LawDB(LAW_DB), Registry(list(regs.values())).law_aliases)
         found += law_found
     found = tier(found)   # 근거 종류 + 오탐만 나온 묶음은 「참고」로 (리포트 46)
+    reloc_path = ROOT / "out" / "findings" / "relocate.json"   # 옮겨 간 곳 찾기 (scripts/build_relocate.py, GPU) — 있으면 합침
+    if reloc_path.exists():
+        found = attach_relocate(found, json.loads(reloc_path.read_text(encoding="utf-8")))
     for n, f in enumerate(found):
         f["fid"] = f"F{n:05d}"
         f["reg_name"] = regs[f["reg_id"]]["name"]

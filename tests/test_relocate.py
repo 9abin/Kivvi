@@ -33,3 +33,20 @@ def test_low_scores_mean_not_found():
     edge = {"src": "1:1-0-0-0", "src_reg": "1", "raw": "제5조", "context": "", "target_reg": "2", "target_ref": {"jo": 5}}
     res = relocate(edge, {"1": src, "2": tgt}, index=None, embed=None, rerank=lambda q, ts: [0.05] * len(ts), scope="target")
     assert not res["found"]                                             # 근거 소멸 가능성으로 알림
+
+
+def test_attach_relocate_tiers():
+    from regcheck.findings import attach_relocate
+    from regcheck.review import key_baseline
+    base = {"reg_id": "1", "unit": "본문", "article": "제1조", "para": 0, "type": "인용_대상불일치", "method": "semantic", "note": ""}
+    same = {**base, "quote": "제4조", "suggest": "제5조", "priority": "중간"}
+    moved = {**base, "quote": "제21조", "suggest": "제1조", "priority": "중간"}
+    gone = {**base, "quote": "제9조", "suggest": "", "priority": "중간"}
+    cand = lambda label, tier="모델 추정": {"reg_name": "급여규정", "label": label, "title": "", "score": 0.9, "tier": tier}  # noqa: E731
+    reloc = {key_baseline(same): {"kind": "인용한 그 조가 1위", "found": True, "target": "급여규정", "candidates": [cand("제4조")]},
+             key_baseline(moved): {"kind": "문서 명시", "found": True, "target": "급여규정", "candidates": [cand("제22조", "문서 명시")]},
+             key_baseline(gone): {"kind": "못 찾음", "found": False, "target": "급여규정", "candidates": []}}
+    a, b, c = attach_relocate([same, moved, gone], reloc)
+    assert a["priority"] == "참고"                                   # 지금 인용한 조가 가장 잘 맞음 → 인용이 맞을 가능성
+    assert b["suggest"] == "제22조"                                  # 원문 이동 표시가 모델 제안(제1조)을 덮어씀
+    assert "근거 소멸 가능성" in c["note"] and c["priority"] == "중간"
