@@ -78,9 +78,12 @@ def attach_relocate(found: list[dict], reloc: dict) -> list[dict]:
         elif x["kind"] == "못 찾음":
             f["note"] = (f.get("note") or "") + " / 재탐색: 인용한 규정 안에서 맞는 조를 못 찾음 (근거 소멸 가능성)"
         elif top:
+            # 후보 간 점수 차가 작아 1위를 믿기 어려우면 알림만 덧붙인다. 제안을 숨기지는 않는다: 정답 원장 제안 일치가 숨길 때
+            # 17/26 → 12/19로 같은 비율이 줄었다 (숨긴 7건 중 5건이 정답, 리포트 48). 표본이 작아 다음 표본에서 다시 본다
             if not f.get("suggest") or x["kind"] == "문서 명시":   # 원문 이동 표시는 모델 추정 제안보다 확실 → 덮어씀
                 f["suggest"] = top["label"] if top["reg_name"] == x.get("target") else f"{top['reg_name']} {top['label']}"
-            f["note"] = (f.get("note") or "") + f" / 옮겨 간 곳 후보: {top['reg_name']} {top['label']}({top['title']}) [{top['tier']}]"
+            f["note"] = (f.get("note") or "") + f" / 옮겨 간 곳 후보: {top['reg_name']} {top['label']}({top['title']}) [{top['tier']}]" + (
+                "" if x.get("confident", True) else f" — 후보 간 점수 차가 작아 확실하지 않음({x.get('gap', 0):.2f})")
     return found
 
 

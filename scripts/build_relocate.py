@@ -50,8 +50,8 @@ def main() -> None:
         top = res["candidates"][0] if res["candidates"] else None
         kind = ("못 찾음" if not res["found"] else "문서 명시" if top["tier"] == "문서 명시"
                 else "인용한 그 조가 1위" if top["article_id"] == e.get("target_id") else "다른 조 제안")
-        stat[(f["type"], kind)] += 1
-        out[key_baseline(f)] = {"found": res["found"], "kind": kind, "target": regs[e["target_reg"]]["name"], "candidates": res["candidates"]}
+        stat[(f["type"], kind + (" · 확실" if res["confident"] else " · 후보만"))] += 1
+        out[key_baseline(f)] = {"found": res["found"], "kind": kind, "confident": res["confident"], "gap": res["gap"], "target": regs[e["target_reg"]]["name"], "candidates": res["candidates"]}
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"대상 결과 {len(todo)}건 → {OUT}")
     for (t, k), n in sorted(stat.items()):

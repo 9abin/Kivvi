@@ -20,8 +20,10 @@ import re
 
 from .findings import locate
 
-DUP_MIN = 0.78   # 신설 조문 ↔ 같은 내규 기존 조문 유사도 (0.78~0.82는 인접 주제가 많아 낮음, 0.82 이상 중간)
+DUP_MIN = 0.78   # 신설 조문 ↔ 같은 내규 기존 조문 유사도 (0.78~0.82이거나 간격이 작으면 인접 주제라 낮음, 0.82 이상 + 간격 0.04 이상이면 중간)
 DUP_HIGH = 0.82
+NEIGHBOR_GAP = 0.03   # 의미 이웃: 다음 이웃보다 이만큼 높아야 「낮음」, 아니면 「참고」 (리포트 48)
+DUP_GAP = 0.04    # 1위가 2위보다 이만큼 높아야 「중간」 (진짜 중복 0.06, 연속 신설 조문 중앙 0.03 — 리포트 48)
 RE_NUM = re.compile(r"(\d+(?:\.\d+)?)\s*(회|일|년|개월|주|시간|원|만원|억원|%|퍼센트|명|인|배|세|급|호봉)")
 GENERIC_TITLES = {"목적", "정의", "적용범위", "시행일", "기타", "준용", "위임", "경과조치", "다른 규정과의 관계"}
 
@@ -226,7 +228,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                     continue
                 a = next((x for x in regs[orid]["articles"] if x["id"] == nb["article_id"] and not x["deleted"]), None)
                 if a:
-                    cands[a["id"]] = (a, f"의미 이웃 ({nb['score']:.2f})", orid)
+                    cands[a["id"]] = (a, f"의미 이웃 ({nb['score']:.2f})" + ("" if nb.get("gap", 1.0) >= NEIGHBOR_GAP else "·간격 작음"), orid)
         for aid, (a, path, orid) in cands.items():
             loc = {"reg_id": orid, "unit": "본문", "article": a["label"], "para": 0}
             low = path.startswith("의미")
@@ -268,7 +270,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                         reason += f". 상대 조문에 현행 값 {kept}이 있음 — 개정안 값 {_sorted_nums(N - O)}과 맞춰야 하는지 확인"
             add(_item("review", loc, regs, quote=a["title"] or a["label"], context=_item_text(a), path=path,
                       target=f"{reg['name']} {c['old_label']}", reason=reason, handling="판단 가능" if not deleted else "판단 불가",
-                      priority="낮음" if low else "중간"))
+                      priority=("참고" if "간격 작음" in path else "낮음") if low else "중간"))
 
         # 법령 대조 ②: 같은 제목의 법령 조문 (법률 DB) — 인용이 없어도 같은 주제의 법정 기준과 대조 (S01 육아휴직 → 남녀고용평등법 제19조)
         if lawdb is not None and not deleted and old_art["title"] not in GENERIC_TITLES:
@@ -304,18 +306,25 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                 continue
             body = " ".join(it["norm"] for it in na["items"])[:400]
             q = embed_fn([f"{reg['name']} > {na['label']}({na['title']})\n{body}"])[0]
-            seen = set()
-            for sc_, ch in index.search(q, rid, k=20):
-                a = old_by_id.get(ch["article_id"])
-                if not a or a["deleted"] or ch["article_id"] in seen or sc_ < DUP_MIN:
-                    continue
-                if len(seen) >= 2:
+            # 조(항 벡터 여럿)마다 최고 점수 → 절대 점수(바닥)와 1위-2위 간격(상대)을 함께 본다. 바닥만 쓰면 같은 개정에서 함께 신설한
+            # 연속 조문에 오경보가 나고(34건 중 4건), 간격만 쓰면 모든 조문이 후보가 된다 (벡터 검색은 「없음」을 돌려주지 않음). 리포트 48
+            best: dict[str, float] = {}
+            for sc_, ch in index.search(q, rid, k=40):
+                aid = ch["article_id"]
+                if aid in old_by_id and not old_by_id[aid]["deleted"] and sc_ > best.get(aid, -1.0):
+                    best[aid] = sc_
+            ranked = sorted(best.items(), key=lambda x: -x[1])
+            gap = (ranked[0][1] - ranked[1][1]) if len(ranked) > 1 else 1.0
+            for n_, (aid, sc_) in enumerate(ranked[:2]):
+                if sc_ < DUP_MIN:
                     break
-                seen.add(ch["article_id"])
+                a = old_by_id[aid]
+                clear = n_ == 0 and sc_ >= DUP_HIGH and gap >= DUP_GAP    # 점수가 높고 다른 조문보다 뚜렷이 비슷함
                 add({"category": "review", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": a["label"], "para": 0,
                      "quote": a["title"] or a["label"], "context": _item_text(a), "path": "의미 이웃(같은 내규)", "target": f"{reg['name']} 신설 {na['label']}({na['title']})",
-                     "priority": "중간" if sc_ >= DUP_HIGH else "낮음", "handling": "판단 가능",
-                     "reason": f"신설하는 「{na['label']}({na['title']})」와 같은 내규의 기존 {a['label']}({a['title']})이 내용이 비슷함 ({sc_:.2f}) — 중복·충돌이 아닌지 확인"})
+                     "priority": "중간" if clear else "낮음", "handling": "판단 가능",
+                     "reason": f"신설하는 「{na['label']}({na['title']})」와 같은 내규의 기존 {a['label']}({a['title']})이 내용이 비슷함 ({sc_:.2f}"
+                               + (f", 다음으로 비슷한 조문보다 {gap:.2f} 높음" if n_ == 0 else "") + ") — 중복·충돌이 아닌지 확인"})
 
     # 5) 재검사: 바뀐 조 자체의 인용을 개정안 기준으로 다시 해석
     if new_reg is not None and registry_factory is not None and baseline_edges is not None:
@@ -378,7 +387,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                          "priority": "중간", "handling": "고칠 수 있음", "suggest": e["right"],
                          "reason": f"오타·맞춤법 의심: 「{e['wrong']}」 → 「{e['right']}」? ({e.get('reason', '')}) — 로컬 모델 지적, 확인 필요"})
     order = {"breaks": 0, "new_conflicts": 1, "resolved": 2, "review": 3, "law_check": 4, "undeterminable": 5, "info": 6}
-    prio = {"높음": 0, "중간": 1, "낮음": 2}
+    prio = {"높음": 0, "중간": 1, "낮음": 2, "참고": 3}
     out.sort(key=lambda x: (order[x["category"]], prio.get(x.get("priority"), 3)))
     return out
 

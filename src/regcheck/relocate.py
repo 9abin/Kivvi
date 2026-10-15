@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 
 SEARCH_K = 40
+MIN_GAP = 0.2        # 1위가 2위보다 이만큼 높아야 「확실」 (정답 원장 19건: 점수 0.3만 보면 오답 1위 11건 중 9건이 통과, 간격 0.2를 더하면 3건 — 리포트 48)
 MIN_SCORE = 0.3      # eval_relocate.py로 정함: 정답 있는 사례 22/25 찾음, 판단 불가 3/4 못 찾음 (리포트 45)
 MAX_CHARS = 700
 
@@ -122,4 +123,9 @@ def relocate(edge: dict, regs: dict, index, embed, rerank, scope: str = "cascade
                     "why": "인용 문장과 내용이 가장 비슷한 조" + (" (다른 규정 — 인용한 규정 안에서 맞는 조를 못 찾음)" if other else "")})
     in_target = [c for c in out if tgt and c["reg_id"] == tgt["reg_id"]]
     found = bool(out) and (out[0]["tier"] == "문서 명시" or bool(in_target and in_target[0]["score"] >= MIN_SCORE))
-    return {"candidates": out, "found": found, "query": query}
+    # 확실 = 문서 명시이거나, 점수(바닥)와 1위-2위 간격(상대)이 둘 다 충분. 벡터·reranker는 「없음」을 돌려주지 않으므로 바닥이 필요하고
+    # 후보가 여럿이면(간격 작음) 1위를 믿지 못하므로 간격이 필요하다
+    model_ranked = [x for x in ranked if arts[x[1]][0]["reg_id"] == (tgt["reg_id"] if tgt else "")]
+    gap = (model_ranked[0][0] - model_ranked[1][0]) if len(model_ranked) > 1 else 1.0
+    confident = bool(out) and (out[0]["tier"] == "문서 명시" or (found and gap >= MIN_GAP))
+    return {"candidates": out, "found": found, "confident": confident, "gap": round(float(gap), 3), "query": query}

@@ -115,3 +115,35 @@ def test_same_regulation_duplicate_on_new_article():
     found = [f for f in check(cs, rs, RELS, new_reg=new, dup=(lambda t: [np.zeros(3)], Idx())) if f["path"] == "의미 이웃(같은 내규)"]
     assert [(f["article"], f["priority"]) for f in found] == [("제3조", "중간")]          # 0.84는 중간, 0.60은 기준 아래
     assert "신설하는 「제3조의2(점검 결과 공개)」" in found[0]["reason"]
+
+
+def test_duplicate_priority_needs_floor_and_gap():
+    """바닥(0.82 이상) AND 간격(1위가 2위보다 0.04 이상): 비슷한 이웃이 여럿이면(연속 조문) 점수가 높아도 낮음."""
+    import numpy as np
+    rs = regs()
+    new, ch = apply(rs["1"], parse_amendment("제3조의 다음에 제3조의2를 다음과 같이 신설한다.\n제3조의2(점검 결과 공개) 관리자는 점검 결과를 공개한다."))
+    cs = {"reg_id": "1", "reg_name": "갑규정", "amendment": "", "changes": ch, "label_map": label_map(ch)}
+
+    def run_with(hits):
+        class Idx:
+            def search(self, q, reg_id=None, k=5):
+                return hits
+        return [f for f in check(cs, rs, RELS, new_reg=new, dup=(lambda t: [np.zeros(3)], Idx())) if f["path"] == "의미 이웃(같은 내규)"]
+    clear = run_with([(0.86, {"article_id": "1:3"}), (0.78, {"article_id": "1:4"})])      # 간격 0.08
+    close = run_with([(0.86, {"article_id": "1:3"}), (0.84, {"article_id": "1:4"})])      # 간격 0.02
+    low = run_with([(0.80, {"article_id": "1:3"}), (0.60, {"article_id": "1:4"})])        # 간격은 크지만 바닥 아래
+    assert sorted((f["article"], f["priority"]) for f in clear) == [("제3조", "중간"), ("제4조", "낮음")]    # 2위(0.78)는 바닥을 넘으므로 낮음으로 함께 나옴
+    assert sorted((f["article"], f["priority"]) for f in close) == [("제3조", "낮음"), ("제4조", "낮음")]
+    assert [(f["article"], f["priority"]) for f in low] == [("제3조", "낮음")]
+
+
+def test_neighbor_small_gap_is_demoted_to_reference():
+    """의미 이웃: 다음 이웃보다 0.03 이상 높으면 낮음, 비슷한 이웃이 여럿(간격 작음)이면 참고 (지우지 않음)."""
+    rs = regs()
+    rs["3"]["articles"][1]["items"][0]["norm"] = "관리자는 매월 카드 사용 내역을 보고한다."
+    new, ch = apply(rs["1"], parse_amendment('제3조 중 "매월"을 "분기마다"로 한다.'))
+    cs = {"reg_id": "1", "reg_name": "갑규정", "amendment": "", "changes": ch, "label_map": label_map(ch)}
+    def prio(gap):
+        nb = {"1:3": [{"article_id": "3:2", "score": 0.83, "gap": gap}]}
+        return [f["priority"] for f in check(cs, rs, RELS, new_reg=new, neighbors=nb) if f["path"].startswith("의미 이웃")]
+    assert prio(0.08) == ["낮음"] and prio(0.01) == ["참고"]
