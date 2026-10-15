@@ -46,16 +46,18 @@ QUERY_PLAN = False
 # 2026.10.13 결정: 끈다. 190문항 중 73문항에서 작동하는데 "동기"→이해충돌처럼 엉뚱하게 붙는 경우가 있고,
 # 벡터 검색이 구어체 질문도 대부분 찾는다. 켬/끔 효과 측정은 docs/팀_실행_안내.md 2.1 (아직 결과 없음).
 USE_SYNONYMS = False
-# 항 단위로 찾고 조 전체를 넘기기(small-to-big): 항 단위 색인(팀 DB, regulations_para)에서 검색·리랭크한 뒤,
+# 기준 구성 (2026.10.15 확정): 팀 DB 항 단위 색인(.env PG_DATABASE=regulations_team)에서 찾고 조 전체를 넘긴다 (아래 세 스위치 켬).
+# 조 단위 색인 `regulations`는 초기 실험용 잔재로 남겨 두었을 뿐 기본이 아니다. 그 DB로 돌릴 때는 아래 세 스위치를 0으로 끈다.
+# 항 단위로 찾고 조 전체를 넘기기(small-to-big): 항 단위 색인(팀 DB)에서 검색·리랭크한 뒤,
 # 같은 조의 항은 하나로 합쳐 서로 다른 조 k개를 고르고, 각 조의 모든 항을 이어 붙여 답변에 넘긴다.
-# 조 단위 색인에서는 효과가 없다. 측정 중(2026.10.14)이라 기본 끔. 환경 변수 RETURN_ARTICLE=1로 켤 수 있다.
-RETURN_ARTICLE = os.environ.get("RETURN_ARTICLE", "0") == "1"
-# RETURN_ARTICLE일 때만 쓰인다 (측정 중, 기본 끔):
+# 조 단위 색인에서는 효과가 없다. 측정(2026.10.14, 검색_설계.md 9.6) 뒤 2026.10.15 기본 켬. 환경 변수 RETURN_ARTICLE=0으로 끈다.
+RETURN_ARTICLE = os.environ.get("RETURN_ARTICLE", "1") == "1"
+# RETURN_ARTICLE일 때만 쓰인다 (기본 켬):
 #  HIGHLIGHT_HITS: 근거마다 역할(질문으로 찾은 조문 / 인용된 조문(참고) / 같은 조 다른 항)을 적고, 조를 올린 항 앞에 "▶"를 붙인다.
 #                  인용 조문이 많으면 찾은 조문이 묻혀서 넣었다. 답변 모델에 그 뜻을 알려 준다(generate.HIT_NOTE).
 #  LAW_CITES_FROM_HITS: 외부 법령 인용은 찾은 항이 직접 인용한 것만 따라간다 (조 안 다른 항의 법령 인용은 뺀다).
-HIGHLIGHT_HITS = os.environ.get("HIGHLIGHT_HITS", "0") == "1"
-LAW_CITES_FROM_HITS = os.environ.get("LAW_CITES_FROM_HITS", "0") == "1"
+HIGHLIGHT_HITS = os.environ.get("HIGHLIGHT_HITS", "1") == "1"
+LAW_CITES_FROM_HITS = os.environ.get("LAW_CITES_FROM_HITS", "1") == "1"
 # 응답 시간 줄이기 (2026.10.14). 호출 순서만 바꿔서 답변 내용은 같다. 끄면(FAST_PIPELINE=0) 예전처럼 하나씩 차례로 한다.
 #  - GPT 질문 바꿔쓰기를 기다리는 동안 원래 질문의 벡터·BM25 검색을 먼저 한다
 #  - 충돌 확인을 답변 작성과 동시에 한다 (근거만 보므로 답변을 기다릴 필요가 없다)
