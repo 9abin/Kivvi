@@ -156,7 +156,7 @@ class LawDB:
         return key, law["조문"].get(key)
 
 
-def amendment_lines(law: dict, key: str) -> list[str]:
+def amendment_lines(law: dict, key: str, limit: int = 5) -> list[str]:
     """개정문에서 그 조를 고친 문장 (예: 「제23조제2항 중 "훼손되지"를 …로 한다.」).
     타법개정이면 개정문은 다른 법의 부칙이므로 「{이 법} 일부를 다음과 같이 개정한다」 이후 부분만 본다."""
     text = law["개정문"]
@@ -168,7 +168,32 @@ def amendment_lines(law: dict, key: str) -> list[str]:
     no, _, br = key.partition("의")
     pat = re.compile(rf"(?:^|\s)제{no}조" + (rf"의{br}" if br else r"(?!의\d)") + r"(?:제\d+항|제\d+호|\s|를|중|의|부터)")
     verb = re.compile(r"(로 한다|삭제한다|신설한다|같이 한다)$")
-    return [x.strip().lstrip(".").strip() for x in re.split(r"(?<=다)\.\s*", text) if pat.search(x) and verb.search(x.strip())][:5]
+    return [x.strip().lstrip(".").strip() for x in re.split(r"(?<=다)\.\s*", text) if pat.search(x) and verb.search(x.strip())][:limit]
+
+
+def touches_cited(lines: list[str], key: str, raw: str) -> bool:
+    """개정문이 우리가 인용한 항·호를 건드리나. 판단할 수 없으면 True (알림을 남긴다).
+    예: 인용 「제2조제6호」, 개정문 「제2조제3호마목 중 … 같은 호 아목부터 …」 → 제3호만 바뀜 → False (261015 정밀도 표본)"""
+    no, _, br = key.partition("의")
+    art = rf"제{no}조" + (rf"의{br}" if br else r"(?!의\d)")
+    m = re.search(art + r"\s*(?:제\s*(\d+)\s*항)?\s*(?:제\s*(\d+)\s*호)?", re.sub(r"\s", "", raw))
+    if not lines or not m or not (m.group(1) or m.group(2)):
+        return True                       # 개정문을 모르거나 조 전체를 인용
+    my_hang, my_ho = m.group(1), m.group(2)
+    units = []
+    for x in lines:
+        x = re.sub(r"\s", "", x)
+        for u in re.finditer(rf"(?:{art}|같은조)(?:제(\d+)항)?(?:제(\d+)호)?", x):
+            units.append((u.group(1), u.group(2)))
+    if not units or any(h is None and o is None for h, o in units):
+        return True                       # 조 전체를 바꿈 (「제N조를 다음과 같이 한다」, 「제N조 중 …」)
+    for h, o in units:
+        if my_hang and h and h != my_hang:
+            continue
+        if my_ho and o and o != my_ho and (not my_hang or h == my_hang or h is None):
+            continue
+        return True
+    return False
 
 
 def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: dict[str, str] | None = None) -> tuple[list[dict], dict]:
@@ -252,6 +277,9 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
             continue
         seen.add(k)
         lines = amendment_lines(law, key)
+        if not moved and not touches_cited(amendment_lines(law, key, limit=100), key, e["raw"]):   # 판단은 개정문 전체로 (보여 줄 때만 5문장)
+            stats["개정이 인용한 항·호와 무관"] = stats.get("개정이 인용한 항·호와 무관", 0) + 1
+            continue
         out.append({**base, "type": "법령_개정확인", "priority": "높음" if moved else "중간",
                     "note": f"「{law['title']}」 {base['law_article']}({u.get('조문제목') or ''}) "
                             + ("이동 " if moved else "") + f"{law['구분'] or '개정'} 시행 {fmt(when)}"

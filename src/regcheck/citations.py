@@ -371,6 +371,10 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                 if EXTERNAL_HINT.search(pre_s[: m.start()].rstrip()):
                     return ("external", m.group(1))
                 return ("regulation", m.group(1))
+            # 「…법률」에 따른 제9조 제1항 — 법령 이름과 조 사이에 연결어가 낀 경우 (법령만, 261015 정밀도 표본)
+            if (m := re.search(r"「([^」]+)」\s*(?:에\s*따른|에\s*의한|에서\s*정한|에\s*규정된)\s*$", pre_s)) and \
+                    (is_law(m.group(1)) or m.group(1) in registry.law_aliases):
+                return law(m.group(1), last_law, quoted=True)
             if SELF_WORDS.search(pre_s):
                 return None
             # 「규칙 제39조」처럼 앞에 이름 없이 '규칙'만 오면 법령의 규칙(예: 산업안전보건기준에 관한 규칙)이다.
@@ -409,6 +413,10 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                 if any(s <= m.start() < e for s, e in spans):
                     continue
                 gap = text[last_end : m.start()] if last_end >= 0 else None
+                # 나열 사이의 괄호 설명은 빼고 본다: 「도로교통법」 제44조제1항(술에 취한 상태에서의 운전금지), 제44조제2항
+                # (261015 정밀도 표본: 뒤 조를 이 규정의 조로 읽어 「대상 없음」 오탐)
+                # 「영 제5조제1호, 제9조제1호가목, 제13조제2항」의 「가목」도 나열 안의 표기 (261015 정밀도 표본 2차)
+                gap = re.sub(r"\([^()]*\)|[가-하]목", "", gap) if gap is not None else None
                 if gap is not None and LIST_GAP.match(gap) and len(gap) < 12:
                     doc = last_doc
                 else:
@@ -477,6 +485,12 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                     continue
                 kind_ch = m["k1"] or m["k2"] or m["k3"]
                 num = m["n1"] or m["n2"] or m["n3"] or m["n4"]
+                # 번호 없는 「별표·별지서식」·「[별표] 또는 [별표 1]」은 서식 종류를 말하는 개념어지 인용이 아니다
+                # (내규관리규정 제10조·제18조, 261015 정밀도 표본)
+                if not num and re.match(r"\s*(?:·|또는|및|이나|와|과)\s*별지", text[m.end():m.end() + 8]):
+                    continue
+                if text[max(0, m.start() - 1):m.start()] == "[" and text[m.end():m.end() + 2].lstrip()[:1] == "]":
+                    continue   # 본문 속 「[별표 1]」은 표기 방법의 예시 (별표 머리글은 별표 단위라 여기 오지 않음)
                 no = int(num) if num else None
                 br = int(m["b1"] or m["b2"] or m["b3"] or m["b4"] or m["b5"] or 0)
                 raw, ctx = m.group(0).strip(), _context(text, m.start(), m.end())

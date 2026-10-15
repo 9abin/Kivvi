@@ -18,7 +18,7 @@ from regcheck import runinfo  # noqa: E402
 from regcheck.history import merge, stale_citations  # noqa: E402
 from regcheck.lawdb import DEFAULT as LAW_DB, LawDB, law_changes  # noqa: E402
 from regcheck.citations import Registry  # noqa: E402
-from regcheck.findings import duplicate_articles, duplicate_paragraphs, from_edges, from_semantic  # noqa: E402
+from regcheck.findings import duplicate_articles, duplicate_paragraphs, from_edges, from_semantic, tier  # noqa: E402
 
 
 def main() -> None:
@@ -38,6 +38,7 @@ def main() -> None:
     if LAW_DB.exists():   # 한석희 법률 DB가 있으면 법령 개정 대조 (필수 ③)
         law_found, law_stats = law_changes(regs, edges, LawDB(LAW_DB), Registry(list(regs.values())).law_aliases)
         found += law_found
+    found = tier(found)   # 근거 종류 + 오탐만 나온 묶음은 「참고」로 (리포트 46)
     for n, f in enumerate(found):
         f["fid"] = f"F{n:05d}"
         f["reg_name"] = regs[f["reg_id"]]["name"]

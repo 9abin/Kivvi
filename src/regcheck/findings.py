@@ -53,6 +53,28 @@ def from_edges(edges: list[dict]) -> list[dict]:
     return out
 
 
+BASIS = {"rule": "문서 명시", "law_db": "문서 명시", "history": "문서 명시", "semantic": "모델 추정"}
+
+
+def tier(found: list[dict]) -> list[dict]:
+    """근거 종류(basis)를 붙이고, 원문 대조 정밀도 표본에서 오탐만 나온 묶음을 「참고」로 내린다 (지우지 않음 — 재현율 유지).
+      · 의미 비교만 근거(벡터 1단계, 개정 이력 신호 없음): 261015 표본 2차례 13건 중 실제 문제 0 → 참고
+      · 부칙 안의 대상 없음·규정명 미확인·대상 불일치: 옛 번호·옛 이름 경과조치일 수 있음 (02-specs 제외 원칙, 부칙 정책 미정) → 참고
+    """
+    for f in found:
+        f["basis"] = BASIS.get(f.get("method"), "문서 명시")
+        both = "개정 이력" in (f.get("note") or "")   # 의미 비교와 개정 이력, 서로 독립인 두 신호가 겹침
+        if f.get("method") == "semantic" and f.get("priority") == "낮음" and not both:
+            f["priority"] = "참고"
+        elif f.get("method") in ("semantic", "history") and f.get("priority") == "높음" and not (f["method"] == "semantic" and both):
+            # 높음은 두 신호가 겹칠 때만 (261015 표본: 설명구만 1/4, 개정 이력만 0/2 — week1에 맞춘 기준이 넘침). 신호 하나면 중간
+            f["priority"] = "중간"
+        elif f.get("unit") == "부칙" and f["type"] in ("인용_대상없음", "규정명_미확인", "인용_대상불일치"):
+            f["priority"] = "참고"
+            f["note"] = (f.get("note") or "") + " / 부칙의 옛 번호·이름일 수 있음 (경과조치)"
+    return found
+
+
 def from_semantic(rows: list[dict]) -> list[dict]:
     """scripts/semantic_check.py 의 '대상 불일치 후보' (설명구 + reranker)."""
     out = []

@@ -1,7 +1,8 @@
 """점검 결과 정밀도 표본: 점검 결과 중 일부를 사람이 판정해 「알린 것 중 실제 문제가 몇 %인가」를 잰다 (에이전트 평가 — 정밀도).
 
   uv run python scripts/eval_precision.py make            # 표본 30건 → eval/agent/precision_sample.csv (엑셀로 열어 「판정」 칸 채우기)
-  uv run python scripts/eval_precision.py score           # 판정한 CSV 채점 → 방법별·전체 정밀도와 95% 구간
+  uv run python scripts/eval_precision.py score           # 판정한 CSV 채점 → 방법별·우선순위별·전체 정밀도와 95% 구간
+  --csv 경로  다른 표본 파일 (예: 수정 뒤 재측정용 eval/agent/precision_sample_v2.csv). make는 기존 표본(precision_sample*.csv)에 든 결과를 뺀다
 표본: 방법(rule·semantic·law_db·history)별로 점검 결과 수에 비례해 뽑는다 (비례 층화라 전체 정밀도는 단순 비율로 계산해도 치우치지 않음).
 판정 기준 (「판정」 칸에 셋 중 하나)
   맞음  담당자가 확인·수정할 가치가 있는 실제 문제 (법령 개정확인은: 바뀐 법령 내용이 이 내규 문장과 실제로 관련 있음)
@@ -25,7 +26,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from regcheck.review import key_baseline  # noqa: E402
 
 CSV = ROOT / "eval" / "agent" / "precision_sample.csv"
-COLS = ["번호", "판정", "메모", "유형", "방법", "규정", "위치", "인용 문구", "원문 문장", "도구 설명", "도구 제안", "인용 대상의 실제 내용", "review_key"]
+COLS = ["번호", "판정", "메모", "유형", "방법", "우선순위", "규정", "위치", "인용 문구", "원문 문장", "도구 설명", "도구 제안", "인용 대상의 실제 내용", "review_key"]
 METHOD = {"rule": "규칙", "semantic": "의미 비교", "law_db": "법률 DB", "history": "개정 이력"}
 
 
@@ -46,8 +47,13 @@ def target_text(f: dict, edges: dict, arts: dict) -> str:
     return out
 
 
-def make(n: int, seed: int) -> None:
+def make(n: int, seed: int, path: Path = CSV) -> None:
     found = jl(ROOT / "out" / "findings" / "findings.jsonl")
+    used = set()   # 앞서 뽑은 표본(precision_sample*.csv)에 든 결과는 빼서, 수정 뒤 새 표본으로 다시 잰다 (같은 표본으로 고치고 재면 과적합)
+    for old in path.parent.glob("precision_sample*.csv"):
+        if old != path:
+            used |= {r.get("review_key") for r in csv.DictReader(old.open(encoding="utf-8-sig"))}
+    found = [f for f in found if key_baseline(f) not in used]
     edges = {(e["src"], e["raw"]): e for e in jl(ROOT / "out" / "edges" / "edges_all.jsonl")}
     regs = [json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json")]
     arts = {a["id"]: {**a, "reg_name": r["name"]} for r in regs for a in r["articles"]}
@@ -65,16 +71,16 @@ def make(n: int, seed: int) -> None:
     for m in sorted(by):
         pick += rng.sample(by[m], quota[m])
     rng.shuffle(pick)   # 방법별로 몰려 있으면 판정이 앞 결과에 끌려가서 섞는다
-    CSV.parent.mkdir(parents=True, exist_ok=True)
-    with CSV.open("w", encoding="utf-8-sig", newline="") as fp:   # 엑셀에서 한글이 깨지지 않게 BOM
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8-sig", newline="") as fp:   # 엑셀에서 한글이 깨지지 않게 BOM
         w = csv.writer(fp)
         w.writerow(COLS)
         for i, f in enumerate(pick, 1):
             place = f"{f.get('unit', '')} {f.get('article', '')}" + (f" 제{f['para']}항" if str(f.get("para") or "0") != "0" else "")
-            w.writerow([i, "", "", f["type"].replace("_", " "), METHOD.get(f["method"], f["method"]), f["reg_name"], place.strip(),
+            w.writerow([i, "", "", f["type"].replace("_", " "), METHOD.get(f["method"], f["method"]), f.get("priority", ""), f["reg_name"], place.strip(),
                         f.get("quote", ""), (f.get("context") or "").replace("\n", " "), f.get("note", ""), f.get("suggest", ""),
                         target_text(f, edges, arts), key_baseline(f)])
-    print(f"표본 {len(pick)}건 (점검 결과 {total}건 중, 방법별 {dict(quota)}) → {CSV}")
+    print(f"표본 {len(pick)}건 (점검 결과 {total}건 중, 앞 표본 {len(used)}건 제외, 방법별 {dict(quota)}) → {path}")
     print("엑셀로 열어 「판정」 칸에 맞음 / 아님 / 모름을 적고 저장한 뒤: uv run python scripts/eval_precision.py score")
 
 
@@ -87,8 +93,8 @@ def wilson(k: int, n: int) -> tuple[float, float]:
     return max(0.0, c - h), min(1.0, c + h)
 
 
-def score() -> None:
-    with CSV.open(encoding="utf-8-sig") as fp:
+def score(path: Path = CSV) -> None:
+    with path.open(encoding="utf-8-sig") as fp:
         rows = list(csv.DictReader(fp))
     bad = [r["번호"] for r in rows if r["판정"].strip() not in ("맞음", "아님", "모름")]
     if bad:
@@ -97,6 +103,8 @@ def score() -> None:
     groups = collections.defaultdict(list)
     for r in rows:
         groups[r["방법"]].append(r["판정"].strip())
+        if r.get("우선순위"):
+            groups["우선순위 " + r["우선순위"]].append(r["판정"].strip())
         groups["전체"].append(r["판정"].strip())
     print("방법\t표본\t맞음\t아님\t모름\t정밀도(맞음/(맞음+아님))\t95% 구간")
     for g in [*sorted(k for k in groups if k != "전체"), "전체"]:
@@ -118,13 +126,15 @@ def main() -> None:
     ap.add_argument("cmd", choices=["make", "score"])
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=14)
+    ap.add_argument("--csv", default=str(CSV))
     a = ap.parse_args()
+    path = Path(a.csv)
     if a.cmd == "make":
-        if CSV.exists() and any(r.get("판정") for r in csv.DictReader(CSV.open(encoding="utf-8-sig"))):
-            sys.exit(f"이미 판정한 표본이 있습니다: {CSV} (덮어쓰지 않음)")
-        make(a.n, a.seed)
+        if path.exists() and any(r.get("판정") for r in csv.DictReader(path.open(encoding="utf-8-sig"))):
+            sys.exit(f"이미 판정한 표본이 있습니다: {path} (덮어쓰지 않음)")
+        make(a.n, a.seed, path)
     else:
-        score()
+        score(path)
 
 
 if __name__ == "__main__":

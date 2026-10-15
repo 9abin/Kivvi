@@ -50,7 +50,7 @@ review_data.json
 #   scripts/eval_inject.py --seed N, scripts/eval_spell.py make, scripts/eval_precision.py make (판정 중인 csv는 로컬에만)
 /eval/agent/inject_s*.jsonl
 /eval/agent/spell_s*.jsonl
-/eval/agent/precision_sample.csv
+/eval/agent/precision_sample*.csv
 /eval/agent/term_sample.csv
 /eval/agent/neighbor_sample.csv
 
