@@ -20,6 +20,8 @@ import re
 
 from .findings import locate
 
+DUP_MIN = 0.78   # 신설 조문 ↔ 같은 내규 기존 조문 유사도 (0.78~0.82는 인접 주제가 많아 낮음, 0.82 이상 중간)
+DUP_HIGH = 0.82
 RE_NUM = re.compile(r"(\d+(?:\.\d+)?)\s*(회|일|년|개월|주|시간|원|만원|억원|%|퍼센트|명|인|배|세|급|호봉)")
 GENERIC_TITLES = {"목적", "정의", "적용범위", "시행일", "기타", "준용", "위임", "경과조치", "다른 규정과의 관계"}
 
@@ -108,9 +110,10 @@ def _strict(phrase: str) -> str:
 
 def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: list[dict] | None = None,
           new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None, spell_model: str | None = None,
-          neighbors: dict | None = None) -> list[dict]:
+          neighbors: dict | None = None, dup=None) -> list[dict]:
     """cs: out/changes/{id}/changeset.json, regs: 원문 파싱 결과(규정ID → 레코드), rels: 관련 조항 표.
     new_reg/registry_factory를 주면 바뀐 조의 인용을 다시 해석한다. vector=(model, Index)면 의미 유사 후보를 더한다.
+    dup=(embed 함수, Index)를 주면 신설 조문이 같은 내규의 기존 조문과 겹치는지 확인한다 (261015 시연 리허설: 이미 있는 제11조와 같은 내용을 신설).
     neighbors(regcheck.neighbors.load)를 주면 미리 계산한 의미 이웃(다른 규정의 같은 주제로 보이는 조)을 낮은 우선순위로 더한다."""
     rid = cs["reg_id"]
     reg = regs[rid]
@@ -292,6 +295,28 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
         for it in term_impacts(reg, new_reg, regs, rels):
             add(it)
 
+    # 4-3) 같은 내규 중복: 신설 조문과 비슷한 기존 조문 (유사도 0.78 이상, 관계없는 조문은 0.6 안팎, 중복은 0.83 — 리포트 48)
+    if dup is not None and new_reg is not None and inserted_labels:
+        embed_fn, index = dup
+        old_by_id = {a["id"]: a for a in reg["articles"]}
+        for na in new_reg["articles"]:
+            if na["label"] not in inserted_labels or na.get("_origin") or na.get("deleted"):
+                continue
+            body = " ".join(it["norm"] for it in na["items"])[:400]
+            q = embed_fn([f"{reg['name']} > {na['label']}({na['title']})\n{body}"])[0]
+            seen = set()
+            for sc_, ch in index.search(q, rid, k=20):
+                a = old_by_id.get(ch["article_id"])
+                if not a or a["deleted"] or ch["article_id"] in seen or sc_ < DUP_MIN:
+                    continue
+                if len(seen) >= 2:
+                    break
+                seen.add(ch["article_id"])
+                add({"category": "review", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": a["label"], "para": 0,
+                     "quote": a["title"] or a["label"], "context": _item_text(a), "path": "의미 이웃(같은 내규)", "target": f"{reg['name']} 신설 {na['label']}({na['title']})",
+                     "priority": "중간" if sc_ >= DUP_HIGH else "낮음", "handling": "판단 가능",
+                     "reason": f"신설하는 「{na['label']}({na['title']})」와 같은 내규의 기존 {a['label']}({a['title']})이 내용이 비슷함 ({sc_:.2f}) — 중복·충돌이 아닌지 확인"})
+
     # 5) 재검사: 바뀐 조 자체의 인용을 개정안 기준으로 다시 해석
     if new_reg is not None and registry_factory is not None and baseline_edges is not None:
         from .citations import extract_edges
@@ -380,16 +405,16 @@ def basis_of(path: str) -> str:
     return "문서 명시"
 
 
-def coverage(found: list[dict], vector_on: bool = False, spell_on: bool = False, neighbors_on: bool = False) -> dict:
+def coverage(found: list[dict], vector_on: bool = False, spell_on: bool = False, neighbors_on: bool = False, dup_on: bool = False) -> dict:
     """이번 점검이 확인한 경로(켜짐·꺼짐)와 경로별로 찾은 곳 수, 구조상 확인하지 못하는 유형.
     담당자가 시스템이 본 범위를 알고 판단하게 한다. 찾은 곳 0 = 확인했으나 영향 없음 (꺼진 경로와 구분)."""
-    off = {"의미 유사": not (vector_on or neighbors_on), "오타": not spell_on}
+    off = {"의미 유사": not (vector_on or neighbors_on or dup_on), "오타": not spell_on}
     paths = []
     for name, keys in PATH_FAMILY:
         n = sum(1 for f in found if f.get("category") != "info" and str(f.get("path", "")).startswith(keys))
         paths.append({"name": name, "on": not off.get(name, False), "found": n})
     notes = list(NOT_COVERED)
-    if not (vector_on or neighbors_on):
+    if not (vector_on or neighbors_on or dup_on):
         notes.insert(0, "의미 유사(벡터) 후보를 끈 상태 — 표현이 다른 같은 주제 조문은 같은 제목이거나 정의 용어를 쓸 때만 확인")
     return {"paths": paths, "not_covered": notes}
 
@@ -448,7 +473,7 @@ def score(found: list[dict], expected: dict) -> dict:
 
 
 def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5, lawdb=None,
-        spell_model: str | None = None, neighbors: dict | None = None) -> list[dict]:
+        spell_model: str | None = None, neighbors: dict | None = None, dup=None) -> list[dict]:
     """changeset 하나 점검 (개정안 사본을 다시 만들어 재검사까지). scripts/check_change.py와 검토 화면이 같이 쓴다."""
     from .amend import apply, parse_amendment
     from .citations import Registry
@@ -459,4 +484,4 @@ def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], ve
         return Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])
 
     return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k, lawdb=lawdb,
-                 spell_model=spell_model, neighbors=neighbors)
+                 spell_model=spell_model, neighbors=neighbors, dup=dup)

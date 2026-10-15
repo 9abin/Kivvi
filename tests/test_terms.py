@@ -99,3 +99,19 @@ def test_basis_of_paths():
     assert basis_of("인용받음") == basis_of("재검사(법령명)") == basis_of("나가는 인용") == "문서 명시"
     assert basis_of("같은 제목") == basis_of("정의 용어(다른 규정 사용)") == "낱말 일치"
     assert basis_of("의미 이웃 (0.83)") == basis_of("오타 의심") == "모델 추정"
+
+
+def test_same_regulation_duplicate_on_new_article():
+    """신설 조문이 같은 내규의 기존 조문과 비슷하면 확인 필요 카드 (임베딩은 시험용 가짜)."""
+    import numpy as np
+    rs = regs()
+    new, ch = apply(rs["1"], parse_amendment("제3조의 다음에 제3조의2를 다음과 같이 신설한다.\n제3조의2(점검 결과 공개) 관리자는 점검 결과를 공개한다."))
+    cs = {"reg_id": "1", "reg_name": "갑규정", "amendment": "", "changes": ch, "label_map": label_map(ch)}
+
+    class Idx:
+        def search(self, q, reg_id=None, k=5):
+            assert reg_id == "1"                                         # 같은 내규 안에서만
+            return [(0.84, {"article_id": "1:3"}), (0.60, {"article_id": "1:1"})]
+    found = [f for f in check(cs, rs, RELS, new_reg=new, dup=(lambda t: [np.zeros(3)], Idx())) if f["path"] == "의미 이웃(같은 내규)"]
+    assert [(f["article"], f["priority"]) for f in found] == [("제3조", "중간")]          # 0.84는 중간, 0.60은 기준 아래
+    assert "신설하는 「제3조의2(점검 결과 공개)」" in found[0]["reason"]

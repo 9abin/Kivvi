@@ -101,6 +101,12 @@ def _vector_index():
     return np.load(d / "embeddings.npy"), [json.loads(l) for l in (d / "chunks.jsonl").read_text(encoding="utf-8").splitlines()]
 
 
+@lru_cache(maxsize=1)
+def _vector_obj():
+    from regcheck.vectors import Index
+    return Index(ROOT / "out" / "vector" / "BAAI__bge-m3")
+
+
 def targets(text: str) -> dict:
     """규정·조를 모르는 개정 요청 → 고칠 후보 조문 3개 (regcheck.target). 점수가 낮으면 로컬 LLM으로 바꿔 써 한 번 더 찾는다."""
     from regcheck.nl import _post
@@ -153,8 +159,9 @@ def draft(chunk: str, request: str, user: str) -> dict:
         cs = res["changeset"]
         cs["id"], cs["title"] = cid, request
         from regcheck.neighbors import load as load_neighbors   # 의미 이웃 (out/relations/neighbors.json, 없으면 끔)
+        model, _ = _models()
         pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None, spell_model=SPELL_MODEL,
-                            neighbors=load_neighbors())
+                            neighbors=load_neighbors(), dup=(lambda t: model.encode(t, normalize_embeddings=True), _vector_obj()))
     n = _store(cid, reg_id, f"{label} — {request}" if label else request, cs, pkg, chunk, user, request, {"chunk": chunk, "model": DRAFT_MODEL})
     return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
 
