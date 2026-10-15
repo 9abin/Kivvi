@@ -101,7 +101,16 @@ def find(text: str) -> dict:
     hit = next(((d, t) for d, t in docs if t.replace(" ", "") in flat), None)
     m = re.search(r"제?\s*(\d+)\s*조(?:\s*의\s*(\d+))?(?:\s*제?\s*(\d+)\s*항)?", text)
     if not hit or not m:
-        return {"error": "규정명과 조 번호를 함께 적어 주세요 (예: 인사규정 제30조 2항)"}
+        # 규정명·조 번호가 없으면 「무엇을 바꾸고 싶은지」로 보고 고칠 후보 조문을 찾는다 (사람이 고름, regcheck.target)
+        if len(text.strip()) < 4:
+            return {"error": "규정명과 조 번호, 또는 바꾸고 싶은 내용을 적어 주세요 (예: 인사규정 제30조 2항 / 출장비 기준을 올리고 싶다)"}
+        t = web_agent.targets(text)
+        for c in t["candidates"]:
+            rows = q("select chunk_id from amend.chunk_detail where reg_id = %s and label = %s and chunk_id is not null "
+                     "group by chunk_id, hang order by min(hang) limit 1", c["reg_id"], c["label"])
+            c["chunk"] = rows[0]["chunk_id"] if rows else None
+        t["candidates"] = [c for c in t["candidates"] if c["chunk"]]
+        return t
     label = f"제{m.group(1)}조" + (f"의{m.group(2)}" if m.group(2) else "")
     rows = q("select chunk_id from amend.chunk_detail where reg_id = %s and label = %s and chunk_id is not null "
              "group by chunk_id, hang order by min(hang)", hit[0], label)

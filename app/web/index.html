@@ -65,9 +65,10 @@
         </div>
         <form class="finder" id="finder" role="search">
           <label class="sr-only" for="finder-q">조문 열기</label>
-          <input id="finder-q" type="search" placeholder="조문 열기 (예: 인사규정 제30조 2항)">
+          <input id="finder-q" type="search" placeholder="조문 열기 (예: 인사규정 제30조 2항) 또는 바꾸고 싶은 내용">
           <button type="submit" class="btn tertiary small">열기</button>
         </form>
+        <div class="finder-cands" id="finder-cands" hidden></div>
         <div class="panel" id="panel-src" role="tabpanel" aria-labelledby="tab-src"></div>
         <div class="panel" id="panel-amend" role="tabpanel" aria-labelledby="tab-amend" hidden></div>
         <div class="panel-foot"><button type="button" class="btn tertiary small" id="copy-art"><span data-icon="copy"></span>조문 복사</button><button type="button" class="btn secondary small" id="full-reg">규정 전문 보기</button></div>

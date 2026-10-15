@@ -74,6 +74,50 @@ def corpus():
     return regs, rels, edges
 
 
+_own_models: dict = {}
+
+
+def _models():
+    """임베딩·reranker: 채팅(가빈 검색기)이 이미 올린 같은 모델이 있으면 같이 쓴다 (8GB GPU에 두 벌 올리지 않게)."""
+    try:
+        import web_chat
+        a = web_chat._state.get("assistant")
+        if a is not None:
+            return a.searcher.model, a.searcher.reranker
+    except Exception:
+        pass
+    if not _own_models:
+        from sentence_transformers import CrossEncoder, SentenceTransformer
+        m = SentenceTransformer("BAAI/bge-m3", device="cuda")
+        m.half()
+        _own_models["m"], _own_models["r"] = m, CrossEncoder("BAAI/bge-reranker-v2-m3", device="cuda", model_kwargs={"dtype": "float16"})
+    return _own_models["m"], _own_models["r"]
+
+
+@lru_cache(maxsize=1)
+def _vector_index():
+    import numpy as np
+    d = ROOT / "out" / "vector" / "BAAI__bge-m3"
+    return np.load(d / "embeddings.npy"), [json.loads(l) for l in (d / "chunks.jsonl").read_text(encoding="utf-8").splitlines()]
+
+
+def targets(text: str) -> dict:
+    """규정·조를 모르는 개정 요청 → 고칠 후보 조문 3개 (regcheck.target). 점수가 낮으면 로컬 LLM으로 바꿔 써 한 번 더 찾는다."""
+    from regcheck.nl import _post
+    from regcheck.target import find_targets
+    regs, _, _ = corpus()
+    model, rr = _models()
+
+    def rewrite(q: str) -> str:
+        msg = [{"role": "system", "content": "회사 내부 규정(내규)의 조문을 찾는 검색어를 만든다. 요청을 내규 조문에 나올 법한 낱말로 바꿔 한 줄로만 쓴다. 설명 없이 검색어만."},
+               {"role": "user", "content": q}]
+        return _post(DRAFT_MODEL, msg, timeout=60).strip().splitlines()[0][:80]
+
+    with _lock:   # GPU를 채팅·개정안 작성과 나눠 쓴다
+        return find_targets(text, regs, _vector_index(), lambda t: model.encode(t, normalize_embeddings=True),
+                            lambda q, ts: rr.predict([(q, t) for t in ts], batch_size=16, show_progress_bar=False).tolist(), rewrite=rewrite)
+
+
 def package_path(cid: str) -> Path:
     return ROOT / "out" / "changes" / cid / "package.json"
 

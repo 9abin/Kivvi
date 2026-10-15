@@ -317,3 +317,7 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 .procedure .steps small { color: var(--gray-60); font-size: 13px; }
 .procedure .steps p { margin: 4px 0; font-size: 15px; line-height: 1.65; color: var(--gray-70); }
 .procedure .steps .basis { display: block; }
+
+/* 개정 위치 찾기 후보 (조문 열기 검색창 아래) */
+.finder-cands { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
+.finder-cands .btn { justify-content: space-between; gap: 8px; text-align: left; }

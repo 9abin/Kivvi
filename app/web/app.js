@@ -544,7 +544,22 @@
     e.preventDefault();
     const text = $("#finder-q").value.trim(); if (!text) return;
     if (!LIVE) return toast("서버에 연결되지 않아 예시만 볼 수 있습니다");
-    try { const f = await api(`/api/find?q=${encodeURIComponent(text)}`); await loadArticle(f.chunk); selectTab("src"); } catch (err) { toast(err.message); }
+    const box = clear($("#finder-cands")); box.hidden = true;
+    try {
+      const f = await api(`/api/find?q=${encodeURIComponent(text)}`);
+      if (f.chunk) { await loadArticle(f.chunk); selectTab("src"); return; }
+      // 규정·조를 모르는 요청 → 고칠 후보 조문 (모델 추정). 위치는 사람이 고른다
+      if (!f.candidates || !f.candidates.length) return toast("고칠 조문 후보를 찾지 못했습니다. 규정 이름이나 조 번호를 적어 주세요");
+      box.append(el("p", "hint", (f.confident ? "고칠 조문 후보입니다. 맞는 조문을 고르세요" : "후보가 확실하지 않습니다. 규정 이름이나 조 번호를 함께 적으면 더 정확합니다")
+        + (f.rewritten ? ` (다시 찾은 검색어: 「${f.rewritten}」)` : "")));
+      f.candidates.forEach((c) => {
+        const b = el("button", "btn secondary small"); b.type = "button";
+        b.append(`${c.reg_name} ${c.label}(${c.title})`, el("small", "basis model", `모델 추정 ${Math.round(c.score * 100)}`));
+        b.addEventListener("click", async () => { box.hidden = true; await loadArticle(c.chunk); selectTab("src"); });
+        box.append(b);
+      });
+      box.hidden = false;
+    } catch (err) { toast(err.message); }
   });
   async function pollModel() {
     try {
