@@ -467,6 +467,14 @@
       const ol = el("ol", "qlist"); C.questions.forEach((x) => ol.append(el("li", null, `${x.where} — ${x.question}`))); s.append(ol); doc.append(s);
     }
     if (C.breaks) doc.append(el("p", "hint", `연쇄 수정: 깨지는 인용 ${C.breaks[0] ?? 0} → ${C.breaks[1] ?? 0}`));
+    if (C.coverage) {   // 이번 점검이 확인한 경로와, 구조상 확인하지 못하는 유형 (판단은 사람이 이 범위를 알고 한다)
+      const s = el("section", "coverage"); s.append(el("h2", null, "확인한 범위"));
+      const on = (C.coverage.paths || []).filter((x) => x.on), off = (C.coverage.paths || []).filter((x) => !x.on);
+      s.append(el("p", null, "확인한 경로 (찾은 곳): " + on.map((x) => `${x.name} ${x.found}`).join(" · ")
+        + (off.length ? ` / 끈 경로: ${off.map((x) => x.name).join(" · ")}` : "")));
+      const ul = el("ul", "hint"); (C.coverage.not_covered || []).forEach((t) => ul.append(el("li", null, `확인하지 못함: ${t}`)));
+      s.append(ul); doc.append(s);
+    }
     fillProcedure(C, doc);
 
     const SD = clear($("#side"));

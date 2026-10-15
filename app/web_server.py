@@ -261,7 +261,7 @@ def changeset(cid: str) -> dict:
             "companion": [{"reg": x["reg_name"], "amendment": x.get("amendment") or "", "manual": len(x.get("manual") or [])} for x in pkg.get("companion", [])],
             "addendum": pkg.get("addendum_draft") or "", "questions": pkg.get("questions") or [],
             "breaks": [pkg.get("breaks_before"), pkg.get("breaks_after")] if pkg else None,
-            "impacts": impacts, "has_package": bool(pkg)}
+            "impacts": impacts, "has_package": bool(pkg), "coverage": pkg.get("coverage")}
 
 
 def regulation(reg_id: str) -> dict:

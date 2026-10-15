@@ -105,7 +105,9 @@ def draft(chunk: str, request: str, user: str) -> dict:
         cid = "W" + datetime.now().strftime("%y%m%d-%H%M%S")
         cs = res["changeset"]
         cs["id"], cs["title"] = cid, request
-        pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None, spell_model=SPELL_MODEL)
+        from regcheck.neighbors import load as load_neighbors   # 의미 이웃 (out/relations/neighbors.json, 없으면 끔)
+        pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None, spell_model=SPELL_MODEL,
+                            neighbors=load_neighbors())
     n = _store(cid, reg_id, f"{label} — {request}" if label else request, cs, pkg, chunk, user, request, {"chunk": chunk, "model": DRAFT_MODEL})
     return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
 

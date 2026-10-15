@@ -8,6 +8,7 @@
   문서 인용    바뀐 규정을 문서 단위로 인용하면서 바뀐 조의 제목어가 문맥에 있는 곳
   같은 제목    다른 규정에서 제목이 같은 조 (메타데이터)
   의미 유사    벡터 상위 k (보조, 우선순위 낮음)
+  정의 용어    정의 조의 용어 정의가 바뀌면 그 용어를 쓰는 곳 (인용 없이 이어짐, regcheck.terms)
   재검사       바뀐 조 자체의 인용을 개정안 기준으로 다시 해석
 분류: breaks(깨짐) / new_conflicts(새 충돌 후보) / resolved(해소 후보) / review(확인 필요) / law_check(법령 대조) / undeterminable(판단 불가)
 """
@@ -106,9 +107,11 @@ def _strict(phrase: str) -> str:
 
 
 def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: list[dict] | None = None,
-          new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None, spell_model: str | None = None) -> list[dict]:
+          new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None, spell_model: str | None = None,
+          neighbors: dict | None = None) -> list[dict]:
     """cs: out/changes/{id}/changeset.json, regs: 원문 파싱 결과(규정ID → 레코드), rels: 관련 조항 표.
-    new_reg/registry_factory를 주면 바뀐 조의 인용을 다시 해석한다. vector=(model, Index)면 의미 유사 후보를 더한다."""
+    new_reg/registry_factory를 주면 바뀐 조의 인용을 다시 해석한다. vector=(model, Index)면 의미 유사 후보를 더한다.
+    neighbors(regcheck.neighbors.load)를 주면 미리 계산한 의미 이웃(다른 규정의 같은 주제로 보이는 조)을 낮은 우선순위로 더한다."""
     rid = cs["reg_id"]
     reg = regs[rid]
     out: list[dict] = []
@@ -213,6 +216,14 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                     cands[a["id"]] = (a, f"의미 유사 ({score:.2f})", ch["reg_id"])
                 if sum(1 for v in cands.values() if v[1].startswith("의미")) >= k:
                     break
+        if neighbors:   # 의미 이웃: 미리 계산한 조문 대 조문 유사도 (인용·제목·용어로 이어지지 않아도)
+            for nb in neighbors.get(o, []):
+                orid = nb["article_id"].split(":")[0]
+                if orid == rid or orid not in regs or nb["article_id"] in cands:
+                    continue
+                a = next((x for x in regs[orid]["articles"] if x["id"] == nb["article_id"] and not x["deleted"]), None)
+                if a:
+                    cands[a["id"]] = (a, f"의미 이웃 ({nb['score']:.2f})", orid)
         for aid, (a, path, orid) in cands.items():
             loc = {"reg_id": orid, "unit": "본문", "article": a["label"], "para": 0}
             low = path.startswith("의미")
@@ -242,6 +253,16 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                             continue
             reason = (f"삭제된 조와 같은 주제 — 이 조가 삭제된 조에 기대는지 확인" if deleted
                       else f"같은 주제 조문 — 바뀐 내용과 맞는지 확인")
+            if path.startswith("의미 이웃"):
+                reason = "같은 주제로 보이는 다른 규정 조문 (조문끼리의 의미 유사도로 찾음) — " + (
+                    "삭제된 조에 기대는지 확인" if deleted else "바뀐 내용과 맞는지 확인")
+                if not deleted and new_txt:   # 상대 조에 현행 값이 그대로 있으면 함께 맞춰야 할 수 있음 (판정 아님)
+                    diff = _changed_items(old_art, new_art)
+                    O = set().union(*(_nums(d["old"]) for d in diff)) if diff else _nums(old_txt)
+                    N = set().union(*(_nums(d["new"]) for d in diff)) if diff else _nums(new_txt)
+                    kept = _sorted_nums((O - N) & _nums(_item_text(a)))
+                    if kept:
+                        reason += f". 상대 조문에 현행 값 {kept}이 있음 — 개정안 값 {_sorted_nums(N - O)}과 맞춰야 하는지 확인"
             add(_item("review", loc, regs, quote=a["title"] or a["label"], context=_item_text(a), path=path,
                       target=f"{reg['name']} {c['old_label']}", reason=reason, handling="판단 가능" if not deleted else "판단 불가",
                       priority="낮음" if low else "중간"))
@@ -264,6 +285,12 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
             add({"category": "undeterminable", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": c["old_label"],
                  "para": 0, "quote": "", "path": "삭제", "target": "", "priority": "높음", "handling": "판단 불가",
                  "reason": "삭제 사유와 이관 여부(다른 조로 옮기는지, 제도를 없애는지)는 회사 결정. 위 근거 소멸 조항의 처리가 여기에 달림"})
+
+    # 4-2) 정의 용어: 정의 조의 용어 정의가 바뀌면 그 용어를 쓰는 곳 (인용이 없어도 이어지는 관계, regcheck.terms)
+    if new_reg is not None:
+        from .terms import impacts as term_impacts
+        for it in term_impacts(reg, new_reg, regs, rels):
+            add(it)
 
     # 5) 재검사: 바뀐 조 자체의 인용을 개정안 기준으로 다시 해석
     if new_reg is not None and registry_factory is not None and baseline_edges is not None:
@@ -331,6 +358,29 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
     return out
 
 
+PATH_FAMILY = [("인용", ("인용받음", "문서 인용", "재검사", "연쇄 수정")), ("같은 제목", ("같은 제목",)), ("정의 용어", ("정의 용어",)),
+               ("의미 유사", ("의미",)), ("법령", ("나가는 인용", "같은 제목 법령")), ("오타", ("오타",))]
+NOT_COVERED = [
+    "인용·정의 용어·같은 제목으로 이어지지 않는 맥락상 영향 (예: 제도·절차가 바뀌어 다른 규정의 절차도 바뀌어야 하는 경우)",
+    "별표·별지 안의 내용 비교 (인용 깨짐만 확인)",
+    "법령과의 충돌은 이 조가 인용한 법령 조문과 제목이 같은 법령 조문만 대조",
+]
+
+
+def coverage(found: list[dict], vector_on: bool = False, spell_on: bool = False, neighbors_on: bool = False) -> dict:
+    """이번 점검이 확인한 경로(켜짐·꺼짐)와 경로별로 찾은 곳 수, 구조상 확인하지 못하는 유형.
+    담당자가 시스템이 본 범위를 알고 판단하게 한다. 찾은 곳 0 = 확인했으나 영향 없음 (꺼진 경로와 구분)."""
+    off = {"의미 유사": not (vector_on or neighbors_on), "오타": not spell_on}
+    paths = []
+    for name, keys in PATH_FAMILY:
+        n = sum(1 for f in found if f.get("category") != "info" and str(f.get("path", "")).startswith(keys))
+        paths.append({"name": name, "on": not off.get(name, False), "found": n})
+    notes = list(NOT_COVERED)
+    if not (vector_on or neighbors_on):
+        notes.insert(0, "의미 유사(벡터) 후보를 끈 상태 — 표현이 다른 같은 주제 조문은 같은 제목이거나 정의 용어를 쓸 때만 확인")
+    return {"paths": paths, "not_covered": notes}
+
+
 def _reidentify(new_reg: dict) -> dict:
     """번호가 바뀐 사본의 조문ID를 새 번호로 다시 붙인다 (재검사의 대상 해석용)."""
     nr = copy.deepcopy(new_reg)
@@ -385,7 +435,7 @@ def score(found: list[dict], expected: dict) -> dict:
 
 
 def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5, lawdb=None,
-        spell_model: str | None = None) -> list[dict]:
+        spell_model: str | None = None, neighbors: dict | None = None) -> list[dict]:
     """changeset 하나 점검 (개정안 사본을 다시 만들어 재검사까지). scripts/check_change.py와 검토 화면이 같이 쓴다."""
     from .amend import apply, parse_amendment
     from .citations import Registry
@@ -396,4 +446,4 @@ def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], ve
         return Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])
 
     return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k, lawdb=lawdb,
-                 spell_model=spell_model)
+                 spell_model=spell_model, neighbors=neighbors)

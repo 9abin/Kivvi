@@ -66,6 +66,7 @@ def main() -> None:
     ap.add_argument("--per", type=int, default=8, help="문제 심기 유형마다 문항 수")
     ap.add_argument("--split", choices=["all", "dev", "test"], default="all")
     ap.add_argument("--spell", default="", help="오타 검사 로컬 모델 (예: qwen3.5:9b). 비우면 끔")
+    ap.add_argument("--neighbors", action="store_true", help="의미 이웃(out/relations/neighbors.json) 경로를 켬")
     a = ap.parse_args()
     regs = {r["reg_id"]: r for r in (json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json"))}
     edges = jl(ROOT / "out" / "edges" / "edges_all.jsonl")
@@ -89,6 +90,9 @@ def main() -> None:
     rec = collections.defaultdict(lambda: [0, 0])          # 기대 분류 → [탐지, 전체]
     kind_rec = collections.defaultdict(lambda: [0, 0])     # 문항 종류 → [탐지, 전체]
     false_major, clean_n, results, failed = 0, 0, [], []
+    from regcheck.neighbors import load as load_neighbors
+    nb = load_neighbors() if a.neighbors else None
+    nb_cards = []                                          # 문항마다 의미 이웃 카드 수 (검토 부담)
     for x in items:
         reg = regs[x["reg_id"]]
         try:
@@ -96,7 +100,8 @@ def main() -> None:
         except AmendError as e:
             failed.append((x["id"], str(e)[:80]))
             continue
-        found = run_check(cs, regs, rels, edges, lawdb=db, spell_model=a.spell or None) + law_num(cs, regs, edges, db)
+        found = run_check(cs, regs, rels, edges, lawdb=db, spell_model=a.spell or None, neighbors=nb) + law_num(cs, regs, edges, db)
+        nb_cards.append(sum(1 for f in found if str(f.get("path", "")).startswith("의미 이웃")))
         for f in found:   # 채점용 분류: 새 문장 속 법령명 → law_name, 오타 의심 → typo
             if f.get("path") == "재검사(법령명)":
                 f["category"] = "law_name"
@@ -130,7 +135,7 @@ def main() -> None:
         sc = json.loads(p.read_text(encoding="utf-8"))
         ch = sc["change"]
         cs, _ = build_changeset(regs[ch["target"]["reg_id"]], ch["amendment"], sc["id"], sc["title"])
-        sres = score_scenario(run_check(cs, regs, rels, edges, lawdb=db), sc["expected"])
+        sres = score_scenario(run_check(cs, regs, rels, edges, lawdb=db, neighbors=nb), sc["expected"])
         tot = [r for cat, rows in sres.items() if cat != "not_affected" for r in rows]
         real.append((sc["id"], sum(r["result"] == "탐지" for r in tot), len(tot),
                      sum(r["result"] == "오탐" for r in sres.get("not_affected", []))))
@@ -146,6 +151,8 @@ def main() -> None:
     for k, (h, n) in sorted(kind_rec.items()):
         print(f"  {k}\t{h}/{n}")
     print(f"\n문제 없어야 하는 문항 {clean_n}개: 높은 우선순위(깨짐·새 충돌) 경보 {false_major}건")
+    if nb is not None:
+        print(f"의미 이웃 카드: 문항 {len(nb_cards)}개 중 {sum(1 for n in nb_cards if n)}개에서 · 합계 {sum(nb_cards)}장 (문항당 최대 {max(nb_cards, default=0)})")
     print("실제 사례: " + ", ".join(f"{i} {h}/{n} (오탐 {fp})" for i, h, n, fp in real))
     for f in failed:
         print(f"  [적용 실패] {f}")

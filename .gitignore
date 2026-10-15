@@ -51,6 +51,8 @@ review_data.json
 /eval/agent/inject_s*.jsonl
 /eval/agent/spell_s*.jsonl
 /eval/agent/precision_sample.csv
+/eval/agent/term_sample.csv
+/eval/agent/neighbor_sample.csv
 
 # 화면 글꼴 파일 (app/web/fonts/README.md)
 *.woff2
