@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from regcheck.db import load_env  # noqa: E402
 
+SPELL_MODEL = os.environ.get("SPELL_MODEL", "qwen3.5:9b") or None   # 오타 검사 로컬 모델 (바뀐 문장만). 운영은 더 큰 모델 권장(리포트 38), 끄려면 SPELL_MODEL=
 DRAFT_MODEL = os.environ.get("DRAFT_MODEL", "qwen2.5:7b")   # 자연어 개정 평가에서 7/8 (리포트 28). 9B는 6/8
 STATES = {"accept": "수락", "reject": "기각"}
 _lock = threading.Lock()
@@ -38,6 +39,29 @@ def write_conn():
                           password=e["PG_PASSWORD"], gssencmode="disable", connect_timeout=5)
     con.execute("SET ROLE editor")
     return con
+
+
+# 역할별로 할 수 있는 일 (내규관리규정: 입안·협의는 업무담당부서, 확정은 대표이사 결재·이사회 의결(제22조), 등록·공지는 내규담당부서(제23조)).
+# 시연용이라 로그인은 없고 화면이 역할을 보낸다. 실제 배포는 회사 계정(SSO)의 권한으로 바꾼다 — 서버가 역할을 확인하는 이 자리가 그 연결점이다.
+ROLE_LABEL = {"employee": "일반 직원", "editor": "개정 담당자", "approver": "승인권자"}
+ACTIONS = {"draft": ("editor",), "decide": ("editor",), "submit": ("editor",), "lawname_create": ("editor",), "scan": ("editor",),
+           "approve": ("approver",), "reject": ("approver",), "publish": ("editor",)}
+SELF_BLOCK = ("approve", "reject")   # 기안한 사람이 자기 개정안을 승인·반려할 수 없다
+
+
+def guard(role: str, action: str, user: str, cid: str = "") -> dict | None:
+    """허용되지 않으면 {"error": ...}, 되면 None"""
+    allowed = ACTIONS[action]
+    if not role:
+        return {"error": "역할이 지정되지 않았습니다 (요청에 role: employee·editor·approver 필요)"}
+    if role not in allowed:
+        return {"error": f"{ROLE_LABEL.get(role, role)} 역할에는 허용되지 않는 작업입니다 ({'·'.join(ROLE_LABEL[r] for r in allowed)} 전용)"}
+    if action in SELF_BLOCK and cid:
+        with write_conn() as con:
+            row = con.execute("SELECT created_by FROM amend.changeset WHERE id = %s", (cid,)).fetchone()
+        if row and row[0] and row[0] == user:
+            return {"error": f"기안한 사람({user})은 자기 개정안을 승인·반려할 수 없습니다. 승인권자가 따로 처리해야 합니다"}
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -81,7 +105,7 @@ def draft(chunk: str, request: str, user: str) -> dict:
         cid = "W" + datetime.now().strftime("%y%m%d-%H%M%S")
         cs = res["changeset"]
         cs["id"], cs["title"] = cid, request
-        pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None)
+        pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None, spell_model=SPELL_MODEL)
     n = _store(cid, reg_id, f"{label} — {request}" if label else request, cs, pkg, chunk, user, request, {"chunk": chunk, "model": DRAFT_MODEL})
     return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
 
@@ -162,7 +186,7 @@ def lawname_create(reg_ids: list[str], user: str) -> dict:
             title = "법령명 정비 — " + ", ".join(f"{r['old']} → {r['new']}" for r in names)
             cs, _ = build_changeset(regs[pk["reg_id"]], pk["amendment"], cid, title)
             cs["kind"] = "lawname"
-            pkg = build_package(cs, regs, rels, edges, lawdb=db)
+            pkg = build_package(cs, regs, rels, edges, lawdb=db, spell_model=SPELL_MODEL)
             n = _store(cid, pk["reg_id"], title, cs, pkg, None, user, title, {"kind": "lawname", "names": names})
             made.append({"id": cid, "reg": pk["reg_name"], "impacts": n})
     return {"made": made, "skipped": skipped}

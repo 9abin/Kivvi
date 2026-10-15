@@ -51,7 +51,17 @@ def _ask_openai(text: str, model: str) -> list[dict]:
     return [e for e in errs if isinstance(e, dict) and e.get("wrong") and e.get("right")]
 
 
+_CACHE: dict[tuple[str, str], list[dict]] = {}   # 연쇄 수정 라운드마다 같은 문장을 다시 묻지 않는다
+
+
 def _ask(text: str, model: str, timeout: int = 300) -> list[dict]:
+    key = (model, text)
+    if key not in _CACHE:
+        _CACHE[key] = _ask_uncached(text, model, timeout)
+    return _CACHE[key]
+
+
+def _ask_uncached(text: str, model: str, timeout: int = 300) -> list[dict]:
     if model.startswith("openai:"):
         return _ask_openai(text, model.split(":", 1)[1])
     body = {"model": model, "stream": False, "think": False, "format": "json",

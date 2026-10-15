@@ -15,7 +15,8 @@ API (GET, JSON)
   /api/regulation?reg=24024        규정 전문 · /api/chat/status 답변 모델 상태 · /api/package?id= 패키지 내려받기
 POST (JSON): /api/ask {q} 채팅(로컬 9B) · /api/draft {chunk, request} 개정안 작성 · /api/decide {id, key, state} · /api/submit {id}
              /api/approve·reject·publish {id} 승인 흐름 · /api/feedback · /api/scan/start {law, rebase} 변경 감시 탐색
-GET /api/scan/snapshots 반입된 법률 DB 판 · /api/scan?id= 탐색 결과(새로 생김·해결됨) · /api/lawname 법령명 일괄 정비 초안
+GET /api/scan/snapshots 반입된 법률 DB 판 · /api/scan?id= 탐색 결과(새로 생김·해결됨) · /api/lawname 법령명 일괄 정비 초안 · /api/procedure?id= 개정 절차 안내
+POST는 모두 role(employee·editor·approver)을 보낸다. 승인·반려는 승인권자만(기안자 본인은 불가), 공포(등록·공지)는 담당자
 POST /api/lawname/create {regs} 고른 규정마다 법령명 정비 개정안(초안)  GET /api/final?id= 최종안 미리보기 · /api/package?id=&final=1
 쓰기는 app/web_agent.py가 editor 역할로 (개정안·영향·결정 기록만)
 """
@@ -295,6 +296,7 @@ ROUTES = {
     "/api/scan/snapshots": lambda p: web_watch.snapshots(),
     "/api/scan": lambda p: web_watch.result(p.get("id", "")),
     "/api/lawname": lambda p: web_agent.lawname_plan(),
+    "/api/procedure": lambda p: procedure(p.get("id", "")),
 }
 # 쓰기·실행 (POST, JSON 본문). user는 화면의 사용자 이름 (시연용 — 실제 배포는 로그인 계정으로 바꿈)
 def with_open_changes(res: dict) -> dict:
@@ -312,16 +314,32 @@ def with_open_changes(res: dict) -> dict:
 
 POSTS = {
     "/api/ask": lambda b: with_open_changes(web_chat.ask(b.get("q", ""))),
-    "/api/draft": lambda b: web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
-    "/api/decide": lambda b: web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
-    "/api/submit": lambda b: web_agent.submit(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
-    "/api/approve": lambda b: web_agent.approve(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
-    "/api/reject": lambda b: web_agent.reject_cs(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
-    "/api/publish": lambda b: web_agent.publish(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/draft": lambda b: allowed(b, "draft") or web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
+    "/api/decide": lambda b: allowed(b, "decide") or web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
+    "/api/submit": lambda b: allowed(b, "submit") or web_agent.submit(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/approve": lambda b: allowed(b, "approve") or web_agent.approve(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/reject": lambda b: allowed(b, "reject") or web_agent.reject_cs(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/publish": lambda b: allowed(b, "publish") or web_agent.publish(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
     "/api/feedback": lambda b: feedback(b),
-    "/api/scan/start": lambda b: web_watch.start(b.get("law", ""), b.get("user", "web"), bool(b.get("rebase"))),
-    "/api/lawname/create": lambda b: web_agent.lawname_create(list(b.get("regs") or []), b.get("user", "web")),
+    "/api/scan/start": lambda b: allowed(b, "scan") or web_watch.start(b.get("law", ""), b.get("user", "web"), bool(b.get("rebase"))),
+    "/api/lawname/create": lambda b: allowed(b, "lawname_create") or web_agent.lawname_create(list(b.get("regs") or []), b.get("user", "web")),
 }
+
+
+def procedure(cid: str) -> dict:
+    """이 개정안이 거칠 내부 절차 (regcheck.procedure — 규정 원문에서 읽음)"""
+    rows = q("select reg_id, payload->>'kind' as kind from amend.changeset where id = %s", cid)
+    if not rows:
+        return {"error": f"개정안이 없습니다: {cid}"}
+    from regcheck.procedure import for_changeset
+    regs, _, _ = web_agent.corpus()
+    return {"id": cid, "reg": reg_titles().get(rows[0]["reg_id"], rows[0]["reg_id"]),
+            "steps": for_changeset(rows[0]["reg_id"], regs, rows[0]["kind"] or "")}
+
+
+def allowed(b: dict, action: str) -> dict | None:
+    """역할 확인 (web_agent.guard). 허용되면 None, 아니면 {"error"}"""
+    return web_agent.guard(b.get("role", ""), action, b.get("user", ""), b.get("id", ""))
 
 
 def feedback(b: dict) -> dict:

@@ -59,7 +59,7 @@ def _label_now(origin_label: str, src_article_id: str, label_map: dict) -> str |
     return origin_label
 
 
-def build_package(cs: dict, regs: dict, rels: list[dict], edges: list[dict], lawdb=None, vector=None) -> dict:
+def build_package(cs: dict, regs: dict, rels: list[dict], edges: list[dict], lawdb=None, vector=None, spell_model: str | None = None) -> dict:
     reg = regs[cs["reg_id"]]
     base_text = cs["amendment"].rstrip()
     added: list[str] = []
@@ -76,7 +76,7 @@ def build_package(cs: dict, regs: dict, rels: list[dict], edges: list[dict], law
             added = added[: -len(rounds[-2]["added"])] if len(rounds) > 1 and rounds[-2].get("added") else added
             break
         cur["fixed"] = sorted(fixed)
-        found = run_check(cur, regs, rels, edges, vector=vector, lawdb=lawdb)
+        found = run_check(cur, regs, rels, edges, vector=vector, lawdb=lawdb, spell_model=spell_model)
         same_breaks = [f for f in found if f["category"] == "breaks" and f["reg_id"] == reg["reg_id"] and f.get("suggest")
                        and f.get("unit", "본문") == "본문"]   # 별표·별지 안 인용은 개정문으로 못 고침 → 아래 수작업 목록
         rec = {"round": rnd, "breaks": sum(f["category"] == "breaks" for f in found), "fixable": len(same_breaks), "added": []}

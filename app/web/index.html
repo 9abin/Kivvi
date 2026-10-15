@@ -15,7 +15,7 @@
     <nav aria-label="주 메뉴">
       <ul class="nav gnb">
         <li><button type="button" data-view="chat" aria-current="page">질의응답</button></li>
-        <li class="editor-only"><button type="button" data-view="review">개정안 검토</button></li>
+        <li class="staff-only"><button type="button" data-view="review">개정안 검토</button></li>
         <li class="editor-only"><button type="button" data-view="watch">변경 감시</button></li>
         <li><button type="button" disabled title="문서 검토 (김가빈 담당, 준비 중)">문서 검토 <span class="badge gray">준비 중</span></button></li>
       </ul>
@@ -25,6 +25,7 @@
       <div class="seg" role="group" aria-label="권한 (시연용 전환)">
         <button type="button" data-role="employee" aria-pressed="false">일반 직원</button>
         <button type="button" data-role="editor" aria-pressed="true">개정 담당자</button>
+        <button type="button" data-role="approver" aria-pressed="false">승인권자</button>
       </div>
       <div class="who"><span class="avatar" id="user-initial"></span><span><b id="user-name"></b><small id="user-dept"></small></span></div>
     </div>
@@ -36,8 +37,8 @@
       <div class="scroll">
         <h2 class="side-title">대화 기록</h2>
         <div id="conv-list"></div>
-        <div class="editor-only">
-          <h2 class="side-title">내 개정안</h2>
+        <div class="staff-only">
+          <h2 class="side-title">개정안</h2>
           <ul class="nav" id="cs-list"></ul>
         </div>
       </div>

@@ -5,14 +5,18 @@
 (function () {
   const theme = new URLSearchParams(location.search).get("theme");
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
-  const S = window.SAMPLE, USER = S.user.name;
+  const S = window.SAMPLE;
+  // 역할(시연용 전환): 일반 직원 / 개정 담당자(기안·결정·제출·공포 처리) / 승인권자(승인·반려). 서버가 역할을 확인한다 (app/web_agent.guard)
+  const PERSON = { employee: { name: "일반 직원(시연)", dept: "" }, editor: { name: S.user.name, dept: S.user.dept }, approver: { name: "승인권자(시연)", dept: "대표이사·이사회" } };
+  let USER = S.user.name;
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const clear = (n) => { while (n.firstChild) n.firstChild.remove(); return n; };
   let LIVE = false, CURRENT = null, CS = null, ROLE_NOW = "editor";
   const isEditor = () => ROLE_NOW === "editor";
+  const isApprover = () => ROLE_NOW === "approver";
   const api = async (path, body) => {
-    const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: USER, ...body }) } : { cache: "no-store" });
+    const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: USER, role: ROLE_NOW, ...body }) } : { cache: "no-store" });
     const j = await r.json().catch(() => ({ error: r.statusText }));
     if (!r.ok || j.error) throw new Error(j.error || r.statusText);
     return j;
@@ -362,7 +366,7 @@
   async function refreshChangesets() { if (LIVE) renderChangesetList(await api("/api/changesets")); }
   // 상태: 초안 → 검토(제출) → 승인(최종안 저장) → 공포.  검토 중 반려 → 기각 (sql/amend_schema.sql CHECK)
   const CS_LABEL = { 초안: ["초안", ""], 검토: ["검토 요청됨", "accent"], 승인: ["승인", "pos"], 공포: ["공포", "pos"], 기각: ["반려", "neg"] };
-  const editable = (C) => C.status === "초안" || C.status === "검토";
+  const editable = (C) => (C.status === "초안" || C.status === "검토") && isEditor();   // 카드 수락·기각은 담당자만. 승인권자는 보고 승인·반려
   async function renderFinal(C, doc) {
     if (!LIVE || !["검토", "승인", "공포"].includes(C.status)) return;
     let F;
@@ -389,6 +393,22 @@
     if (F.addendum_draft) { const d = el("div", "comp"); d.append(el("b", null, "부칙"), el("p", null, F.addendum_draft)); s.append(d); }
     doc.prepend(s);
   }
+  // 개정 절차 안내: 이 개정안이 거칠 내부 절차 (GET /api/procedure — 규정 원문에서 읽음). 판정이 아니라 안내
+  async function fillProcedure(C, doc) {
+    if (!LIVE) return;
+    let P;
+    try { P = await api(`/api/procedure?id=${encodeURIComponent(C.id)}`); } catch (e) { return; }
+    if (CS !== C) return;
+    const s = el("section", "procedure");
+    s.append(el("h2", null, "개정 절차 안내"), el("p", "hint", `「${P.reg}」 개정이 거칠 절차입니다. 근거는 이 회사 규정 원문이며, 해당 여부는 담당 부서가 확인합니다.`));
+    const ol = el("ol", "steps");
+    P.steps.forEach((x) => {
+      const li = el("li"), top = el("div", "top");
+      top.append(el("span", "tag " + ({ "필수": "", "해당": "accent", "확인 필요": "warn" }[x.status] || ""), x.status), el("b", null, x.step), el("small", null, x.who));
+      li.append(top, el("p", null, x.note), el("small", "basis", `근거: ${x.basis}`)); ol.append(li);
+    });
+    s.append(ol); doc.append(s);
+  }
   async function fillLawCards(C) {
     const slots = [...document.querySelectorAll("#side .law-slot")];
     if (!LIVE || !slots.length) return;
@@ -408,15 +428,18 @@
       if (!LIVE) return toast("서버에 연결되지 않았습니다");
       try { const r = await api(path, { id: C.id }); toast(msg(r)); await loadChangeset(C.id); await refreshChangesets(); } catch (e) { toast(e.message, 6000); }
     };
+    if (!isEditor() && !isApprover()) return;
     if (C.status === "초안") {
+      if (!isEditor()) { const b = btn("primary", "담당자가 제출해야 합니다", () => {}); b.disabled = true; row.append(b); return; }
       if (C.has_package) row.append(link("패키지 내려받기", `/api/package?id=${encodeURIComponent(C.id)}`));
       row.append(btn("primary", "검토자에게 제출", act("/api/submit", (r) => `${C.id} 검토 요청함${r.undecided ? ` — 미결정 ${r.undecided}건 포함` : ""}`)));
     } else if (C.status === "검토") {
+      if (!isApprover()) { const b = btn("primary", "승인권자의 승인을 기다립니다", () => {}); b.disabled = true; row.append(b); return; }
       row.append(btn("secondary", "반려", act("/api/reject", () => `${C.id} 반려함`), "x"));
       row.append(btn("primary", "승인 (최종안 확정)", act("/api/approve", (r) => `${C.id} 승인 — 수락 ${r.counts["수락"]}건으로 최종안을 저장했습니다`), "check"));
     } else if (C.status === "승인") {
       row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
-      row.append(btn("primary", "공포 처리", act("/api/publish", () => `${C.id} 공포 처리함`)));
+      if (isEditor()) row.append(btn("primary", "공포 처리 (등록·공지)", act("/api/publish", () => `${C.id} 공포 처리함`)));
     } else {
       if (C.status === "공포") row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
       const b = btn("primary", C.status === "공포" ? "공포됨" : "반려됨", () => {}); b.disabled = true; row.append(b);
@@ -444,6 +467,7 @@
       const ol = el("ol", "qlist"); C.questions.forEach((x) => ol.append(el("li", null, `${x.where} — ${x.question}`))); s.append(ol); doc.append(s);
     }
     if (C.breaks) doc.append(el("p", "hint", `연쇄 수정: 깨지는 인용 ${C.breaks[0] ?? 0} → ${C.breaks[1] ?? 0}`));
+    fillProcedure(C, doc);
 
     const SD = clear($("#side"));
     const cnt = (k) => C.impacts.filter((x) => x.kind === k).length;
@@ -470,7 +494,7 @@
         acc.setAttribute("aria-pressed", String(x.state === "accept")); rej.setAttribute("aria-pressed", String(x.state === "reject"));
         li.classList.toggle("rejected", x.state === "reject"); tally();
       };
-      if (!editable(C)) { acc.disabled = rej.disabled = true; acc.title = rej.title = "승인·공포·반려된 개정안은 결정을 바꿀 수 없습니다"; }
+      if (!editable(C)) { acc.disabled = rej.disabled = true; acc.title = rej.title = isEditor() ? "승인·공포·반려된 개정안은 결정을 바꿀 수 없습니다" : "카드 수락·기각은 개정 담당자가 합니다"; }
       const decide = async (d) => {
         if (!editable(C)) return;
         const next = x.state === d ? "clear" : d, prev = x.state;
@@ -693,10 +717,14 @@
   });
   document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); newConv(); } });
   function setRole(role) {
-    const editor = role === "editor"; ROLE_NOW = role;
+    ROLE_NOW = role; USER = PERSON[role].name;
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
-    document.querySelectorAll(".editor-only").forEach((x) => (x.hidden = !editor));
-    if (!editor) { show("chat"); selectTab("src"); }
+    document.querySelectorAll(".editor-only").forEach((x) => (x.hidden = role !== "editor"));
+    document.querySelectorAll(".staff-only").forEach((x) => (x.hidden = role === "employee"));
+    $("#user-name").textContent = USER; $("#user-dept").textContent = PERSON[role].dept; $("#user-initial").textContent = USER[0];
+    if (role === "employee") { show("chat"); selectTab("src"); }
+    else if (role === "approver") show("review");        // 승인권자는 개정안 검토 화면에서 승인·반려
+    if (CS) renderChangeset(CS);   // 역할에 따라 버튼·결정 가능 여부가 달라진다
   }
   document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
   setRole("editor");
