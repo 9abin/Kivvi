@@ -76,6 +76,9 @@ h1, h2, h3, h4 { letter-spacing: -.01em; }
 .tag.warn, .badge.warn { background: var(--warning-5); color: var(--warning); border-color: transparent; }
 .tag.neg, .badge.neg { background: var(--danger-5); color: var(--danger); border-color: transparent; }
 .tag.accent, .badge.accent { background: var(--primary-5); color: var(--primary-hover); border-color: transparent; }
+/* 근거 종류 (영향 카드): 문서 명시·낱말 일치는 회색 글자, 모델 추정은 점선 테두리로 「담당자 판단 필요」를 보임 */
+.basis { margin-left: auto; font-size: 12px; color: var(--gray-60); white-space: nowrap; }
+.basis.model { padding: 0 6px; border: 1px dashed var(--gray-40); border-radius: var(--radius-s); }
 
 /* ── 본문 배치 ──────────────────────────────── */
 .app { flex: 1; min-height: 0; display: grid; grid-template-columns: 272px 1fr; }

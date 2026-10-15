@@ -491,6 +491,8 @@
     C.impacts.forEach((x) => {
       const li = el("li", "row"), body = el("div", "body");
       const top = el("div", "top"); top.append(el("span", "tag " + (TONE[x.kind] || ""), x.label), el("span", "where", x.where));
+      // 근거 종류: 문서 명시(원문 인용) / 낱말 일치(같은 제목·용어) / 모델 추정(의미 유사·오타) — 모델 추정은 담당자 판단이 더 필요
+      if (x.basis) { const b = el("span", "basis" + (x.basis === "모델 추정" ? " model" : ""), x.basis); b.title = x.path ? `발견 경로: ${x.path}` : ""; top.append(b); }
       body.append(top);
       if (x.quote) body.append(el("q", null, x.quote));
       body.append(el("div", "why", x.reason));

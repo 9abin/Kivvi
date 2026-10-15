@@ -92,3 +92,10 @@ def test_neighbor_card_is_low_priority_review():
 
 def test_no_definition_change_no_term_cards():
     assert run(regs(), '제3조 중 "매월"을 "분기마다"로 한다.') == []
+
+
+def test_basis_of_paths():
+    from regcheck.change_check import basis_of
+    assert basis_of("인용받음") == basis_of("재검사(법령명)") == basis_of("나가는 인용") == "문서 명시"
+    assert basis_of("같은 제목") == basis_of("정의 용어(다른 규정 사용)") == "낱말 일치"
+    assert basis_of("의미 이웃 (0.83)") == basis_of("오타 의심") == "모델 추정"

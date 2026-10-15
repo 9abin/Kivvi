@@ -367,6 +367,19 @@ NOT_COVERED = [
 ]
 
 
+def basis_of(path: str) -> str:
+    """발견 경로 → 근거 종류. 담당자가 어느 카드에 도메인 판단을 써야 하는지 보이게 한다.
+      문서 명시  원문에 적힌 인용·위임·조 번호, 법령 DB의 사실
+      낱말 일치  같은 제목·같은 정의 용어 — 낱말은 확실하지만 「같은 낱말 = 같은 뜻」은 가정
+      모델 추정  임베딩·reranker·LLM의 판단 (의미 유사·의미 이웃·오타)"""
+    p = path or ""
+    if p.startswith(("의미", "오타")):
+        return "모델 추정"
+    if p.startswith(("같은 제목", "정의 용어")):
+        return "낱말 일치"
+    return "문서 명시"
+
+
 def coverage(found: list[dict], vector_on: bool = False, spell_on: bool = False, neighbors_on: bool = False) -> dict:
     """이번 점검이 확인한 경로(켜짐·꺼짐)와 경로별로 찾은 곳 수, 구조상 확인하지 못하는 유형.
     담당자가 시스템이 본 범위를 알고 판단하게 한다. 찾은 곳 0 = 확인했으나 영향 없음 (꺼진 경로와 구분)."""

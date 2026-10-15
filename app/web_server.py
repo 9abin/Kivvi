@@ -40,6 +40,7 @@ sys.path.insert(0, str(ROOT / "app"))
 import psycopg  # noqa: E402
 from psycopg.rows import dict_row  # noqa: E402
 
+from regcheck.change_check import basis_of  # noqa: E402
 from regcheck.db import load_env  # noqa: E402
 
 IMPACT_LABEL = {"breaks": ("break", "깨짐"), "resolved": ("resolved", "충돌 해소"), "law_check": ("law", "법령 대조"),
@@ -242,7 +243,7 @@ def changeset(cid: str) -> dict:
         return {"error": f"개정안이 없습니다: {cid}"}
     c, titles = rows[0], reg_titles()
     payload = c["payload"] or {}
-    imp = q("select i.review_key, i.category, i.reg_id, i.unit, i.article, i.para, i.quote, i.reason, i.handling, i.priority, "
+    imp = q("select i.review_key, i.category, i.reg_id, i.unit, i.article, i.para, i.quote, i.reason, i.handling, i.priority, i.path, "
             "coalesce(d.state, '미결정') as state from amend.impact i left join amend.v_decision_state d on d.key = i.review_key "
             "where i.changeset_id = %s order by case i.category when 'breaks' then 0 when 'law_check' then 1 when 'resolved' then 2 else 3 end, "
             "case i.priority when '높음' then 0 when '중간' then 1 else 2 end, i.reg_id, i.article", cid)
@@ -252,6 +253,7 @@ def changeset(cid: str) -> dict:
         place = (r["article"] or "") + (f" 제{r['para']}항" if r["para"] else "")
         impacts.append({"key": r["review_key"], "kind": kind, "label": label, "where": f"{titles.get(r['reg_id'], r['reg_id'])} {place}",
                         "quote": r["quote"] or "", "reason": readable(r["reason"] or ""), "priority": r["priority"],
+                        "basis": basis_of(r["path"]), "path": r["path"] or "",
                         "state": {"수락": "accept", "기각": "reject"}.get(r["state"])})
     from web_agent import load_package
     pkg = load_package(cid) or {}
