@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 _lock = threading.Lock()
 SHOW = ("new", "resolved")
+# 새로 생긴 결과마다 다음 행동: 에이전트가 초안까지 만들 수 있는 유형 / 업무 판단이 필요한 유형 (리포트 47)
+ACTION = {"법령명_변경": "초안 가능 — 법령명 정비", "법령명_오기": "초안 가능 — 법령명 정비",
+          "법령_개정확인": "현업 판단 필요 — 바뀐 법령과 대조", "법령_조문없음": "현업 판단 필요 — 법령 조문 이동·삭제 확인"}
 
 
 def _q(sql: str, *args) -> list[dict]:
@@ -121,6 +124,7 @@ def result(sid: str = "") -> dict:
     items = _q("select change, reg_id, reg_name, unit, article, para, chunk_id, type, method, quote, note from amend.scan_item "
                "where scan_id = %s and change = any(%s) order by change, reg_name, article, type", sid, list(SHOW))
     for it in items:
+        it["action"] = ACTION.get(it["type"], "확인 필요") if it["change"] == "new" else ""
         it["type"] = it["type"].replace("_", " ")
     history = _q("select id, to_char(started_at at time zone 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') as started_at, law_snapshot, counts from amend.scan order by amend.scan.started_at desc limit 10")
     return {"scan": scan[0], "items": items, "history": history}

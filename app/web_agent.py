@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 from datetime import datetime
@@ -99,6 +100,8 @@ def draft(chunk: str, request: str, user: str) -> dict:
     with _lock:   # 로컬 LLM·GPU를 채팅과 나눠 쓰므로 한 번에 하나
         res = nl_draft(regs, full_request, model=DRAFT_MODEL, reg=reg)
         if not res.get("ok"):
+            if not res.get("tries") and res.get("error"):   # LLM 전에 걸러진 경우는 그 안내를 그대로
+                return {"error": res["error"], "tries": 0}
             last = (res.get("tries") or [{}])[-1].get("error", "")
             return {"error": "개정문을 만들지 못했습니다. 바꿀 조·항과 값을 더 구체적으로 적어 주세요." + (f" ({last[:80]})" if last else ""),
                     "tries": len(res.get("tries", []))}
@@ -124,7 +127,7 @@ def _store(cid: str, reg_id: str, title: str, cs: dict, pkg: dict, chunk: str | 
     found = pkg["law_check"] + pkg["review"] + [{**b, "category": "breaks"} for b in pkg.get("remaining_breaks", []) if isinstance(b, dict)]
     changes = cs.get("changes") or [{"origin": r["origin"]} for r in pkg["rows"] if r.get("origin")]   # v_chunk_open_change가 바뀌는 조를 여기서 찾음
     payload = {"id": cid, "run": cid, "rows": pkg["rows"], "changes": changes, "request": request, "model": ref.get("model"),
-               "kind": ref.get("kind", "draft")}
+               "kind": ref.get("kind", "draft"), **({"origin": ref["origin"]} if ref.get("origin") else {})}
     with write_conn() as con, con.cursor() as cur:
         cur.execute("INSERT INTO amend.changeset (id, reg_id, title, amendment, status, origin_chunk, created_by, payload) "
                     "VALUES (%s, %s, %s, %s, '초안', %s, %s, %s)",
@@ -142,6 +145,15 @@ def _lawname_rows() -> list[dict]:
     with write_conn() as con, con.cursor(row_factory=dict_row) as cur:
         fs = cur.execute("select f.type, f.quote, f.suggest, f.reg_id, f.article, d.title as reg_name from amend.finding f "
                          "left join public.documents d on d.doc_id = f.reg_id where f.type in ('법령명_변경', '법령명_오기')").fetchall()
+        # 변경 감시가 새 법령 판에서 찾은 것도 (기준선에 없던 법령명 변경 → 감시에서 바로 초안). 바꿀 이름은 메모에서 읽음
+        new = cur.execute("select i.type, i.quote, i.note, i.reg_id, i.article, i.reg_name from amend.scan_item i "
+                          "where i.scan_id = (select id from amend.scan order by started_at desc limit 1) and i.change = 'new' "
+                          "and i.type in ('법령명_변경', '법령명_오기')").fetchall()
+    have = {(f["reg_id"], f["article"], f["quote"]) for f in fs}
+    for x in new:
+        m = re.search(r"지금 「([^」]+)」|정식 이름은 「([^」]+)」|「([^」]+)」가 거의 같음", x.get("note") or "")
+        if m and (x["reg_id"], x["article"], x["quote"]) not in have:
+            fs.append({**x, "suggest": next(g for g in m.groups() if g)})
     return mapping(fs)
 
 
@@ -366,7 +378,55 @@ def reject_cs(cid: str, user: str, comment: str = "") -> dict:
 
 
 def publish(cid: str, user: str, comment: str = "") -> dict:
-    return _set_status(cid, ("승인",), "공포", user, comment)
+    """공포(등록·공지). 이어서 수락한 함께 개정안을 다른 내규의 초안으로 만들어 검토 대기열에 올린다 (내규 공포 → 따라 고칠 곳)."""
+    res = _set_status(cid, ("승인",), "공포", user, comment)
+    if res.get("error"):
+        return res
+    try:
+        follow = companion_drafts(cid, user)
+    except Exception as e:   # 공포 자체는 끝났으므로 후속 초안 실패는 알리기만
+        follow = {"made": [], "skipped": [{"reg": "", "why": f"함께 개정 초안을 만들지 못함: {e}"}]}
+    return {**res, "follow_up": follow}
+
+
+def companion_drafts(cid: str, user: str) -> dict:
+    """공포된 개정안의 함께 개정안(수락한 카드만) → 내규별 초안. 점검은 공포된 개정이 반영된 본문 기준.
+    같은 원 개정안에서 이미 만든 초안이 있으면 건너뛴다."""
+    from regcheck.agent import build_package
+    from regcheck.amend import AmendError, apply, build_changeset, parse_amendment
+    from regcheck.change_check import _reidentify
+    from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
+    from regcheck.neighbors import load as load_neighbors
+    fin = final_package(cid)
+    if fin.get("error"):
+        return {"made": [], "skipped": [{"reg": "", "why": fin["error"]}]}
+    regs, rels, edges = corpus()
+    origin = fin["reg_id"]
+    try:   # 공포된 개정이 반영된 원 내규 (번호가 바뀌었으면 새 번호로 ID를 다시 붙임)
+        after, _ = apply(regs[origin], parse_amendment(fin["amendment_final"]))
+        regs_after = {**regs, origin: _reidentify(after)}
+    except (AmendError, KeyError):
+        regs_after = regs
+    with write_conn() as con:
+        done = {r[0] for r in con.execute("select reg_id from amend.changeset where payload->>'kind' = 'companion' and payload->>'origin' = %s", (cid,)).fetchall()}
+    made, skipped = [], []
+    with _lock:
+        db = LawDB(LAW_DB) if LAW_DB.exists() else None
+        for c in fin["_companion_rows"]:
+            if c["reg_id"] in done:
+                skipped.append({"reg": c["reg_name"], "why": "이미 만든 함께 개정 초안이 있음"})
+                continue
+            if c["status"] != "ok" or not c.get("amendment"):
+                skipped.append({"reg": c["reg_name"], "why": c["status"] + (f" (수작업 {len(c.get('manual') or [])}건)" if c.get("manual") else "")})
+                continue
+            ncid = "F" + datetime.now().strftime("%y%m%d-%H%M%S") + f"-{len(made):02d}"
+            title = f"함께 개정 — 「{fin['reg_name']}」 개정({cid}) 공포에 따른 인용 정비"
+            cs, _ = build_changeset(regs_after[c["reg_id"]], c["amendment"], ncid, title)
+            cs["kind"] = "companion"
+            pkg = build_package(cs, regs_after, rels, edges, lawdb=db, spell_model=None, neighbors=load_neighbors())
+            n = _store(ncid, c["reg_id"], title, cs, pkg, None, user, title, {"kind": "companion", "origin": cid})
+            made.append({"id": ncid, "reg": c["reg_name"], "impacts": n})
+    return {"made": made, "skipped": skipped}
 
 
 def final_file(cid: str) -> str | None:

@@ -68,3 +68,13 @@ def test_span_pair_widens_by_words_until_unique():
     assert old.replace(a, b) == new
     words = old.split()
     assert a.split()[0] in words and a.split()[-1] in words   # 어절 중간에서 자르지 않음
+
+
+def test_shift_request_blocked_early_when_branch_articles_follow():
+    from regcheck.nl import draft
+    reg = {"reg_id": "9", "name": "갑지침", "articles": [
+        {"id": "9:3", "label": "제3조", "title": "위임", "deleted": False, "items": [], "text": ""},
+        {"id": "9:4", "label": "제4조", "title": "범위", "deleted": False, "items": [], "text": ""},
+        {"id": "9:4의2", "label": "제4조의2", "title": "계약서", "deleted": False, "items": [], "text": ""}]}
+    res = draft({"9": reg}, "제3조 다음에 교육 조문을 새로 넣고 뒤 번호를 밀어줘", reg=reg)
+    assert not res["ok"] and res["tries"] == [] and "가지번호" in res["error"]       # LLM을 부르지 않고 바로 안내

@@ -289,8 +289,10 @@ def structural_plan(reg: dict, request: str, cands: list[dict]) -> str | None:
         later = [n for n in nums if n > after]
         lines = []
         if later and re.search(r"번호|밀", request):
-            lines.append(f"제{later[0]}조부터 제{later[-1]}조까지를 각각 제{later[0] + 1}조부터 제{later[-1] + 1}조까지로 하고, "
-                         f"제{after}조의 다음에 제{after + 1}조를 다음과 같이 신설한다.")
+            # 한 조만 밀리면 「제15조를 제16조로 하고」 (「제15조부터 제15조까지를 각각 …」은 법제 문장으로 어색, 261015 시연 리허설)
+            move = (f"제{later[0]}조를 제{later[0] + 1}조로 하고, " if len(later) == 1 else
+                    f"제{later[0]}조부터 제{later[-1]}조까지를 각각 제{later[0] + 1}조부터 제{later[-1] + 1}조까지로 하고, ")
+            lines.append(move + f"제{after}조의 다음에 제{after + 1}조를 다음과 같이 신설한다.")
         elif not later or (after + 1) not in nums:
             lines.append(f"제{after}조의 다음에 제{after + 1}조를 다음과 같이 신설한다.")
         else:
@@ -308,6 +310,16 @@ def draft(regs: dict[str, dict], request: str, model: str = "qwen2.5:7b", reg: d
     if not reg:
         return {"ok": False, "error": "요청에서 규정명을 찾지 못함", "tries": []}
     cands = candidates(reg, request)
+    # 뒤 번호를 밀라는데 밀릴 범위에 가지번호 조(제4조의2)가 있으면 적용기가 번호 이동을 표현할 수 없다 → LLM을 헛돌리지 않고 바로 안내
+    # (261015 시연 리허설: 계약사무처리지침에서 3회 실패 뒤 원인과 다른 안내가 나감)
+    m = re.search(r"제\s*(\d+)\s*조\s*(?:의\s*)?다음", request)
+    if m and re.search(r"신설|새로\s*(넣|만들|두)", request) and re.search(r"번호|밀", request):
+        after = int(m.group(1))
+        branch = [a["label"] for a in reg["articles"] if not a.get("deleted") and "의" in a["label"]
+                  and int(re.match(r"제(\d+)조", a["label"]).group(1)) > after]
+        if branch:
+            return {"ok": False, "tries": [], "error": f"뒤 번호를 밀 범위에 가지번호 조({', '.join(branch[:3])})가 있어 번호 이동 개정문을 만들 수 없습니다. "
+                    f"「제{after}조의2를 신설」처럼 가지번호로 넣거나, 번호를 어떻게 옮길지 직접 적어 주세요."}
     plan = structural_plan(reg, request, cands)
     if plan and not plan.endswith(") "):   # 본문까지 규칙으로 완성된 경우만 (본문이 없으면 LLM이 전체를 씀)
         try:

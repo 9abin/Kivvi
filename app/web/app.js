@@ -439,7 +439,7 @@
       row.append(btn("primary", "승인 (최종안 확정)", act("/api/approve", (r) => `${C.id} 승인 — 수락 ${r.counts["수락"]}건으로 최종안을 저장했습니다`), "check"));
     } else if (C.status === "승인") {
       row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
-      if (isEditor()) row.append(btn("primary", "공포 처리 (등록·공지)", act("/api/publish", () => `${C.id} 공포 처리함`)));
+      if (isEditor()) row.append(btn("primary", "공포 처리 (등록·공지)", act("/api/publish", (r) => `${C.id} 공포 처리함` + ((r.follow_up && r.follow_up.made.length) ? ` — 함께 개정 초안 ${r.follow_up.made.length}건을 만들었습니다 (${r.follow_up.made.map((m) => m.reg).join(", ")})` : ""))));
     } else {
       if (C.status === "공포") row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
       const b = btn("primary", C.status === "공포" ? "공포됨" : "반려됨", () => {}); b.disabled = true; row.append(b);
@@ -635,6 +635,13 @@
       const s = el("span", hot ? "hot" : null); s.append(t, el("b", null, String(n))); sum.append(s);
     });
     box.append(sum);
+    const draftable = res.items.filter((x) => x.change === "new" && (x.action || "").startsWith("초안")).length;
+    if (draftable) {   // 감시 → 초안: 법령명 정비는 아래 「법령명 일괄 정비」에 새 판의 결과까지 들어가 있음
+      const p = el("p", "hint"); p.append(`새로 생긴 결과 중 ${draftable}건은 에이전트가 개정안 초안까지 만들 수 있습니다. `);
+      const go = el("button", "btn secondary small"); go.type = "button"; go.append("법령명 정비 초안으로 이동");
+      go.addEventListener("click", () => $("#lawname").scrollIntoView({ behavior: "smooth" }));
+      p.append(go); box.append(p);
+    }
     [["new", "새로 생김", "직전 탐색에 없던 점검 결과입니다. 바뀐 법령 조문을 인용하는 곳부터 확인하세요."],
      ["resolved", "해결됨", "직전 탐색에 있었으나 이번에는 나오지 않은 결과입니다."]].forEach(([k, title, hint]) => {
       const items = res.items.filter((x) => x.change === k);
@@ -645,6 +652,8 @@
       items.forEach((x) => {
         const li = el("li", "row"), body = el("div", "body"), top = el("div", "top");
         top.append(el("span", "tag " + (k === "new" ? "warn" : "pos"), x.type), el("span", "where", `${x.reg_name || x.reg_id} ${x.article || x.unit || ""}`));
+        // 다음 행동: 에이전트가 초안까지 만들 수 있는 유형인지, 업무 판단이 필요한 유형인지
+        if (x.action) top.append(el("span", "basis" + (x.action.startsWith("초안") ? "" : " model"), x.action));
         body.append(top);
         if (x.quote) body.append(el("q", null, x.quote));
         if (x.note) body.append(el("div", "why", x.note));
