@@ -147,3 +147,21 @@ def test_neighbor_small_gap_is_demoted_to_reference():
         nb = {"1:3": [{"article_id": "3:2", "score": 0.83, "gap": gap}]}
         return [f["priority"] for f in check(cs, rs, RELS, new_reg=new, neighbors=nb) if f["path"].startswith("의미 이웃")]
     assert prio(0.08) == ["낮음"] and prio(0.01) == ["참고"]
+
+
+def test_hypothesis_cards_skip_covered_and_stay_low():
+    """가설 카드: 모델이 낸 주제로 다른 내규 조문을 찾되, 이미 구조 경로로 낸 조문은 빼고 낮음·모델 추정으로 낸다."""
+    import numpy as np
+    from regcheck.hypothesis import hypotheses
+    rs = regs()
+    post = lambda m: '{"topic": "카드 점검", "why": "점검 주기가 바뀌면 점검 보고도 확인할 만함"}\nnot json'
+    chunks = [{"article_id": "2:3"}, {"article_id": "3:2"}, {"article_id": "1:3"}]
+    index = (np.eye(3), chunks)
+    embed = lambda t: [np.array([1.0, 0.9, 0.0])]
+    rerank = lambda q, ts: [0.9 if "관리자는 분기마다" in t else 0.5 for t in ts]
+    art = rs["1"]["articles"][2]
+    out = hypotheses(post, rs, rs["1"], art, None, "삭제되는 조문: 관리자는 매월 점검한다", index, embed, rerank, skip={("2", "제3조")})
+    assert [(f["reg_id"], f["article"], f["priority"], f["path"]) for f in out] == [("3", "제2조", "낮음", "가설(모델 추정)")]
+    assert "모델의 가설" in out[0]["reason"] and "근거가 아니라 추정" in out[0]["reason"]
+    from regcheck.change_check import basis_of
+    assert basis_of(out[0]["path"]) == "모델 추정"

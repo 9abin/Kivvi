@@ -29,6 +29,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from regcheck.db import load_env  # noqa: E402
 
 SPELL_MODEL = os.environ.get("SPELL_MODEL", "qwen3.5:9b") or None   # 오타 검사 로컬 모델 (바뀐 문장만). 운영은 더 큰 모델 권장(리포트 38), 끄려면 SPELL_MODEL=
+HYPOTHESIS = os.environ.get("HYPOTHESIS", "1") != "0"   # 가설 카드 (리포트 49 후속)
+HYPO_MODEL = os.environ.get("HYPO_MODEL", "qwen3.5:9b")      # 주제 추론은 9B가 7B보다 낫다 (7B는 주제 2개, 9B는 3개)
 DRAFT_MODEL = os.environ.get("DRAFT_MODEL", "qwen2.5:7b")   # 자연어 개정 평가에서 7/8 (리포트 28). 9B는 6/8
 STATES = {"accept": "수락", "reject": "기각"}
 _lock = threading.Lock()
@@ -159,9 +161,17 @@ def draft(chunk: str, request: str, user: str) -> dict:
         cs = res["changeset"]
         cs["id"], cs["title"] = cid, request
         from regcheck.neighbors import load as load_neighbors   # 의미 이웃 (out/relations/neighbors.json, 없으면 끔)
-        model, _ = _models()
+        model, rr = _models()
+        embed = lambda t: model.encode(t, normalize_embeddings=True)  # noqa: E731
+        hypo = None
+        if HYPOTHESIS:   # 모델이 추론한 「함께 확인할 주제」 가설 카드 (보조·낮음, 끄려면 HYPOTHESIS=0)
+            from regcheck.hypothesis import hypotheses
+            from regcheck.nl import _post as _llm
+            rerank = lambda q, ts: rr.predict([(q, t) for t in ts], batch_size=16, show_progress_bar=False).tolist()  # noqa: E731
+            hypo = lambda r, art, new, diff, skip: hypotheses(lambda m: _llm(HYPO_MODEL, m, timeout=90), regs, r, art, new, diff,  # noqa: E731
+                                                              (_vector_obj().vecs, _vector_obj().chunks), embed, rerank, skip)
         pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None, spell_model=SPELL_MODEL,
-                            neighbors=load_neighbors(), dup=(lambda t: model.encode(t, normalize_embeddings=True), _vector_obj()))
+                            neighbors=load_neighbors(), dup=(embed, _vector_obj()), hypo=hypo)
     n = _store(cid, reg_id, f"{label} — {request}" if label else request, cs, pkg, chunk, user, request, {"chunk": chunk, "model": DRAFT_MODEL})
     return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
 

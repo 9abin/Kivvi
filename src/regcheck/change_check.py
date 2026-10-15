@@ -112,9 +112,10 @@ def _strict(phrase: str) -> str:
 
 def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: list[dict] | None = None,
           new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None, spell_model: str | None = None,
-          neighbors: dict | None = None, dup=None) -> list[dict]:
+          neighbors: dict | None = None, dup=None, hypo=None) -> list[dict]:
     """cs: out/changes/{id}/changeset.json, regs: 원문 파싱 결과(규정ID → 레코드), rels: 관련 조항 표.
     new_reg/registry_factory를 주면 바뀐 조의 인용을 다시 해석한다. vector=(model, Index)면 의미 유사 후보를 더한다.
+    hypo(reg, old_art, new_art, diff_text, skip) → 가설 카드 목록 (regcheck.hypothesis, 로컬 LLM — 보조 기능)을 주면 바뀐 조마다 「함께 확인할 주제」 가설을 더한다.
     dup=(embed 함수, Index)를 주면 신설 조문이 같은 내규의 기존 조문과 겹치는지 확인한다 (261015 시연 리허설: 이미 있는 제11조와 같은 내용을 신설).
     neighbors(regcheck.neighbors.load)를 주면 미리 계산한 의미 이웃(다른 규정의 같은 주제로 보이는 조)을 낮은 우선순위로 더한다."""
     rid = cs["reg_id"]
@@ -326,6 +327,31 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                      "reason": f"신설하는 「{na['label']}({na['title']})」와 같은 내규의 기존 {a['label']}({a['title']})이 내용이 비슷함 ({sc_:.2f}"
                                + (f", 다음으로 비슷한 조문보다 {gap:.2f} 높음" if n_ == 0 else "") + ") — 중복·충돌이 아닌지 확인"})
 
+    # 4-4) 가설: 모델이 추론한 「함께 확인할 주제」 (근거가 아니라 추정, 낮음). 다른 경로로 이미 낸 조문은 제외
+    if hypo is not None and new_reg is not None:
+        new_by = {a.get("_origin") or a["id"]: a for a in new_reg["articles"]}
+        jobs = []   # (바뀐 조, 모델에 줄 변경 내용)
+        for o, c in content_changed.items():
+            if _only_reference_fix(c):
+                continue
+            old_art = next((a for a in reg["articles"] if a["id"] == o), None)
+            if not old_art:
+                continue
+            if o in lmap and lmap[o] is None:     # 삭제: 사라지는 조문의 내용
+                jobs.append((old_art, "삭제되는 조문: " + _item_text(old_art)[:700]))
+                continue
+            new_art = new_by.get(o)
+            if new_art:
+                jobs.append((old_art, "\n".join(f"{d['marker']} 현행: {d['old']}\n{d['marker']} 개정: {d['new']}"
+                                                for d in _changed_items(old_art, new_art))[:900]))
+        for na in new_reg["articles"]:           # 신설: 새로 생기는 조문의 내용
+            if na["label"] in inserted_labels and not na.get("_origin") and not na.get("deleted"):
+                jobs.append((na, "신설되는 조문: " + " ".join(it["norm"] for it in na["items"])[:700]))
+        for art, diff in jobs:
+            skip = {(x["reg_id"], x.get("article")) for x in out}
+            for it in hypo(reg, art, None, diff, skip):
+                add(it)
+
     # 5) 재검사: 바뀐 조 자체의 인용을 개정안 기준으로 다시 해석
     if new_reg is not None and registry_factory is not None and baseline_edges is not None:
         from .citations import extract_edges
@@ -393,7 +419,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
 
 
 PATH_FAMILY = [("인용", ("인용받음", "문서 인용", "재검사", "연쇄 수정")), ("같은 제목", ("같은 제목",)), ("정의 용어", ("정의 용어",)),
-               ("의미 유사", ("의미",)), ("법령", ("나가는 인용", "같은 제목 법령")), ("오타", ("오타",))]
+               ("의미 유사", ("의미",)), ("가설", ("가설",)), ("법령", ("나가는 인용", "같은 제목 법령")), ("오타", ("오타",))]
 NOT_COVERED = [
     "인용·정의 용어·같은 제목으로 이어지지 않는 맥락상 영향 (예: 제도·절차가 바뀌어 다른 규정의 절차도 바뀌어야 하는 경우)",
     "별표·별지 안의 내용 비교 (인용 깨짐만 확인)",
@@ -407,17 +433,18 @@ def basis_of(path: str) -> str:
       낱말 일치  같은 제목·같은 정의 용어 — 낱말은 확실하지만 「같은 낱말 = 같은 뜻」은 가정
       모델 추정  임베딩·reranker·LLM의 판단 (의미 유사·의미 이웃·오타)"""
     p = path or ""
-    if p.startswith(("의미", "오타")):
+    if p.startswith(("의미", "오타", "가설")):
         return "모델 추정"
     if p.startswith(("같은 제목", "정의 용어")):
         return "낱말 일치"
     return "문서 명시"
 
 
-def coverage(found: list[dict], vector_on: bool = False, spell_on: bool = False, neighbors_on: bool = False, dup_on: bool = False) -> dict:
+def coverage(found: list[dict], vector_on: bool = False, spell_on: bool = False, neighbors_on: bool = False, dup_on: bool = False,
+             hypo_on: bool = False) -> dict:
     """이번 점검이 확인한 경로(켜짐·꺼짐)와 경로별로 찾은 곳 수, 구조상 확인하지 못하는 유형.
     담당자가 시스템이 본 범위를 알고 판단하게 한다. 찾은 곳 0 = 확인했으나 영향 없음 (꺼진 경로와 구분)."""
-    off = {"의미 유사": not (vector_on or neighbors_on or dup_on), "오타": not spell_on}
+    off = {"의미 유사": not (vector_on or neighbors_on or dup_on), "오타": not spell_on, "가설": not hypo_on}
     paths = []
     for name, keys in PATH_FAMILY:
         n = sum(1 for f in found if f.get("category") != "info" and str(f.get("path", "")).startswith(keys))
@@ -482,7 +509,7 @@ def score(found: list[dict], expected: dict) -> dict:
 
 
 def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5, lawdb=None,
-        spell_model: str | None = None, neighbors: dict | None = None, dup=None) -> list[dict]:
+        spell_model: str | None = None, neighbors: dict | None = None, dup=None, hypo=None) -> list[dict]:
     """changeset 하나 점검 (개정안 사본을 다시 만들어 재검사까지). scripts/check_change.py와 검토 화면이 같이 쓴다."""
     from .amend import apply, parse_amendment
     from .citations import Registry
@@ -493,4 +520,4 @@ def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], ve
         return Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])
 
     return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k, lawdb=lawdb,
-                 spell_model=spell_model, neighbors=neighbors, dup=dup)
+                 spell_model=spell_model, neighbors=neighbors, dup=dup, hypo=hypo)
