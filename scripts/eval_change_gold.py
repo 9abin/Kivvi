@@ -20,10 +20,10 @@ sys.path.insert(0, str(ROOT / "app"))
 from regcheck import runinfo  # noqa: E402
 from regcheck.amend import AmendError, build_changeset  # noqa: E402
 from regcheck.change_check import run as run_check, score as score_scenario  # noqa: E402
-from regcheck.change_gold import MAJOR, hits, make  # noqa: E402
+from regcheck.change_gold import MAJOR, hits, make, make_extra  # noqa: E402
 from regcheck.lawdb import DEFAULT as LAW_DB, LawDB  # noqa: E402
 
-CAT = {"breaks": "깨짐", "new_conflicts": "새 충돌", "law_name": "법령명(옛 이름·오기)", "typo": "오타", "law_num": "법령 수치"}
+CAT = {"breaks": "깨짐", "review": "다른 규정 확인 필요", "new_conflicts": "새 충돌", "law_name": "법령명(옛 이름·오기)", "typo": "오타", "law_num": "법령 수치"}
 FLAG = "현행 값은 법령 조문에 있으나 개정안 값은 다름"
 
 
@@ -73,6 +73,7 @@ def main() -> None:
     gold_path = ROOT / "eval" / "agent" / f"change_gold_s{a.seed}.jsonl"
     if a.cmd == "make":
         items = make(regs, edges, db, a.seed, a.per)
+        items += make_extra(regs, edges, db, a.seed, len(items) + 1)   # v0 뒤에 덧붙임 (기존 번호는 그대로)
         gold_path.parent.mkdir(parents=True, exist_ok=True)
         gold_path.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in items), encoding="utf-8")
         print(f"변경안 골든셋 {len(items)}문항 → {gold_path}")

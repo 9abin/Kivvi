@@ -10,6 +10,10 @@
   NUML   인용한 법령 조문과 같던 숫자를 바꿈 → 「법령 수치」 (법령 대조 카드: app/web_law)
   CLEAN  인용·숫자 없는 표현만 다듬음 (「하여야 한다」→「해야 한다」) → 높은 우선순위(깨짐·새 충돌)가 없어야 함
   REAL   실제 사례 (시나리오 S01~S03)
+  INS    조 신설 + 뒤 조 번호 밀림 — 정답 = 밀리는 조를 가리키는 인용 (원문 문자열 검색). 같은 규정은 깨짐, 다른 규정은 확인 필요(review)
+  INSN   아무도 인용하지 않는 조 앞에 신설 — 깨짐이 없어야 함
+  MIX    한 개정안에 문제 셋(없는 조 인용 + 옛 법령명 + 오타)을 함께 심음 — 서로 가려지지 않는지
+  P-오타(확장)  오타 종류 5가지(자리바꿈·모음·받침빠짐·맞춤법·반복)로 50개까지
 시드로 만들고, 번호가 짝수면 개발용·홀수면 시험용 (규칙을 고칠 때 시험용 결과로 점수를 내지 않는다).
 """
 
@@ -56,25 +60,38 @@ def _tail(it: dict) -> str | None:
     return None
 
 
+def _units(r: dict):
+    """(조 또는 별표·별지 이름, 항, 문장) — 본문 항과 별표·별지 (별지 서식도 「제N조」를 인용한다: G122)"""
+    from .normalize import normalize
+    for a, it in _items(r):
+        yield a["label"], it["path"][0], it["norm"]
+    for ap in r.get("appendices", []):
+        text = normalize(ap["text"])
+        # 계약서형 별지의 「제N조」는 그 계약서의 자기 조문이라 규정 본문을 가리키지 않는다. 인용 해석기(citations)가 같은 기준으로 보류하므로 정답에서도 뺀다
+        if re.search(r"^\s*제\s*1\s*조\s*\(", text, re.M) and "계약" in text[:400]:
+            continue
+        yield ap["id"].split(":", 1)[1], 0, text
+
+
 def text_citers(regs: dict, reg: dict, label: str) -> list[dict]:
-    """원문 문자열 검색으로 「이 규정 제N조」를 인용하는 항 (파서·관계 표를 거치지 않음).
-    다른 규정: 「규정명 … 제N조」(30자 안). 같은 규정: 앞 20자 안에 다른 문서 이름(「」·규정·지침·법)이 없는 「제N조」"""
+    """원문 문자열 검색으로 「이 규정 제N조」를 인용하는 곳 (파서·관계 표를 거치지 않음).
+    다른 규정: 「규정명 … 제N조」(30자 안). 같은 규정: 앞 20자 안에 다른 문서 이름(「」·규정·지침·법)이 없는 「제N조」. 본문과 별표·별지를 본다"""
     n = _jo(label)
     out = []
     pat_n = r"제\s*" + str(n) + r"\s*조(?!\s*의\s*\d)"
     for r in regs.values():
-        for a, it in _items(r):
-            t = HISTORY.sub(" ", it["norm"])   # 「[제25조에서 이동]」 같은 개정 이력 표시는 인용이 아님 (처음 만든 정답에서 4건 잘못 셈)
+        for where, para, raw in _units(r):
+            t = HISTORY.sub(" ", raw)   # 「[제25조에서 이동]」 같은 개정 이력 표시는 인용이 아님 (처음 만든 정답에서 4건 잘못 셈)
             if r["reg_id"] == reg["reg_id"]:
-                if a["label"] == label:
+                if where == label:
                     continue
                 for m in re.finditer(pat_n, t):
-                    pre = t[max(0, m.start() - 20): m.start()]
-                    if not re.search(r"[」]|규정|지침|규칙|법률|법\s|법$|령\s|정관|강령", pre):
-                        out.append({"reg_id": r["reg_id"], "article": a["label"], "para": it["path"][0]})
+                    pre = re.sub(r"(?:본|이)\s*(?:지침|규정|규칙|강령|내규)", "", t[max(0, m.start() - 20): m.start()])   # 「본 지침 제36조」는 같은 규정 인용 (G122)
+                    if not re.search(r"[」]|규정|지침|규칙|법률|법\s|법$|령\s|정관|강령|(?<![가-힣])영\s*$|(?<![가-힣])영\s", pre):   # 「영 제3조」 = 시행령 (261014 골든셋 G108)
+                        out.append({"reg_id": r["reg_id"], "article": where, "para": para})
                         break
             elif re.search(re.escape(reg["name"]) + r"[^.\n]{0,30}?" + pat_n, t):
-                out.append({"reg_id": r["reg_id"], "article": a["label"], "para": it["path"][0]})
+                out.append({"reg_id": r["reg_id"], "article": where, "para": para})
     return out
 
 
@@ -229,11 +246,118 @@ def make(regs: dict, edges: list[dict], db, seed: int = 1, per: int = 8) -> list
     return out
 
 
+def make_extra(regs: dict, edges: list[dict], db, seed: int, start: int, n_ins: int = 15, n_insn: int = 5, n_mix: int = 15, n_typo: int = 42) -> list[dict]:
+    """v0 106문항 뒤에 덧붙이는 문항 (기존 번호가 바뀌지 않게 별도 난수로)"""
+    from .typo_gen import mutate
+    rng = random.Random(seed + 1000)
+    out: list[dict] = []
+
+    def add(kind, reg, amendment, expected, note, not_affected=None):
+        out.append({"id": f"G{start + len(out):03d}", "kind": kind, "reg_id": reg["reg_id"], "reg_name": reg["name"],
+                    "amendment": amendment, "expected": expected, "not_affected": not_affected or [], "note": note})
+
+    regl = list(regs.values())
+    # ── INS / INSN: 조를 끼워 넣고 뒤 번호를 한 칸씩 민다 ───────────────
+    cands = []
+    for r in regl:
+        labs = [a["label"] for a in r["articles"]]
+        nums = [_jo(l) for l in labs]
+        if None in nums or nums != list(range(1, len(nums) + 1)) or len(nums) < 8:
+            continue   # 가지 번호가 섞였거나 번호가 이어지지 않는 규정은 제외 (밀기 개정문이 단순하지 않음)
+        per_label = {m: text_citers(regs, r, f"제{m}조") for m in range(2, len(nums) + 1)}   # 조마다 한 번만 (인용 검색이 느림)
+        for k in range(2, len(nums)):          # 제k조 자리에 신설 (제k-1조 다음), 제k~M조를 한 칸씩 뒤로
+            cit = [{**c, "_cited": f"제{m}조"} for m in range(k, len(nums) + 1) for c in per_label[m]]
+            cands.append((r, k, len(nums), cit))
+    with_cit = [c for c in cands if c[3]]
+    without = [c for c in cands if not c[3]]
+    rng.shuffle(with_cit)
+    rng.shuffle(without)
+
+    def ins_sentence(r, k, m):
+        return (f"제{k}조부터 제{m}조까지를 각각 제{k + 1}조부터 제{m + 1}조까지로 하고, 제{k - 1}조의 다음에 제{k}조를 다음과 같이 신설한다.\n"
+                f"제{k}조(업무 협조) ① 회사는 업무 수행에 필요한 경우 관련 부서의 협조를 요청할 수 있다.")
+    seen = set()
+    for r, k, m, cit in with_cit:
+        if r["reg_id"] in seen and len(seen) < 12:
+            continue                              # 규정이 여러 개 섞이게
+        seen.add(r["reg_id"])
+        same = [{k2: v for k2, v in c.items() if k2 != "_cited"} for c in cit if c["reg_id"] == r["reg_id"]]
+        other = [{k2: v for k2, v in c.items() if k2 != "_cited"} for c in cit if c["reg_id"] != r["reg_id"]]
+        exp = {}
+        if same:
+            exp["breaks"] = same
+        if other:
+            exp["review"] = other
+        add("INS", r, ins_sentence(r, k, m), exp, f"제{k}조 신설, 제{k}~{m}조 한 칸씩 밀림 — 원문 검색 인용 같은 규정 {len(same)}곳·다른 규정 {len(other)}곳")
+        if len([o for o in out if o["kind"] == "INS"]) >= n_ins:
+            break
+    for r, k, m, _ in without[:n_insn]:
+        add("INSN", r, ins_sentence(r, k, m), {}, f"제{k}조 신설, 뒤 조를 인용하는 곳 없음")
+
+    # ── MIX: 한 개정안에 문제 셋 ─────────────────────────────
+    slots = [(r, a, it, _tail(it)) for r in regl for a, it in _items(r)]
+    slots = [x for x in slots if x[3] and len(x[2]["norm"]) < 400]
+    by_reg: dict[str, list] = {}
+    for x in slots:
+        by_reg.setdefault(x[0]["reg_id"], []).append(x)
+    regs_ok = [rid for rid, v in by_reg.items() if len({(a["label"]) for _, a, _, _ in v}) >= 3]
+    rng.shuffle(regs_ok)
+    renamed = list(RENAMED.items())
+    k = 0
+    for rid in regs_ok:
+        if k >= n_mix:
+            break
+        pool = by_reg[rid][:]
+        rng.shuffle(pool)
+        picks, arts = [], set()
+        for x in pool:
+            if x[1]["label"] not in arts:
+                picks.append(x)
+                arts.add(x[1]["label"])
+            if len(picks) == 3:
+                break
+        if len(picks) < 3:
+            continue
+        r = picks[0][0]
+        nums = sorted(n for n in (_jo(x["label"]) for x in r["articles"] if not x["deleted"]) if n)
+        (_, a1, i1, t1), (_, a2, i2, t2), (_, a3, i3, _t3) = picks
+        old = rng.choice(renamed)[0]
+        words = [w for w in re.findall(r"[가-힣]{4,}", i3["norm"]) if i3["norm"].count(w) == 1]
+        if not words:
+            continue
+        m = mutate(rng.choice(("자리바꿈", "모음", "받침빠짐")), i3["norm"], rng)
+        if not m:
+            continue
+        loc = lambda a, it: {"reg_id": r["reg_id"], "article": a["label"], "para": it["path"][0]}   # noqa: E731
+        amend = "\n".join([
+            f'{_unit(a1, i1)} 중 "{t1}"를 "{t1} 다만, 세부 사항은 제{max(nums) + 9}조에 따른다."로 한다.',
+            f'{_unit(a2, i2)} 중 "{t2}"를 "{t2} 다만, 「{old}」에 따른 경우는 예외로 한다."로 한다.',
+            f'{_unit(a3, i3)} 중 "{m[1]}"를 "{m[2]}"로 한다.'])
+        add("MIX", r, amend, {"breaks": [loc(a1, i1)], "law_name": [loc(a2, i2)], "typo": [loc(a3, i3)]}, f"없는 조 + 「{old}」 + 오타 「{m[1]}」→「{m[2]}」")
+        k += 1
+
+    # ── 오타 확장 ───────────────────────────────────────
+    sents = [(r, a, it) for r in regl for a, it in _items(r) if 30 <= len(it["norm"]) <= 300]
+    rng.shuffle(sents)
+    kinds = ("자리바꿈", "모음", "받침빠짐", "맞춤법", "반복")
+    j = 0
+    for r, a, it in sents:
+        if j >= n_typo:
+            break
+        m = mutate(kinds[j % 5], it["norm"], rng)
+        if not m or "\"" in m[1] + m[2]:
+            continue
+        add("P-오타", r, f'{_unit(a, it)} 중 "{m[1]}"를 "{m[2]}"로 한다.', {"typo": [{"reg_id": r["reg_id"], "article": a["label"], "para": it["path"][0]}]},
+            f"{kinds[j % 5]} 「{m[1]}」→「{m[2]}」")
+        j += 1
+    return out
+
+
 def hits(found: list[dict], exp: dict, cat: str) -> bool:
     """기대 위치 하나를 탐지했나. 위치 = 규정 + 조 (+ 항이 둘 다 있으면 항). 새 충돌은 상대 조의 어느 항과 비교했든 조 단위로 본다"""
     def same(f):
         return f["reg_id"] == exp["reg_id"] and f.get("article") == exp["article"] and (
             cat == "new_conflicts" or not exp.get("para") or not f.get("para") or int(f["para"]) == int(exp["para"]))
     want = {"breaks": ("breaks",), "new_conflicts": ("new_conflicts",), "law_name": ("law_name",), "typo": ("typo",),
-            "law_num": ("law_num",)}[cat]
+            "law_num": ("law_num",), "review": ("review", "breaks")}[cat]   # 다른 규정의 인용은 「확인 필요」(깨짐으로 알려도 맞음)
     return any(f["category"] in want and same(f) for f in found)
