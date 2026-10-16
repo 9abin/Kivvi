@@ -52,8 +52,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repeat", type=int, default=2)
     ap.add_argument("--out", default="exp_listwise_topk.json")
+    ap.add_argument("--ks", default="5,8,10")
+    ap.add_argument("--source", default="bge", help="bge: BGE 점수순 상위 --pool개 조 / rrf: BGE 없이 RRF 순서 상위 --pool개 조")
+    ap.add_argument("--pool", type=int, default=POOL)
     args = ap.parse_args()
 
+    global KS
+    KS = tuple(int(x) for x in args.ks.split(","))
     pre = pickle.load(open(os.path.join("eval", "runs", "bakeoff_pool_cache.pkl"), "rb"))
     s = Searcher()
     s.glossary_filter = True
@@ -70,9 +75,9 @@ def main():
     # BGE 순서 → 용어집 필터 → 조 묶기 → 상위 16개 조
     top16 = []
     for p in pre:
-        ranked = s.rerank(p["g"]["q"], [dict(h) for h in p["pool"]])
+        ranked = s.rerank(p["g"]["q"], [dict(h) for h in p["pool"]]) if args.source == "bge" else [dict(h) for h in p["pool"]]
         ranked, _ = glossary.filter_candidates(p["g"]["q"], ranked, s.glossary)
-        top16.append(group_by_article(ranked)[:POOL])
+        top16.append(group_by_article(ranked)[:args.pool])
     print("BGE 상위 16개 조 준비 완료", flush=True)
 
     def assemble_recall(chosen_per_q, k):
@@ -90,7 +95,19 @@ def main():
             full += p["want"] <= used
         return got / need, full
 
+    def hit_mrr(chosen_per_q):
+        firsts = []
+        for p, chosen in zip(pre, chosen_per_q):
+            idx = {x for x in p["idx"]}
+            if idx:
+                pos = [i for i, h in enumerate(chosen, 1) if key(h["doc_id"], s.row_info[h["chunk_id"]].get("article")) in idx]
+                firsts.append(pos[0] if pos else None)
+        hits = [sum(1 for f in firsts if f and f <= t) / len(firsts) for t in (1, 3, 5, 10)]
+        return hits, sum(1 / f for f in firsts if f) / len(firsts)
+
     results = {}
+    hm, mm = hit_mrr(top16)
+    print("BGE 순서 Hit@1/3/5/10 " + "/".join(f"{x:.2f}" for x in hm) + f" MRR {mm:.3f}", flush=True)
     for k in KS:
         r, f = assemble_recall(top16, k)
         results[f"BGE 상위{k}"] = [(r, f)]
@@ -126,6 +143,8 @@ def main():
                 chosen_per_q = list(ex.map(one, zip(pre, top16)))
             r, f = assemble_recall(chosen_per_q, k)
             results.setdefault(f"Luna {k}", []).append((r, f))
+            hm, mm = hit_mrr(chosen_per_q)
+            print(f"  Luna {k}개 순서 Hit@1/3/5/10 " + "/".join(f"{x:.2f}" for x in hm) + f" MRR {mm:.3f}", flush=True)
             print(f"Luna가 16개 중 {k:2d}개 선택 #{rep}  Recall {r:.3f} (전부 {f:3d}) | 파싱 실패 {stats['fail']}, 개수 모자라 채움 {stats['fill']} | {time.time() - t0:.0f}초", flush=True)
             json.dump(results, open(os.path.join("eval", "runs", args.out), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     s.close()

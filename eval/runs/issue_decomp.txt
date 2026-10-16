@@ -1,0 +1,11 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 15482.54it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   5%|▍         | 18/393 [00:00<00:02, 153.40it/s]Loading weights:  10%|▉         | 38/393 [00:00<00:02, 158.82it/s]Loading weights:  14%|█▎        | 54/393 [00:00<00:03, 111.55it/s]Loading weights:  18%|█▊        | 71/393 [00:00<00:02, 121.99it/s]Loading weights:  22%|██▏       | 86/393 [00:00<00:02, 124.84it/s]Loading weights:  25%|██▌       | 100/393 [00:00<00:02, 116.59it/s]Loading weights:  29%|██▉       | 113/393 [00:00<00:02, 118.21it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 414.93it/s]
+후보 목록 준비 완료
+
+전체 후보(자르기 전)에 정답: 기존 140/156 (0.897), 쟁점 포함 142/156 (0.910)
+상위 30개 자르기 비교(기존 vs 쟁점 합침): 새로 들어온 정답 6개, 밀려난 정답 5개, 전체 후보에는 있으나 30개 밖 15개, 어디에도 없음 14개
+[A30] 후보 안 정답 126/156 | BGE Recall k8 0.686(59) k10 0.731(63) k12 0.737(64) k16 0.808(73)
+[A36] 후보 안 정답 127/156 | BGE Recall k8 0.686(59) k10 0.731(63) k12 0.731(63) k16 0.782(70)
+[E30] 후보 안 정답 127/156 | BGE Recall k8 0.686(58) k10 0.712(60) k12 0.744(64) k16 0.788(69)
+[P36] 후보 안 정답 126/156 | BGE Recall k8 0.686(59) k10 0.731(63) k12 0.731(63) k16 0.788(71)

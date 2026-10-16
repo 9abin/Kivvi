@@ -1,0 +1,45 @@
+=== tiered_bge10_luna_100 (k=10, select_pool=0)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|##########| 391/391 [00:00<00:00, 37381.71it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   3%|2         | 11/393 [00:00<00:03, 104.00it/s]Loading weights:   6%|5         | 22/393 [00:00<00:04, 83.80it/s] Loading weights:   8%|8         | 33/393 [00:00<00:04, 86.87it/s]Loading weights:  11%|#         | 42/393 [00:00<00:04, 84.21it/s]Loading weights:  15%|#5        | 59/393 [00:00<00:03, 107.29it/s]Loading weights:  18%|#7        | 70/393 [00:00<00:03, 94.26it/s] Loading weights:  20%|##        | 80/393 [00:00<00:03, 83.49it/s]Loading weights:  23%|##2       | 89/393 [00:01<00:03, 76.42it/s]Loading weights: 100%|##########| 393/393 [00:01<00:00, 348.78it/s]
+Q001 answer 21.3
+Q002 answer 14.5
+Q004 answer 13.6
+tiered_bge10_luna_100 채점 3 {'정답': 3, '부분': 0, '오답': 0, '답못함': 0, '채점실패': 0}
+  RAGAS Q004 충실도 1.0 관련성 1.0 문맥재현 1.0
+  RAGAS Q001 충실도 0.8333333333333334 관련성 1.0 문맥재현 1.0
+  RAGAS Q002 충실도 0.8571428571428571 관련성 1.0 문맥재현 1.0
+# 평가 보고: tiered_bge10_luna_100
+
+문항 3개, DB regulations_para, 채점 모델 gpt-5.6-luna
+
+## 2. 최종 근거 Recall (답변에 쓰인 근거 안에 정답 조문이 있는가)
+
+정답 근거 조문 4개 중 4개 확보 (**Recall 1.00**), 전부 확보한 문항 3/3
+
+## 3. RAGAS 스타일 (0~1, 채점 모델 gpt-5.6-luna)
+
+| 지표 | 평균 | 측정 문항 |
+|---|---|---|
+| 충실도 faithfulness | 0.90 | 3 |
+| 관련성 answer relevancy | 1.00 | 3 |
+| 문맥재현 context recall | 1.00 | 3 |
+
+## 4. LLM 판정 (judge_answers)
+
+| 구분 | 문항 | 정답 | 부분 | 오답 | 답못함 | 채점실패 |
+|---|---|---|---|---|---|---|
+| 전체 | 3 | 3 (100%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| 단일조문사실 | 1 | 1 (100%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| 수치기준 | 2 | 2 (100%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |
+
+## 5. 답변 생성 시간 (질문 하나, 초)
+
+평균 16.5 / 중앙값 14.5 / 90퍼센타일 21.3 / 최대 21.3  (검색, 바꿔쓰기, 답변, 근거 검사 포함)
+실행 모드: {'answer': 3}
+
+=== tiered_bge5_luna_100 (k=5, select_pool=0)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|##########| 391/391 [00:00<00:00, 33209.26it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   3%|2         | 11/393 [00:00<00:03, 100.47it/s]Loading weights:   7%|7         | 29/393 [00:00<00:02, 143.43it/s]Loading weights:  11%|#1        | 44/393 [00:00<00:02, 125.12it/s]Loading weights:  16%|#6        | 64/393 [00:00<00:02, 136.36it/s]Loading weights:  20%|#9        | 78/393 [00:00<00:02, 128.11it/s]Loading weights:  24%|##3       | 93/393 [00:00<00:02, 132.64it/s]Loading weights:  30%|###       | 118/393 [00:00<00:01, 164.60it/s]Loading weights:  34%|###4      | 135/393 [00:00<00:01, 141.69it/s]Loading weights: 100%|##########| 393/393 [00:00<00:00, 402.67it/s]
+Q001 answer 9.6
