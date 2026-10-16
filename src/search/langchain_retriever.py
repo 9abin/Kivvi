@@ -38,7 +38,7 @@ class RegulationRetriever(BaseRetriever):
     searcher: Searcher
     k: int = 5
     filters: Optional[dict] = None
-    rewritten: Optional[str] = None  # 규정 용어로 바꿔 쓴 검색어 (후보 찾기에만 더한다)
+    rewritten: Optional[Any] = None  # 규정 용어로 바꿔 쓴 검색어 (후보 찾기에만 더한다). 바꿔쓰기를 동시에 돌리면 Future
     plan: Optional[list] = None  # 하위 질문 목록 (Generator.plan_queries). 있으면 rewritten 대신 이것으로 검색한다
     rewritten_future: Optional[Any] = None  # rewritten을 GPT가 만드는 중일 때 (Searcher.search 참고)
 

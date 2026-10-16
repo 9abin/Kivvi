@@ -1,0 +1,11 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 38922.79it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   2%|▏         | 8/393 [00:00<00:05, 70.09it/s]Loading weights:   6%|▋         | 25/393 [00:00<00:03, 119.63it/s]Loading weights:  10%|▉         | 38/393 [00:00<00:03, 107.53it/s]Loading weights:  14%|█▍        | 56/393 [00:00<00:02, 129.81it/s]Loading weights:  18%|█▊        | 71/393 [00:00<00:02, 127.85it/s]Loading weights:  21%|██▏       | 84/393 [00:00<00:02, 127.81it/s]Loading weights:  27%|██▋       | 106/393 [00:00<00:01, 150.04it/s]Loading weights:  31%|███       | 122/393 [00:00<00:01, 136.12it/s]Loading weights:  35%|███▍      | 137/393 [00:01<00:01, 137.63it/s]Loading weights: 100%|██████████| 393/393 [00:01<00:00, 350.85it/s]
+호 단위 검색 표현 2726개 (부모 항 610개)
+후보 목록 준비 완료
+
+[기존 (항 색인)] 후보 30개 안 정답 126/156 | 기존보다 새로 들어온 정답 0, 빠진 정답 0
+  BGE만 k8 0.686(59) k10 0.731(63) k16 0.808(73) | BGE 16 → Luna 10 평균 0.792 (회차 0.795, 0.788)
+
+[호 표현 추가] 후보 30개 안 정답 121/156 | 기존보다 새로 들어온 정답 6, 빠진 정답 11
+  BGE만 k8 0.667(57) k10 0.692(59) k16 0.750(65) | BGE 16 → Luna 10 평균 0.724 (회차 0.724, 0.724)

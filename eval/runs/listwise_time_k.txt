@@ -1,0 +1,13 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 16362.91it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   4%|▍         | 17/393 [00:00<00:02, 143.69it/s]Loading weights:   9%|▊         | 34/393 [00:00<00:02, 145.08it/s]Loading weights:  12%|█▏        | 49/393 [00:00<00:02, 126.37it/s]Loading weights:  17%|█▋        | 66/393 [00:00<00:02, 140.14it/s]Loading weights:  21%|██        | 81/393 [00:00<00:02, 130.48it/s]Loading weights:  24%|██▍       | 95/393 [00:00<00:02, 129.16it/s]Loading weights:  75%|███████▍  | 294/393 [00:00<00:00, 667.35it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 478.70it/s]
+  5/20
+  10/20
+  15/20
+  20/20
+BGE 16개 → Luna   k= 5 | 평균 5.1초 중앙값 4.7초 90퍼센타일 6.4초 최대 11.5초 (20번)
+BGE 16개 → Luna   k= 8 | 평균 6.1초 중앙값 6.1초 90퍼센타일 7.0초 최대 10.4초 (20번)
+BGE 16개 → Luna   k=10 | 평균 6.7초 중앙값 6.4초 90퍼센타일 9.3초 최대 15.2초 (20번)
+Luna 단독(30개)     k= 5 | 평균 4.8초 중앙값 4.7초 90퍼센타일 6.6초 최대 6.9초 (20번)
+Luna 단독(30개)     k= 8 | 평균 6.9초 중앙값 6.2초 90퍼센타일 11.0초 최대 14.4초 (20번)
+Luna 단독(30개)     k=10 | 평균 6.9초 중앙값 6.5초 90퍼센타일 9.9초 최대 12.3초 (20번)

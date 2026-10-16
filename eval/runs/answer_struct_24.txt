@@ -1,0 +1,79 @@
+선정 문항: Q018, Q021, Q031, Q033, Q034, Q039, Q040, Q051, Q061, Q066, Q067, Q068, Q070, Q079, Q082, Q085, Q001, Q004, Q005, Q017, Q058, Q064, Q069, Q072
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 26432.42it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   5%|▌         | 21/393 [00:00<00:01, 200.59it/s]Loading weights:  11%|█         | 42/393 [00:00<00:02, 161.65it/s]Loading weights:  15%|█▌        | 59/393 [00:00<00:02, 157.65it/s]Loading weights:  19%|█▉        | 75/393 [00:00<00:02, 152.19it/s]Loading weights:  23%|██▎       | 91/393 [00:00<00:02, 129.78it/s]Loading weights:  27%|██▋       | 108/393 [00:00<00:02, 138.20it/s]Loading weights:  31%|███▏      | 123/393 [00:00<00:02, 134.09it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 452.00it/s]
+고정 근거 24문항, 평균 7151자
+[A] 생성 완료 | 구조 단계 평균 0.0초, 답변 평균 8.0초, 전체 평균 8.0초 | A′로 대체(구조 생성·해석·검증 실패) 0/24
+[Ap] 생성 완료 | 구조 단계 평균 0.0초, 답변 평균 8.5초, 전체 평균 8.5초 | A′로 대체(구조 생성·해석·검증 실패) 0/24
+Traceback (most recent call last):
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_openai\chat_models\base.py", line 1988, in _generate
+    raw_response = self.client.with_raw_response.create(**payload)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\openai\_legacy_response.py", line 369, in wrapped
+    return cast(LegacyAPIResponse[R], func(*args, **kwargs))
+                                      ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\openai\_utils\_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 1318, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\openai\_base_client.py", line 1440, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\openai\_base_client.py", line 1213, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'message': 'Your project has reached its configured enforced spend limit. Update your limit at https://platform.openai.com/settings/proj_RdBM8OAdobECDw7mJNPWXtjU/limits.', 'type': 'insufficient_quota', 'param': None, 'code': 'project_spend_limit_exceeded'}}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\scripts\exp_answer_struct.py", line 247, in <module>
+    main()
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\scripts\exp_answer_struct.py", line 220, in main
+    recs = list(ex.map(lambda i: run_one(cond, i), pick))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 619, in result_iterator
+    yield _result_or_cancel(fs.pop())
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 317, in _result_or_cancel
+    return fut.result(timeout)
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 456, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\scripts\exp_answer_struct.py", line 220, in <lambda>
+    recs = list(ex.map(lambda i: run_one(cond, i), pick))
+                                 ^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\scripts\exp_answer_struct.py", line 208, in run_one
+    rec["answer"] = answer_with(q, entries, extra)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\scripts\exp_answer_struct.py", line 171, in answer_with
+    text = assemble_sections(gen._ask(SYSTEM_PROMPT, user))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\src\answer\generate.py", line 325, in _ask
+    return chain.invoke({"input": user}).content.strip()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 3460, in invoke
+    input_ = context.run(step.invoke, input_, config)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 488, in invoke
+    self.generate_prompt(
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 1877, in generate_prompt
+    return self.generate(prompt_messages, stop=stop, callbacks=callbacks, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 1684, in generate
+    self._generate_with_cache(
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 2022, in _generate_with_cache
+    result = self._generate(
+             ^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_openai\chat_models\base.py", line 1993, in _generate
+    _handle_openai_api_error(e)
+  File "C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\langchain_openai\chat_models\base.py", line 736, in _handle_openai_api_error
+    raise OpenAIRateLimitError(
+langchain_openai.chat_models.base.OpenAIRateLimitError: Error code: 429 - {'error': {'message': 'Your project has reached its configured enforced spend limit. Update your limit at https://platform.openai.com/settings/proj_RdBM8OAdobECDw7mJNPWXtjU/limits.', 'type': 'insufficient_quota', 'param': None, 'code': 'project_spend_limit_exceeded'}}

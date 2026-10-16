@@ -35,8 +35,21 @@ from src.store.pgstore import PgStore
 CANDIDATES = 50         # 방식별로 합치기 전 가져올 후보 수
 RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
+SHORTEN_LONG = True     # 조 전체가 예산(CONTEXT_CHAR_BUDGET)을 넘으면 가장 긴 조부터 찾은 항과 이웃 항만 남긴다. 끄면 안 들어가는 조는 통째로 빠진다
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
+LLM_SELECT_POOL = 0  # 0이면 끔. 16이면 리랭크 상위 16개 조를 LLM이 보고 k개를 고른다 (scripts/exp_listwise_topk.py 실험, 평가 실행기의 --select-pool로 켠다)
+SELECT_PROMPT = """한국벤처투자 내부 규정 검색 결과에서 직원 질문에 답하는 데 필요한 조문을 정확히 {k}개 고른다.
+- 질문에 직접 답하는 조문을 앞에 두고, 답의 조건·예외·정의·기준표를 알려 주는 조문도 포함한다.
+- 같은 규정의 비슷한 조문만 몰아 고르지 말고, 질문에 꼭 필요한 것만 고른다.
+- 후보 번호만 JSON으로 답한다: {{"순서": [번호, 번호, ...]}}
+
+질문: {q}
+
+후보:
+{cands}"""
+GROUP_BY_ARTICLE = True  # 상위 k개를 고를 때 같은 조의 항을 한 자리로 묶어 서로 다른 조를 k개 확보한다(같은 조의 다른 항은 형제 항 확장이 붙인다). 조 단위 색인에서는 효과가 없다
+CITE_WHOLE_ARTICLE = True  # 조 전체를 가리키는 인용을 항 단위 색인에서도 따라간다(_whole_article). 전후 비교를 위해 끌 수 있다
 RELATED_RERANK_TOP = 30  # 주제 링크 후보 중 리랭커에 넘기는 수 (후보 단계의 RERANK_TOP과 같게 두어 비용을 묶는다)
 # HIGHLIGHT_HITS: 조 전체를 넘길 때의 표시 (generate.HIT_NOTE가 답변 모델에 뜻을 알려 준다)
 HIT_MARK = "▶▶ [찾은 항] "    # 검색이 실제로 찾은 항 (강하게)
@@ -70,6 +83,44 @@ def strip_marks(text):
     return text
 
 
+SHORTENED_NOTE = "\n(분량 때문에 이 조의 나머지 항은 생략함)"
+MIN_SHORTENED = 500  # 조 하나를 이보다 짧게는 줄이지 않는다
+
+
+def water_level(lengths, budget, floor=MIN_SHORTENED):
+    """조 길이 목록을 모두 min(길이, L)로 깎았을 때 합이 budget 안에 드는 가장 큰 L (floor 아래로는 내리지 않는다)."""
+    lo, hi = floor, max(lengths)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if sum(min(n, mid) for n in lengths) <= budget:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+_PARA_START = re.compile(r"(?m)^(?=" + re.escape(HIT_MARK) + "|" + re.escape(SIB_MARK) + ")")
+
+
+def shorten_article(body, limit):
+    """조 전체(body)가 예산에 안 들어갈 때 줄여 넣는다: 찾은 항(HIT_MARK)과 이웃 항을 limit자 안에서 항 순서대로 남긴다.
+    표시가 없는 조(항이 하나)는 앞에서부터 줄 단위로 limit자까지 남긴다. 줄인 곳에는 SHORTENED_NOTE가 붙는다."""
+    parts = [p for p in _PARA_START.split(body) if p]
+    hit = next((i for i, p in enumerate(parts) if p.startswith(HIT_MARK)), 0)
+    keep, used = {hit}, len(parts[hit])
+    lo, hi = hit - 1, hit + 1
+    while used < limit and (lo >= 0 or hi < len(parts)):
+        for i in (hi, lo):  # 뒤 항을 먼저, 그다음 앞 항
+            if 0 <= i < len(parts) and i not in keep and used + len(parts[i]) <= limit:
+                keep.add(i)
+                used += len(parts[i])
+        lo, hi = lo - 1, hi + 1
+    text = "".join(parts[i] for i in sorted(keep))
+    if len(text) > limit:  # 찾은 항 하나가 limit보다 길면 줄 단위로 자른다
+        cut = text[:limit]
+        text = cut[:cut.rfind("\n")] if "\n" in cut[limit // 2:] else cut
+    return text.rstrip() + SHORTENED_NOTE if len(text) < len(body) else body
+
+
 # 키워드 질의에서 뺄 형태소 태그: 조사, 어미, 문장부호
 _SKIP_TAGS = ("J", "E", "SF", "SP", "SS", "SE", "SO")
 
@@ -98,6 +149,18 @@ def _article_base(article):
     return (article or "").split(" ")[0]
 
 
+def group_by_article(hits):
+    """순위를 유지한 채 같은 (문서, 조)의 항은 처음 나온 하나만 남긴다. 한 조의 항들이 상위 k개를 독차지하지 않게 하려는 것이다.
+    남은 항에는 형제 항 확장이 같은 조의 다른 항을 붙인다."""
+    seen, out = set(), []
+    for h in hits:
+        key = (h["doc_id"], _article_base(h["article"]))
+        if key not in seen:
+            seen.add(key)
+            out.append(h)
+    return out
+
+
 def interleave(lists, limit):
     """여러 결과 목록을 순위별로 번갈아 합친다 (각 목록 1위, 각 목록 2위, …). 같은 청크는 처음 나온 것만 남긴다."""
     out, seen = [], set()
@@ -119,6 +182,7 @@ class Searcher:
         self.model.half()
         self.reranker = CrossEncoder(RERANK_MODEL, device="cuda")
         self.rerank_header = RERANK_HEADER
+        self._select_llm = None
         self.synonym_table = synonyms.load() if USE_SYNONYMS else {}
         self.glossary = glossary.load()
         self.glossary_filter = True  # 후보 단계 제외 (전후 비교를 위해 끌 수 있다)
@@ -321,8 +385,51 @@ class Searcher:
                 entry["인용원문"] = t["원문"]
                 entry["연결상태"] = t["상태"]
                 out.append(entry)
+            elif CITE_WHOLE_ARTICLE:
+                out.extend(self._whole_article(t))
         return out
 
+    def _whole_article(self, cite):
+        """조 전체를 가리키는 인용('제16조')은 대상 ID에 항이 없다. 그 조가 항별 청크로 쪼개져 있으면
+        같은 ID의 청크가 없으므로, 그 조의 항을 항 순서대로 가져온다(글자 수 상한은 형제 항과 같다).
+        조 단위 색인에서는 같은 ID의 청크가 있어 이 길로 오지 않는다."""
+        doc_id, _, article = cite["대상"].partition("_")
+        used, out = 0, []
+        for r in self.store.siblings(doc_id, article):
+            if used + len(r["body"]) > SIBLING_LIMIT:
+                break
+            entry = self._entry(r)
+            entry["인용원문"] = cite["원문"]
+            entry["연결상태"] = cite["상태"]
+            out.append(entry)
+            used += len(r["body"])
+        return out
+
+    def _llm_select(self, text, cands, k):
+        """리랭크 상위 후보(조 단위)를 LLM이 보고 질문에 필요한 k개를 중요한 순서로 고른다. 실패하거나 모자라면 리랭크 순서로 채운다."""
+        import json
+        import re as _re
+        if self._select_llm is None:
+            from langchain_openai import ChatOpenAI
+            from config import JUDGE_MODEL
+            self._select_llm = ChatOpenAI(model=JUDGE_MODEL, temperature=0, timeout=120, max_retries=2)
+        lines = []
+        for i, h in enumerate(cands, 1):
+            r = self.row_info[h["chunk_id"]]
+            title = self.documents.get(r["doc_id"], {}).get("title") or r["doc_id"]
+            lines.append(f"[{i}] {title} {r['article']} | " + _re.sub(r"\s+", " ", r["body_search"] or "")[:220])
+        try:
+            out = self._select_llm.invoke(SELECT_PROMPT.format(k=k, q=text, cands="\n".join(lines))).content
+            ids = [int(x) for x in json.loads(_re.search(r"\{.*\}", out, _re.S).group(0))["순서"]]
+        except Exception:  # noqa: BLE001
+            ids = []
+        chosen, seen = [], set()
+        for i in ids:
+            if 1 <= i <= len(cands) and i not in seen:
+                seen.add(i)
+                chosen.append(cands[i - 1])
+        chosen = chosen[:k]
+        return chosen + [h for h in cands if h["chunk_id"] not in {c["chunk_id"] for c in chosen}][:k - len(chosen)]
     def _article_item(self, h):
         """항 청크 h가 속한 조 전체를 한 항목으로 (RETURN_ARTICLE일 때 주제 링크 결과에 쓴다).
         _as_articles와 같은 모양이지만 찾은 항 표시(HIT_MARK·SIB_MARK)는 붙이지 않는다. 단서 표시는 붙인다."""
@@ -502,6 +609,8 @@ class Searcher:
         if rewritten_future is not None:
             rewritten = rewritten_future.result()
         # 바꿔 쓴 검색어와 동의어 사전의 규정 용어를 합쳐 후보 찾기에만 더한다 (리랭킹은 원래 질문).
+        if hasattr(rewritten, "result"):  # 바꿔쓰기를 동시에 돌리는 중이면 원질문 검색을 마친 뒤에 결과를 받는다
+            rewritten = rewritten.result()
         hint = " ".join(x for x in (rewritten, synonyms.expand(text, self.synonym_table),
                                     glossary.signal_terms(text, self.glossary)) if x)
         self.last_hint = hint  # 기록용: 이번 검색에서 후보 찾기에 더해진 검색어(바꿔 쓴 검색어, 동의어 사전, 용어집 신호)
@@ -521,6 +630,10 @@ class Searcher:
         self.last_glossary_excluded = []
         if self.glossary_filter:
             fused, self.last_glossary_excluded = glossary.filter_candidates(text, fused, self.glossary)
+        if GROUP_BY_ARTICLE:
+            fused = group_by_article(fused)
+        if LLM_SELECT_POOL and rerank and len(fused) > k:
+            fused = self._llm_select(text, fused[:LLM_SELECT_POOL], k)
         if RETURN_ARTICLE:
             out = self._as_articles(exact + fused, k, expand_cites)
         else:
@@ -652,6 +765,13 @@ class Searcher:
         seen = set()
         used = 0
         groups = {}
+        # 검색 결과 조들을 통째로 넣어도 예산 안이면 그대로 둔다. 넘치면 긴 조부터 같은 길이(cap)로 깎아 모두 들어가게 한다.
+        # 한 조가 예산을 다 써서 뒤 순위의 짧은 조(정답일 수 있음)가 통째로 밀려나는 것보다, 긴 조의 먼 항을 줄이는 쪽이 낫다.
+        cap = None
+        if SHORTEN_LONG:
+            lengths = [len(r["body"]) for r in results]
+            if sum(lengths) > budget:
+                cap = water_level(lengths, budget)
 
         def add(entry, role, rank):
             nonlocal used
@@ -659,6 +779,11 @@ class Searcher:
             if cid in seen:
                 return
             n = len(entry["body"])
+            if cap and n > cap and role in ("정확조회", "검색"):
+                short = shorten_article(entry["body"], cap - len(SHORTENED_NOTE))
+                if len(short) < n:
+                    entry = {**entry, "body": short}
+                    n = len(short)
             if used + n > budget:
                 return
             seen.add(cid)

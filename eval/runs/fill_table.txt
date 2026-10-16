@@ -1,0 +1,4 @@
+  File "C:\Users\Admin\Downloads\kvic-article-chunking\scripts\exp_fill_table.py", line 100
+    print(f"
+          ^
+SyntaxError: unterminated f-string literal (detected at line 100)

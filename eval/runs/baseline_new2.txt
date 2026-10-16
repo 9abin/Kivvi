@@ -1,0 +1,13 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 70991.42it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   4%|▍         | 16/393 [00:00<00:02, 150.95it/s]Loading weights:   8%|▊         | 32/393 [00:00<00:03, 118.74it/s]Loading weights:  11%|█▏        | 45/393 [00:00<00:03, 94.38it/s] Loading weights:  14%|█▍        | 56/393 [00:00<00:03, 98.72it/s]Loading weights:  17%|█▋        | 67/393 [00:00<00:03, 93.81it/s]Loading weights:  20%|█▉        | 77/393 [00:00<00:03, 94.71it/s]Loading weights:  22%|██▏       | 87/393 [00:00<00:03, 81.69it/s]Loading weights: 100%|██████████| 393/393 [00:01<00:00, 391.11it/s]
+질문 100개, 정답 근거 (규정, 조) 189개
+전체 후보(자르기 전)에 정답 180/189, 상위 30개 안 정답 163/189
+
+[BGE만 (현재)] Recall k5 0.593(50/100) k8 0.714(58/100) k10 0.762(62/100) k12 0.778(65/100) k16 0.847(75/100)
+  Hit@1/3/5/10 0.45/0.77/0.88/0.93 MRR 0.624
+
+[BGE만 + 장 정보] Recall k5 0.603(50/100) k8 0.720(60/100) k10 0.767(64/100) k12 0.788(67/100) k16 0.831(72/100)
+  Hit@1/3/5/10 0.47/0.80/0.88/0.93 MRR 0.643
+[BGE 상위 16개 조 → Luna  8개] Recall 평균 0.804 (회차 0.804, 0.804) 전부 확보 70.5/100 | Hit@1/3/5/10 0.71/0.91/0.94/0.95 MRR 0.810
+[BGE 상위 16개 조 → Luna 10개] Recall 평균 0.823 (회차 0.820, 0.825) 전부 확보 71.5/100 | Hit@1/3/5/10 0.76/0.91/0.93/0.96 MRR 0.839

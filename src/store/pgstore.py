@@ -35,6 +35,15 @@ def _tsquery(tokens):
 class PgStore:
     def __init__(self):
         self.conn = _connect()
+        # 조 단위 색인에는 chunks.section(장·절)이 있고, 항 단위 색인(팀 DB)에는 없다. 읽기 쿼리는 없으면 NULL로 대신한다.
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name = 'chunks' AND column_name = 'section' AND table_schema = current_schema()")
+            self._has_section = cur.fetchone() is not None
+
+    def _sec(self, alias=""):
+        """SELECT 목록에 넣을 section 칸. 없는 색인에서는 NULL 값으로 같은 이름을 만들어 준다."""
+        return f"{alias}section" if self._has_section else "NULL::text AS section"
 
     def close(self):
         self.conn.close()
@@ -195,8 +204,8 @@ class PgStore:
         """색인 대상 청크 전체를 읽는다. BM25 역색인을 메모리에 만들 때 쓴다 (search/bm25.py)."""
         with self.conn.cursor() as cur:
             cur.execute(
-                """
-                SELECT c.chunk_id, c.doc_id, c.article, c.section, c.body, c.body_search, c.body_tokens, c.cites,
+                f"""
+                SELECT c.chunk_id, c.doc_id, c.article, {self._sec("c.")}, c.body, c.body_search, c.body_tokens, c.cites,
                        c.corrections_note, d.tier
                 FROM chunks c JOIN documents d ON d.doc_id = c.doc_id
                 WHERE c.is_indexed
@@ -217,7 +226,7 @@ class PgStore:
         with self.conn.cursor() as cur:
             cur.execute(
                 f"""
-                SELECT chunk_id, doc_id, article, section, body, status, is_indexed, cites, corrections_note
+                SELECT chunk_id, doc_id, article, {self._sec()}, body, status, is_indexed, cites, corrections_note
                 FROM chunks
                 WHERE doc_id = %(doc)s AND {cond}
                 ORDER BY chunk_id
@@ -229,7 +238,7 @@ class PgStore:
     def get(self, chunk_ids):
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT chunk_id, doc_id, article, section, body, status, is_indexed, cites, corrections_note "
+                f"SELECT chunk_id, doc_id, article, {self._sec()}, body, status, is_indexed, cites, corrections_note "
                 "FROM chunks WHERE chunk_id = ANY(%s)",
                 (list(chunk_ids),),
             )

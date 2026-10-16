@@ -1,0 +1,103 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 25003.02it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   2%|▏         | 8/393 [00:00<00:04, 78.32it/s]Loading weights:   5%|▌         | 21/393 [00:00<00:03, 105.14it/s]Loading weights:   8%|▊         | 32/393 [00:00<00:04, 87.20it/s] Loading weights:  11%|█         | 42/393 [00:00<00:04, 75.13it/s]Loading weights:  15%|█▌        | 60/393 [00:00<00:03, 104.90it/s]Loading weights:  20%|██        | 79/393 [00:00<00:02, 128.99it/s]Loading weights:  24%|██▎       | 93/393 [00:00<00:02, 122.10it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 437.24it/s]
+Q001 answer 23.6
+Q002 answer 18.9
+Q004 answer 18.5
+Q005 answer 20.5
+Q009 answer 26.7
+Q011 answer 28.6
+Q013 answer 22.8
+Q015 answer 29.2
+Q017 answer 19.1
+Q018 answer 23.9
+Q020 answer 22.1
+Q021 answer 25.5
+Q022 answer 23.6
+Q023 answer 22.9
+Q024 answer 20.4
+Q025 answer 20.9
+Q028 answer 23.6
+Q029 answer 23.2
+Q030 answer 27.7
+Q031 answer 23.3
+Q032 answer 23.6
+Q033 answer 22.4
+Q034 answer 21.5
+Q035 answer 21.0
+Q037 answer 26.9
+Q038 answer 25.4
+Q039 answer 23.8
+Q041 answer 23.2
+Q047 answer 23.8
+Q048 answer 20.0
+Q049 answer 24.0
+Q051 answer 20.1
+Q052 answer 23.5
+Q053 answer 21.5
+Q054 answer 26.3
+Q058 partial 22.9
+Q059 partial 23.8
+Q060 answer 27.0
+Q061 answer 26.0
+Q064 answer 26.4
+Q066 answer 21.8
+Q067 answer 19.4
+Q068 answer 24.8
+Q069 answer 29.4
+Q070 answer 32.4
+Q071 answer 19.7
+Q072 answer 24.3
+Q076 answer 24.9
+Q077 answer 30.1
+Q078 answer 28.1
+Q079 answer 26.8
+Q080 answer 27.7
+Q081 none 10.7
+Q083 answer 28.3
+Q085 answer 24.6
+Q086 answer 31.9
+Q089 answer 22.2
+Q095 answer 32.7
+Q096 answer 25.2
+Q098 answer 21.0
+Q099 answer 22.3
+Q100 answer 24.3
+Q101 answer 33.8
+Q103 answer 27.3
+Q105 answer 25.4
+Q107 answer 32.9
+Q109 answer 26.1
+Q112 answer 22.6
+Q114 answer 23.1
+Q115 partial 26.3
+Q118 answer 26.1
+Q119 none 11.0
+Q120 answer 19.9
+Q122 answer 27.3
+Q123 answer 24.9
+Q124 answer 27.0
+Q125 answer 21.8
+Q126 answer 21.9
+Q127 answer 24.5
+Q128 answer 22.9
+Q131 answer 27.6
+Q132 answer 21.4
+Q135 answer 24.6
+Q137 answer 28.3
+Q138 answer 33.8
+Q142 answer 25.7
+Q146 answer 21.6
+Q154 answer 23.1
+Q155 answer 22.2
+Q156 answer 23.6
+Q159 answer 22.2
+Q160 none 8.5
+Q161 answer 26.0
+Q162 answer 31.3
+Q164 answer 23.5
+Q170 answer 26.3
+Q184 answer 21.5
+Q185 answer 24.0
+Q186 answer 31.3
+Q188 answer 22.3
