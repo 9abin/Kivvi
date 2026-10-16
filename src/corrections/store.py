@@ -9,6 +9,7 @@ import io
 import json
 
 from config import CORRECTIONS
+from src.chunk.articles import article_id
 
 
 def load(path=CORRECTIONS):
@@ -20,7 +21,7 @@ def validate(corrections, chunk_ids):
     """대상 ID가 청크에 있는지 확인. 반환: 문제가 있는 항목 목록"""
     problems = []
     for c in corrections:
-        target = c.get("대상ID")
+        target = c.get("대상ID") and article_id(c["대상ID"])
         if target and target not in chunk_ids and not any(i.startswith(target + "_") for i in chunk_ids):
             problems.append((c["id"], target))
     return problems

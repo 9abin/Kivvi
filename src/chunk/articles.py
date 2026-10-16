@@ -1,4 +1,7 @@
-"""조·항 단위 청킹. 조 제목 인식, 가지번호·표기 정규화, 항 분리, 삭제 조 표시."""
+"""조 단위 청킹. 조 제목 인식, 가지번호·표기 정규화, 장·절 제목 분리, 삭제 조 표시.
+
+청크는 조 하나다(항으로 나누지 않는다). 항 번호는 인용 대상 확인용으로 `항번호` 필드에만 남긴다.
+장·절 제목 줄은 본문에서 떼어 그 아래 조들의 `장` 필드(예: "제2장 감사의 종류 > 제1절 정기감사")로 옮긴다."""
 import io
 import json
 import os
@@ -28,8 +31,64 @@ ANNEX_NUMBER = re.compile(r"별\s*표\s*(?:제\s*)?(\d+)(?:\s*호)?(?:\s*의\s*(
 
 DUP_NUMBERING = []  # (고유번호, 항 시작 문구, 원문 항번호, 검색용 항번호)
 
+# 장·절 제목 줄 (편 > 장 > 절 > 관). 조 경계가 아니라서 예전에는 바로 앞 조 청크 끝에 붙어 버렸다.
+# 줄 전체가 "제N장 제목" 꼴인 줄만 잡는다. "제2장의 규정에 따라 …"처럼 뒤에 글자가 바로 붙거나
+# 문장으로 끝나는 줄("…한다.")은 제목이 아니다.
+HEADING = re.compile(r"[ \t]*제\s*(\d+)\s*(편|장|절|관)(?:[ \t][^\n]{0,60})?[ \t]*")
+HEADING_LEVELS = ("편", "장", "절", "관")
+
+
+def article_id(chunk_id):
+    """예전 항 단위 ID('23583_제8조_2항')를 조 단위 ID('23583_제8조')로 바꾼다. 조 단위 ID는 그대로 둔다.
+    평가 정답·보정 목록처럼 항 단위 시절에 적힌 ID를 지금 청크에 맞출 때 쓴다."""
+    return re.sub(r"_\d+항(?=$|_)", "", chunk_id)
+
+
+def _heading(line):
+    """제목 줄이면 (단계, 이름), 아니면 None. 이름에서 <개정 …>, [개정 …] 표기와 겹친 공백을 뺀다."""
+    m = HEADING.fullmatch(line)
+    if not m or re.search(r"다\.\s*$", line):
+        return None
+    label = re.sub(r"\s+", " ", re.sub(r"<[^>]*>|\[[^\]]*\]", "", line)).strip()
+    return m.group(2), label
+
+
+def headings(body):
+    """본칙의 장·절 제목 줄 목록: [(줄 시작 위치, 단계, 이름), ...]"""
+    out, pos = [], 0
+    for line in body.split("\n"):
+        h = _heading(line)
+        if h:
+            out.append((pos, *h))
+        pos += len(line) + 1
+    return out
+
+
+def section_path(heads, pos):
+    """pos(조 시작 위치)에 걸리는 장·절 경로. 예: '제2장 감사의 종류 > 제1절 정기감사'. 없으면 빈 문자열.
+    윗단계 제목이 새로 나오면 아랫단계는 비운다 (새 장이 시작되면 앞 장의 절은 끝난다)."""
+    cur = {}
+    for start, level, label in heads:
+        if start > pos:
+            break
+        rank = HEADING_LEVELS.index(level)
+        cur = {lv: v for lv, v in cur.items() if HEADING_LEVELS.index(lv) < rank}
+        cur[level] = label
+    return " > ".join(cur[lv] for lv in HEADING_LEVELS if lv in cur)
+
+
+def strip_headings(seg):
+    """조 본문에 끼어든 장·절 제목 줄을 뗀다."""
+    return "\n".join(ln for ln in seg.split("\n") if not _heading(ln)).strip()
+
 
 def split_articles(body):
+    """[(조 번호, 가지 번호, 조 본문), ...]"""
+    return [(n, k, seg) for _, n, k, seg in split_articles_at(body)]
+
+
+def split_articles_at(body):
+    """[(본칙 안 시작 위치, 조 번호, 가지 번호, 조 본문), ...]"""
     hits = []
     for m in ARTICLE_HEADER.finditer(body):
         k = m.group(2) or m.group(3) or "0"
@@ -40,7 +99,7 @@ def split_articles(body):
     arts = []
     for i, (start, n, k) in enumerate(hits):
         end = hits[i + 1][0] if i + 1 < len(hits) else len(body)
-        arts.append((n, k, body[start:end].strip()))
+        arts.append((start, n, k, body[start:end].strip()))
     return arts
 
 
@@ -181,23 +240,25 @@ def build_chunks(meta, texts):
         txt = clean_text(texts.get(idx, ""))
         parts = BUJIK.split(txt)
         body = parts[0]
-        arts = split_articles(body)
+        heads = headings(body)
+        arts = split_articles_at(body)
         if not arts:
-            rows.append({**m, "id": f"{idx}_전문", "조항": "전체", "상태": "정상",
-                         "본문": body.strip(), "cites": []})
-        for n, k, seg in arts:
+            rows.append({**m, "id": f"{idx}_전문", "조항": "전체", "상태": "정상", "장": "", "항번호": [],
+                         "본문": strip_headings(body), "cites": []})
+        for pos, n, k, seg in arts:
             art = f"제{n}조" + (f"의{k}" if k else "")
+            seg = strip_headings(seg)
+            base = {**m, "id": dedupe(f"{idx}_{art}"), "조항": art, "장": section_path(heads, pos)}
             if re.search(r"삭제", seg[:40]) and len(seg) < 120:
-                rows.append({**m, "id": dedupe(f"{idx}_{art}"), "조항": art, "상태": "삭제",
-                             "본문": seg, "cites": []})
+                rows.append({**base, "상태": "삭제", "항번호": [], "본문": seg, "cites": []})
                 continue
             paras = split_paragraphs(seg, idx)
-            for pno, ptxt in paras:
-                cid = f"{idx}_{art}" + (f"_{pno}항" if len(paras) > 1 or pno != 1 else "")
-                rows.append({**m, "id": dedupe(cid),
-                             "조항": art + (f" 제{pno}항" if len(paras) > 1 else ""),
-                             "상태": "삭제" if is_deletion_only(ptxt) else "정상",
-                             "본문": ptxt, "cites": []})
+            numbered = len(paras) > 1 or paras[0][0] != 1
+            # 항이 모두 '④ 삭제 <날짜>' 꼴이면 조 전체가 삭제된 것과 같다
+            dead = numbered and all(is_deletion_only(t) for _, t in paras)
+            rows.append({**base, "상태": "삭제" if dead else "정상",
+                         "항번호": [no for no, _ in paras] if numbered else [],
+                         "본문": seg, "cites": []})
         if len(parts) > 1:
             heads, blocks = [], []
             for p in parts[1:]:

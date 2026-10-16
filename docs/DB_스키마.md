@@ -49,7 +49,8 @@ CREATE TABLE documents (
 |---|---|---|---|
 | `chunk_id` | `text` PK | id | 청크 ID (예: `23234_제5조_2항`) |
 | `doc_id` | `text` NOT NULL, FK | 고유번호 | `documents.doc_id` 참조 |
-| `article` | `text` | 조항 | 예: `제5조 제2항`. 조 없는 문서는 `null` |
+| `article` | `text` | 조항 | 예: `제5조` (2026.10.13부터 조 단위. 이전에는 `제5조 제2항`). 조 없는 문서는 `null` |
+| `section` | `text` | 장 | 장·절 경로. 예: `제2장 감사의 종류 > 제1절 정기감사`. 없으면 `null` (2026.10.13 추가) |
 | `status` | `text` NOT NULL | 상태 | `정상`, `삭제` |
 | `is_indexed` | `boolean` NOT NULL | 색인대상 | 정상이고 부칙·별지가 아니면 `true` (2026.10.12: 별지 제외 추가) |
 | `body` | `text` NOT NULL | 본문 | 원문 표기. 답변 인용에 쓴다 |

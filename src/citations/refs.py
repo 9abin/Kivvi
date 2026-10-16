@@ -58,9 +58,9 @@ def normalize_brackets(s):
     return s.replace("｢", "「").replace("｣", "」")
 
 
-def _target_id(doc, n, k, h):
-    t = f"{doc}_제{n}조" + (f"의{k}" if k else "")
-    return t + (f"_{h}항" if h else "")
+def _target_id(doc, n, k):
+    """인용 대상 청크 ID. 청크가 조 단위라서 항은 ID에 넣지 않고 cites의 '항' 필드로 따로 남긴다."""
+    return f"{doc}_제{n}조" + (f"의{k}" if k else "")
 
 
 def build_aliases(rows, names):
@@ -129,8 +129,13 @@ def resolve_citations(rows, names, law_names=()):
                          for suffix in ("", "시행령", "시행규칙")}, key=len, reverse=True)
     ids = {r["id"] for r in rows}
 
-    def exists(t):
-        return t in ids or any(i.startswith(t + "_") for i in ids)
+    paras = {r["id"]: set(r.get("항번호") or []) for r in rows}
+
+    def exists(t, h=None):
+        """대상 조가 있고, 항까지 가리키면 그 조에 그 항도 있어야 한다."""
+        if t not in ids:
+            return False
+        return h is None or int(h) in paras.get(t, set())
 
     stat = collections.Counter()
     for r in rows:
@@ -141,8 +146,10 @@ def resolve_citations(rows, names, law_names=()):
         for m in REF.finditer(text):
             if _in_history_note(text, m.start()):
                 continue
-            pre = text[max(0, m.start() - 200):m.start()]
             n, k, h = m.group(1), m.group(2), m.group(3)
+            if not text[:m.start()].strip() and re.sub(r"_중복\d+$", "", r["id"]) == _target_id(own, n, k):
+                continue  # 본문 맨 앞 '제N조(제목)'은 이 조 자신의 제목이지 인용이 아니다
+            pre = text[max(0, m.start() - 200):m.start()]
             kind, target, law_name = None, None, None
             between = text[last_end:m.start()] if last_end >= 0 else None
             # 나열 이어받기: 사이에 쉼표·'및'·'또는'과 호·목·항 표기(제2호, 가목 등)만 있을 때
@@ -221,8 +228,8 @@ def resolve_citations(rows, names, law_names=()):
                 else:
                     kind, target = "내부", own
             if kind in ("내부", "내부문서"):
-                t = _target_id(target, n, k, h)
-                st = "정상연결" if exists(t) else "확인필요(대상없음)"
+                t = _target_id(target, n, k)
+                st = "정상연결" if exists(t, h) else "확인필요(대상없음)"
             elif kind == "외부":
                 t, st = None, "외부"
             else:
@@ -233,6 +240,8 @@ def resolve_citations(rows, names, law_names=()):
             last_end = m.end()
             stat[st] += 1
             entry = {"대상": t, "유형": kind, "원문": m.group(0), "상태": st}
+            if h and t:
+                entry["항"] = int(h)
             if law_name:
                 entry["법령명"] = law_name
             cites.append(entry)

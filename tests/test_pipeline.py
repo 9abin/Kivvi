@@ -8,7 +8,8 @@ import unittest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
-from src.chunk.articles import split_articles, split_paragraphs  # noqa: E402
+from src.chunk.articles import (article_id, headings, section_path, split_articles,  # noqa: E402
+                                split_articles_at, split_paragraphs, strip_headings)
 from src.preprocess.clean import clean_text  # noqa: E402
 
 CHUNKS = os.path.join(ROOT, "out", "chunks.jsonl")
@@ -44,6 +45,20 @@ class ArticleSplitTest(unittest.TestCase):
         paras = split_paragraphs("제9조(a)\n① 가나다라.\n② 나다라마.\n② 다라마바.", "x")
         self.assertEqual([no for no, _ in paras], [1, 2, 3])
 
+    def test_section_path_and_heading_strip(self):  # 장·절 제목은 다음 조의 '장'으로 간다
+        body = ("제1장 총칙\n제1조(목적) 본문\n제2장 감사의 종류 <개정 2020.1.1.>\n제1절 정기감사\n"
+                "제3조(a) 본문\n제3장 보칙\n제5조(c) 제2장의 규정에 따른다.")
+        heads = headings(body)
+        got = [(n, section_path(heads, pos), strip_headings(seg)) for pos, n, _, seg in split_articles_at(body)]
+        self.assertEqual(got, [(1, "제1장 총칙", "제1조(목적) 본문"),
+                               (3, "제2장 감사의 종류 > 제1절 정기감사", "제3조(a) 본문"),
+                               (5, "제3장 보칙", "제5조(c) 제2장의 규정에 따른다.")])
+
+    def test_article_id_maps_old_paragraph_ids(self):
+        self.assertEqual(article_id("23583_제8조_2항"), "23583_제8조")
+        self.assertEqual(article_id("23583_제22조의2"), "23583_제22조의2")
+        self.assertEqual(article_id("23926_별표1_02"), "23926_별표1_02")
+
 
 class CleanTest(unittest.TestCase):
     def test_junk_removed(self):
@@ -58,8 +73,9 @@ class ChunkOutputTest(unittest.TestCase):
         cls.rows = load_chunks()
         cls.by_id = {r["id"]: r for r in cls.rows}
 
-    def test_chunk_structure(self):  # 고정 개수 대신 구조를 본다
-        self.assertGreater(len(self.rows), 4000)
+    def test_chunk_structure(self):  # 고정 개수 대신 구조를 본다 (조 단위라 2,000개 남짓)
+        self.assertGreater(len(self.rows), 2000)
+        self.assertFalse([r["id"] for r in self.rows if re.search(r"_\d+항$", r["id"])])  # 항 단위 청크 없음
         self.assertEqual(len({r['고유번호'] for r in self.rows}), 90)
         for r in self.rows:
             for key in ('id', '고유번호', '문서명', '조항', '상태', '본문', 'cites'):
@@ -78,6 +94,18 @@ class ChunkOutputTest(unittest.TestCase):
         deleted = [r for r in self.rows if r['상태'] == '삭제']
         self.assertTrue(deleted)
         self.assertTrue(all(len(r['본문']) < 200 for r in deleted))
+
+    def test_chapter_heading_moves_to_next_article(self):  # '제6장 …' 줄이 앞 조 끝에 붙지 않는다
+        self.assertNotIn("제6장", self.by_id["23513_제45조"]["본문"])
+        self.assertEqual(self.by_id["23513_제46조"]["장"], "제6장 공용회의실 관리")
+        heading = re.compile(r"(?m)^\s*제\s*\d+\s*(장|절)\s")
+        self.assertFalse([r["id"] for r in self.rows if heading.search(r["본문"])])
+
+    def test_paragraphs_stay_in_article(self):  # 항은 조 청크 안에 남고 번호만 따로 기록된다
+        r = self.by_id["23583_제8조"]
+        self.assertTrue(r["본문"].startswith("제8조(여비의 개산지급)"))
+        self.assertIn("귀임 후 지체 없이 정산", r["본문"])
+        self.assertEqual(r["항번호"], [1, 2])
 
     def test_gamsa_jiphyang_resolves_to_gamsa_gyuijeong(self):  # 감사지침 제6조 '규정 제4조' 는 감사규정(23234)을 가리킨다
         cites = [c for c in self.by_id["23245_제6조"]["cites"]]

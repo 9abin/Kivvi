@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-from config import OPENAI_MODEL
+from config import HIGHLIGHT_HITS, OPENAI_MODEL
 
 load_dotenv()
 
@@ -64,16 +64,25 @@ SYSTEM_PROMPT = """너는 한국벤처투자 내부규정을 설명하는 도우
 15. 질문에 단정이 둘 이상 들어 있으면("~인 거 맞죠? 그럼 ~인 건가요?") 각 단정을 따로 근거의 기준에 비추어 본다. 첫 단정이 틀렸으면 그 위에 세운 다음 단정도 틀린 것이다. 결론은 "맞지 않습니다"로 시작해 근거의 기준(일수, 금액, 조건)을 먼저 쓰고, 질문자가 깔고 있던 상태를 그대로 되풀이하지 않는다.
 16. 질문이 여러 항목을 동시에 물었으면(예: "월급이랑 복지포인트, 출산축하금은 각각 어떻게 되나요") 근거에 있는 항목을 하나도 빠뜨리지 않고 전부 답한다. 한 항목만 자세히 답하고 나머지 항목을 통째로 빼놓지 않는다.
 17. 근거에 적힌 수치나 결론에 적용 조건·한도·예외(예: "1회로 한정", "구간별로 다름", "~인 경우에만")가 붙어 있으면, 그 수치만 떼어서 쓰지 않고 조건도 같이 쓴다. 조건을 빼면 다른 뜻이 된다.
+18. 질문이 과거 기준, 예전 제도, 시행일, 개정 전 적용 여부를 물어도 현행 규정 기준으로만 답한다. 과거 기준이나 시행일을 추측하지 않는다.
+   이런 질문에는 결론 끝에 "이 안내는 현행 규정 기준입니다. 과거 기준이나 시행일은 담당 부서에 확인해 주세요."를 덧붙인다.
+19. 근거에 그대로 적혀 있지 않은 숫자를 계산해서 쓸 때는 그 숫자 바로 뒤 괄호에 근거의 숫자로 된 계산식을 쓴다.
+   예: "총액 상한 60만원(40만원 × 150/100)", "통상임금의 150%(100% + 50% 가산)". 근거에 없는 숫자를 재료로 쓰지 않는다.
+20. 질문한 상황에 대해 규정에 별도 기준이 없으면(일반 원칙만 있고 그 상황을 따로 정한 조항이 없으면) 추측하지 않고 담당 부서 문의로 안내한다.
+   - "~일 수 있습니다", "~가 관련될 수 있습니다"처럼 해당될 만한 경우나 가능성을 추측해 나열하지 않는다.
+   - 일반 원칙으로 그 상황의 결론을 단정하지 않는다. 근거의 일반 원칙이 있으면 그대로 알려 준다.
+   - 그리고 "이 부분은 규정에 별도 기준이 없으니 담당 부서에 문의해 주세요."라고 쓴다.
 
 [출력 형식] 아래 구역을 이 순서와 이 머리말 그대로 쓴다. 화면에는 시스템이 결론을 맨 위로 옮겨 보여 준다.
 세부:
-- 질문의 표현은 무시하고, 근거에서 질문과 관련된 내용만 불릿으로 쓴다. 최대 5개. 질문이 여러 항목을 물었으면(규칙 16) 항목당 최소 1개씩 쓰고 전체는 8개까지 쓸 수 있다. 각 불릿 끝에 [n]. 근거에 적힌 그대로 쓴다. 쓸 내용이 없으면 "없음"만 쓴다.
+- 질문의 표현은 무시하고, 근거에서 질문과 관련된 내용만 불릿으로 쓴다. 최대 8개. 질문이 여러 항목을 물었으면(규칙 16) 항목당 최소 1개씩 쓰고 전체는 12개까지 쓸 수 있다. 각 불릿 끝에 [n]. 근거에 적힌 그대로 쓴다. 쓸 내용이 없으면 "없음"만 쓴다.
 결론: 한두 문장. 반드시 위 세부 불릿을 다 쓴 다음에, 불릿과 모순되지 않게 쓴다.
    - 질문이 "~맞죠?"처럼 어떤 주장의 확인을 구하면, 첫머리에서 불릿에 비추어 "맞습니다/맞지 않습니다/근거로는 확인되지 않습니다" 중 하나를 밝히고 그 이유를 [n]으로 단다.
    - 질문이 기대하는 답이더라도 세부 불릿과 다르면 불릿을 따른다. 질문에 맞장구치지 않는다.
    - 결론이 근거로 질문에 답했다면 "확인되지 않습니다. 담당 부서에 확인해 주세요" 문구를 덧붙이지 않는다. 그 문구는 규칙 5의 경우에만, 결론 전체를 대신해서 쓴다.
+   - 다만 질문한 상황 중 일부(예: 주말, 특정 금액, 특정 대상)에 대해 규정에 별도 기준이 없으면(규칙 20), 결론 끝에 "이 부분은 규정에 별도 기준이 없으니 담당 부서에 문의해 주세요."를 덧붙인다.
 관련 조문: 규칙 5에서 요구할 때만 쓴다. 아니면 이 구역을 쓰지 않는다.
-- 길이: 기본 3~5문장. 조문 원문을 길게 옮기지 않는다."""
+- 길이: 질문 상황에 해당하는 요건·단서("다만")·예외·기한·적용 대상은 빠짐없이 쓴다. 질문과 관련 없는 조문 내용은 옮기지 않는다."""
 
 CONSISTENCY_PROMPT = """질문과 답변이 주어진다. 답변은 '결론 문장'과 '세부 불릿'으로 되어 있다.
 결론 문장이 세부 불릿의 내용과 모순되는지 판정한다.
@@ -120,6 +129,52 @@ REWRITE_PROMPT = """직원이 사내 규정 검색창에 구어체로 쓴 질문
 - 질문에 없는 사실이나 수치를 만들어 넣지 않는다. 답을 쓰지 않는다.
 - 출력은 검색어 한 줄만 쓴다. 설명, 따옴표, 번호를 쓰지 않는다."""
 
+# 질문 나누기 (Azure AI Search agentic retrieval의 query planning과 같은 방식). REWRITE_PROMPT를 대신한다:
+# 하위 질문마다 검색어를 같이 만들므로 모델 호출 수는 그대로다.
+PLAN_PROMPT = """직원이 사내 규정 검색창에 쓴 질문을 검색 계획으로 바꾼다.
+
+1. 질문이 서로 다른 것을 두 가지 이상 묻는지 본다 (예: "사원증 재발급은 어디서 하고, 회의실 예약은 어떻게 하나요").
+   - 그렇다면 묻는 것마다 하위 질문을 하나씩 만든다. 최대 3개.
+   - 하위 질문마다 원래 질문의 대상과 상황을 모두 넣어서, 혼자 읽어도 같은 뜻이 되게 쓴다.
+   - 한 가지만 묻는다면 하위 질문은 1개다. 나눌지 애매하면 나누지 않는다.
+   - 다음은 나누지 않는다:
+     · 한 제도의 여러 면 (예: "사원증 재발급은 며칠 걸리고 비용이 드나요")
+     · 상황 설명이나 덧붙인 말 (예: "사원증 재발급 돼요? 어제 잃어버렸는데", "사무용품 개인 돈으로 사도 되나요? 나중에 청구해야 해요?")
+     · 둘 중 하나를 고르는 질문 (예: "노트북 교체는 부서에서 신청해요 아니면 제가 직접 해요?")
+2. 하위 질문마다 "검색어"를 만든다: 줄임말·속어·외래어·일상어를 규정에서 쓰는 정식 용어로 바꾸고,
+   규정에서 어떤 주제(제도, 절차, 금지·허용 사항)로 다뤄질지 떠올려 그 주제어 2~4개를 덧붙인 한 줄.
+3. 질문에 규정 이름(예: "복무규정", "여비규정")이 적혀 있으면 그 이름을 해당 하위 질문에도 그대로 남긴다.
+- 질문에 없는 사실이나 수치를 만들어 넣지 않는다. 답을 쓰지 않는다.
+- 출력은 JSON 배열만 쓴다. 설명을 쓰지 않는다.
+  예: [{{"질문": "사원증 재발급은 어디서 하나요?", "검색어": "출입증 재발급 신청 절차 분실"}}]"""
+
+MAX_SUBQUERIES = 3
+
+# config.HIGHLIGHT_HITS일 때: 근거 머리에 역할을 적고(ROLE_LABEL) 질문 뒤에 HIT_NOTE를 붙인다. 기본 프롬프트는 그대로다.
+# 인용으로 따라온 조문이 검색으로 찾은 조문과 같은 모양이라, 인용이 많으면 핵심 조문이 묻혔다.
+# 로그인한 질문자의 직군·직책 (2026.10.14). 검색에는 쓰지 않고 답변 단계에서만 쓴다: 검색에 넣으면 다른 사람·다른 대상에
+# 대해 묻는 질문의 근거를 놓칠 수 있어서다. 질문자 정보가 있을 때만 사용자 메시지에 이 안내를 붙인다.
+ASKER_NOTE = ("[질문자 정보] 맨 위 '질문자'는 질문한 사람의 직군·직책이다.\n"
+              "- 질문에 대상(누구에게 적용되는지)이 없으면 질문자에게 해당하는 규정과 표의 행(직급·직책)으로 답하고, "
+              "결론 끝에 \"(질문자: OO 기준)\"처럼 어느 기준인지 밝힌다.\n"
+              "- 근거에 다른 대상(공무직, 임원, 파견자 등)의 규정이 섞여 있으면 질문자에게 해당하는 규정을 쓰고, "
+              "다른 대상의 규정을 질문자에게 적용하지 않는다.\n"
+              "- 질문이 다른 사람이나 다른 대상에 대해 물으면 질문자 정보는 무시하고 질문의 대상 기준으로 답한다.\n"
+              "- 질문자 정보로 답을 바꾸지 못하면(직책별 구분이 없는 규정) 질문자 정보를 언급하지 않는다.")
+
+HIT_NOTE = ("[참고] 근거마다 '역할'이 적혀 있다. '질문으로 찾은 조문'을 먼저 보고 답한다.\n"
+            "- 본문의 '▶▶ [찾은 항]'은 검색이 질문과 가장 가깝다고 찾은 항이다. 이 항으로 질문에 답한다.\n"
+            "- '▷ [같은 조]'는 같은 조의 나머지 항이다. 찾은 항에 붙는 요건·예외·기한·적용 대상이 여기 있으면 함께 쓴다.\n"
+            "- '【단서】'가 붙은 문장(다만, 제외, 한하여 …)이 질문 상황에 해당하면 반드시 쓴다. 빠뜨리면 다른 뜻이 된다.\n"
+            "- '인용된 조문(참고)'은 찾은 조문이 가리키는 다른 조문이다. 찾은 조문을 보충하거나 '~에 따른다'고 넘긴 내용을 "
+            "확인할 때만 쓰고, 질문에 직접 답하는 근거로 먼저 쓰지 않는다.\n"
+            "- '같은 주제 조문(참고)'은 질문의 주제어(예: 건강검진)를 다른 조문·규정에서 다룬 것이다. 질문이 묻는 범위"
+            "(비용·시간·절차 등)에 해당하는 내용이면 함께 쓰고, 해당하지 않으면 쓰지 않는다. 머리에 이유가 적힌 조문의 안내는 "
+            "시스템이 답변 끝에 따로 붙이므로 직접 쓰지 않아도 된다.\n"
+            "- ▶▶, ▷, [찾은 항], [같은 조], 【단서】 표시는 답변에 옮겨 쓰지 않는다.")
+ROLE_LABEL = {"검색": "질문으로 찾은 조문", "정확조회": "질문으로 찾은 조문", "인용": "인용된 조문(참고)",
+              "형제항": "같은 조 다른 항", "주제": "같은 주제 조문(참고)"}
+
 _CITE = re.compile(r"\[(\d+)\]")
 
 
@@ -129,6 +184,12 @@ def format_context(entries):
     for i, e in enumerate(entries, start=1):
         # 개정표기는 모델에게 주지 않는다. 문서 개정일을 조문 날짜로 잘못 읽는 일이 있었다 (화면에는 표시).
         head = f"[{i}] {e['문서명']} {e['article']} | 조문상태: {e['조문상태']} | 위계: {e.get('위계') or '-'}"
+        if HIGHLIGHT_HITS and e.get("역할") in ROLE_LABEL:
+            head += f" | 역할: {ROLE_LABEL[e['역할']]}"
+            if e["역할"] == "인용" and e.get("인용원문"):
+                head += f" ('{e['인용원문']}'이 가리킴)"
+            elif e["역할"] == "주제" and e.get("주제"):
+                head += f" (주제: {', '.join(e['주제'])}" + (f"; {e['주제이유']}" if e.get("주제이유") else "") + ")"
         lines = [head, e["body"]]
         if e.get("정정안내"):
             lines.append("정정안내: " + " / ".join(e["정정안내"]))
@@ -169,6 +230,18 @@ def revision_notes(entries, cited):
     for n in cited:
         if 1 <= n <= len(entries) and entries[n - 1].get("정정안내"):
             notes.append(f"※ 정정 안내 [{n}]: " + " / ".join(entries[n - 1]["정정안내"]))
+    return notes
+
+
+def topic_notes(entries, cited):
+    """주제어 사전의 '함께' 조문(주제이유가 있는 근거)을 답변 끝에 안내로 붙인다 (검색_설계.md 12절).
+    질문이 직접 묻지 않는 보충 조문이라 모델은 규칙대로 옮기지 않으므로, 부칙·정정 안내처럼 코드가 붙인다.
+    모델이 이미 그 근거를 인용했으면 붙이지 않는다."""
+    notes = []
+    for n, e in enumerate(entries, start=1):
+        if e.get("역할") == "주제" and e.get("주제이유") and n not in cited:
+            head = "유의할 조문" if e.get("match") == "사례링크" else "함께 확인할 조문"  # 사례 링크(검색_설계 14절)는 유의사항
+            notes.append(f"※ {head} [{n}] {e['문서명']} {e['article']}: {e['주제이유']}")
     return notes
 
 
@@ -253,6 +326,27 @@ def parse_pairs(text, n_entries):
     return sorted(set(pairs)), True
 
 
+def parse_plan(text, question):
+    """PLAN_PROMPT 응답을 하위 질문 목록 [{"질문", "검색어"}, ...]으로 바꾼다.
+    하위 질문이 하나면 "질문"은 원래 질문 글자로 둔다: 나누지 않는 질문은 리랭킹까지 지금과 똑같이 검색된다.
+    응답을 해석하지 못하면 원래 질문 하나(검색어 없음)로 돌려준다."""
+    fallback = [{"질문": question, "검색어": None}]
+    raw = _parse_json_list(text or "")
+    if raw is None:
+        return fallback
+    plan = []
+    for r in raw:
+        if isinstance(r, dict) and str(r.get("질문") or "").strip():
+            plan.append({"질문": str(r["질문"]).strip(),
+                         "검색어": str(r.get("검색어") or "").strip() or None})
+    if not plan:
+        return fallback
+    plan = plan[:MAX_SUBQUERIES]
+    if len(plan) == 1:
+        plan[0]["질문"] = question
+    return plan
+
+
 def parse_unsupported(text):
     """모델이 돌려준 '근거 밖 문장' 목록을 검사한다. 반환은 parse_pairs와 같은 (목록, ok) 형태다.
 
@@ -281,10 +375,24 @@ class Generator:
         chain = prompt | self.model
         return chain.invoke({"input": user}).content.strip()
 
+    def _ask_stream(self, system, user, on_token):
+        """_ask와 같지만 모델이 쓰는 글자를 생기는 대로 on_token(조각)으로 넘긴다 (화면 스트리밍). 반환은 전체 글."""
+        prompt = ChatPromptTemplate.from_messages([("system", system), ("human", "{input}")])
+        parts = []
+        for chunk in (prompt | self.model).stream({"input": user}):
+            if chunk.content:
+                parts.append(chunk.content)
+                on_token(chunk.content)
+        return "".join(parts).strip()
+
     def rewrite_query(self, question):
         """질문을 규정 용어로 바꾼 검색어. 실패하거나 비면 None(원래 질문만으로 검색한다)."""
         text = self._ask(REWRITE_PROMPT, question).strip().strip('"').splitlines()
         return text[0].strip() if text and text[0].strip() else None
+
+    def plan_queries(self, question):
+        """질문을 하위 질문으로 나누고 하위 질문마다 검색어를 만든다 (parse_plan). rewrite_query를 대신하는 한 번의 호출."""
+        return parse_plan(self._ask(PLAN_PROMPT, question), question)
 
     def contradicts(self, question, answer):
         """결론 문장이 세부 불릿과 모순되는지. 응답을 해석하지 못하면 모순 없음으로 본다(재작성은 보조 수단이다)."""
@@ -292,9 +400,19 @@ class Generator:
         m = re.search(r'"모순"\s*:\s*(true|false)', raw)
         return bool(m and m.group(1) == "true")
 
-    def answer(self, question, entries):
-        user = f"질문: {question}\n\n근거:\n{format_context(entries)}"
-        text = assemble_sections(self._ask(SYSTEM_PROMPT, user))
+    def answer(self, question, entries, on_token=None, asker=None):
+        """on_token을 주면 첫 답변을 스트리밍으로 받는다 (글이 생기는 대로 on_token에 넘김). 결과는 같다.
+        결론이 불릿과 모순되어 다시 쓰는 경우, 다시 쓴 답은 스트리밍하지 않는다 (화면은 최종 answer로 바꿔 보여 줘야 한다)."""
+        context = format_context(entries)
+        user = f"질문: {question}\n\n근거:\n{context}"
+        if asker:
+            user = f"질문자: {asker}\n" + user
+        if HIGHLIGHT_HITS:
+            user += "\n\n" + HIT_NOTE
+        if asker:
+            user += "\n\n" + ASKER_NOTE
+        raw = self._ask_stream(SYSTEM_PROMPT, user, on_token) if on_token else self._ask(SYSTEM_PROMPT, user)
+        text = assemble_sections(raw)
         retried = False
         if has_bullets(text) and self.contradicts(question, text):
             retry = (user + "\n\n[주의] 직전 답변은 결론이 세부 불릿과 모순되었다. 근거 본문과 세부 불릿을 기준으로 "
@@ -304,7 +422,7 @@ class Generator:
         cited, warnings = check(text, len(entries))
         if retried:
             warnings = warnings + ["결론이 세부 내용과 모순되어 한 번 다시 작성함"]
-        return {"answer": text, "cited": cited, "warnings": warnings, "model": self.model_name}
+        return {"answer": text, "cited": cited, "warnings": warnings, "model": self.model_name, "retried": retried}
 
     def conflicts(self, question, entries):
         """근거 중 서로 충돌하는 조문 쌍을 찾는다. 근거가 2개 미만이면 호출하지 않는다.
