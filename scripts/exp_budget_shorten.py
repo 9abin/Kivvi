@@ -38,11 +38,8 @@ def main():
     ap.add_argument("--questions", required=True)
     ap.add_argument("--rewrite-cache", default=os.path.join("eval", "runs", "rewrite-cache.json"))
     ap.add_argument("--ks", default="8,10")
-    ap.add_argument("--cap", type=int, default=0, help="조 하나의 상한(ARTICLE_CAP). 0이면 기본값")
     args = ap.parse_args()
     ks = [int(x) for x in args.ks.split(",")]
-    if args.cap:
-        ss.ARTICLE_CAP = args.cap
     gold = [json.loads(line) for line in open(args.questions, encoding="utf-8") if line.strip()]
     rew = json.load(open(args.rewrite_cache, encoding="utf-8"))
     s = Searcher()
@@ -63,10 +60,10 @@ def main():
         orders.append((exact, group_by_article(ranked), {key(t2d.get(e["규정"]), e["조항"]) for e in g["근거"]}))
     print(f"질문 {len(gold)}개 준비 완료", flush=True)
 
-    original_min = ss.MIN_SHORTENED
+    original = ss.SHORTEN_LONG
     for k in ks:
-        for label, min_short in (("전 (줄여 넣기 끔)", 10 ** 9), ("후 (줄여 넣기 켬)", original_min)):
-            ss.MIN_SHORTENED = min_short
+        for label, on in (("전 (줄여 넣기 끔)", False), ("후 (줄여 넣기 켬)", True)):
+            ss.SHORTEN_LONG = on
             n_art = lost_art = shortened = gold_in = gold_kept = q_gold_lost = 0
             chars = []
             for exact, order, want in orders:
@@ -88,7 +85,7 @@ def main():
                 chars.append(asm["chars"])
             print(f"[k={k}] {label}: 사라진 조 {lost_art}/{n_art}, 줄여 넣은 조 {shortened}, 정답 조 {gold_kept}/{gold_in} 유지 "
                   f"(잃은 질문 {q_gold_lost}), 근거 글자 평균 {sum(chars) / len(chars):.0f}자, 최대 {max(chars)}자", flush=True)
-    ss.MIN_SHORTENED = original_min
+    ss.SHORTEN_LONG = original
     s.close()
 
 

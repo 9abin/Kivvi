@@ -35,7 +35,7 @@ from src.store.pgstore import PgStore
 CANDIDATES = 50         # 방식별로 합치기 전 가져올 후보 수
 RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
-ARTICLE_CAP = 2000      # 조 전체 넘기기에서 조 하나가 이보다 길면 assemble이 찾은 항과 이웃 항만 남긴다 (scripts/exp_budget_shorten.py: 3000이면 정답 조가 밀려나고 2000이면 100문항에서 안 밀려남)
+SHORTEN_LONG = True     # 조 전체가 예산(CONTEXT_CHAR_BUDGET)을 넘으면 가장 긴 조부터 찾은 항과 이웃 항만 남긴다. 끄면 안 들어가는 조는 통째로 빠진다
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
 LLM_SELECT_POOL = 0  # 0이면 끔. 16이면 리랭크 상위 16개 조를 LLM이 보고 k개를 고른다 (scripts/exp_listwise_topk.py 실험, 평가 실행기의 --select-pool로 켠다)
@@ -84,7 +84,20 @@ def strip_marks(text):
 
 
 SHORTENED_NOTE = "\n(분량 때문에 이 조의 나머지 항은 생략함)"
-MIN_SHORTENED = 500  # 남은 예산이 이보다 적으면 줄여 넣지 않고 건너뛴다
+MIN_SHORTENED = 500  # 조 하나를 이보다 짧게는 줄이지 않는다
+
+
+def water_level(lengths, budget, floor=MIN_SHORTENED):
+    """조 길이 목록을 모두 min(길이, L)로 깎았을 때 합이 budget 안에 드는 가장 큰 L (floor 아래로는 내리지 않는다)."""
+    lo, hi = floor, max(lengths)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if sum(min(n, mid) for n in lengths) <= budget:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
 _PARA_START = re.compile(r"(?m)^(?=" + re.escape(HIT_MARK) + "|" + re.escape(SIB_MARK) + ")")
 
 
@@ -752,6 +765,13 @@ class Searcher:
         seen = set()
         used = 0
         groups = {}
+        # 검색 결과 조들을 통째로 넣어도 예산 안이면 그대로 둔다. 넘치면 긴 조부터 같은 길이(cap)로 깎아 모두 들어가게 한다.
+        # 한 조가 예산을 다 써서 뒤 순위의 짧은 조(정답일 수 있음)가 통째로 밀려나는 것보다, 긴 조의 먼 항을 줄이는 쪽이 낫다.
+        cap = None
+        if SHORTEN_LONG:
+            lengths = [len(r["body"]) for r in results]
+            if sum(lengths) > budget:
+                cap = water_level(lengths, budget)
 
         def add(entry, role, rank):
             nonlocal used
@@ -759,10 +779,8 @@ class Searcher:
             if cid in seen:
                 return
             n = len(entry["body"])
-            if (n > ARTICLE_CAP or used + n > budget) and role in ("정확조회", "검색") and budget - used >= MIN_SHORTENED:
-                # 조 하나가 ARTICLE_CAP보다 길거나 남은 예산에 안 들어가면 통째로 버리지 않고 찾은 항과 이웃 항만 줄여 넣는다.
-                # 긴 조 하나가 예산을 다 써서 뒤 순위의 짧은 조(정답일 수 있음)가 밀려나지 않게 ARTICLE_CAP을 상한으로 둔다.
-                short = shorten_article(entry["body"], min(ARTICLE_CAP, budget - used - len(SHORTENED_NOTE)))
+            if cap and n > cap and role in ("정확조회", "검색"):
+                short = shorten_article(entry["body"], cap - len(SHORTENED_NOTE))
                 if len(short) < n:
                     entry = {**entry, "body": short}
                     n = len(short)
