@@ -16,11 +16,11 @@ model = "BAAI/bge-m3"
 fp16 = true
 
 [reranker]
-kind = "qwen"                    # 후보 목록당 약 43분. GPU 6GiB + 나머지 CPU 오프로드
+kind = "qwen"                    # GPU 6GiB + 나머지 CPU 오프로드 (100문항 약 6분)
 model = "Qwen/Qwen3-Reranker-4B"
 gpu_mem = "6GiB"
 cpu_mem = "24GiB"
-batch_size = 2
+batch_size = 6                      # 4명 모두 같게 둔다: 질문당 3.7초, GPU 6.9GB (배치 2는 6.9초, 15 이상은 GPU 메모리 부족으로 느려짐). 배치가 다르면 점수가 0.01 안팎 달라진다
 max_length = 2048
 
 [llm.default]
