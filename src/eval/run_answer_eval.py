@@ -30,7 +30,11 @@ def main():
     ap.add_argument("--no-plan", action="store_true", help="질문 나누기를 끄고 실행 (전후 비교용)")
     ap.add_argument("--serial", action="store_true", help="모델 호출을 동시에 하지 않고 순서대로 실행 (전후 시간 비교용)")
     ap.add_argument("--defer-checks", action="store_true", help="답을 먼저 받고 근거 검사·충돌 확인은 뒤에 끝낸다 (sec_answer가 답이 나온 시간)")
+    ap.add_argument("--select-pool", type=int, default=0, help="0이면 끔. N이면 리랭크 상위 N개 조를 LLM이 보고 k개를 고른다")
     args = ap.parse_args()
+    if args.select_pool:
+        import src.search.search as search_module
+        search_module.LLM_SELECT_POOL = args.select_pool
 
     gold = [json.loads(l) for l in open(args.questions, encoding="utf-8") if l.strip()]
     if args.limit:

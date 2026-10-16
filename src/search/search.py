@@ -33,6 +33,16 @@ RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
+LLM_SELECT_POOL = 0  # 0이면 끔. 16이면 리랭크 상위 16개 조를 LLM이 보고 k개를 고른다 (scripts/exp_listwise_topk.py 실험, 평가 실행기의 --select-pool로 켠다)
+SELECT_PROMPT = """한국벤처투자 내부 규정 검색 결과에서 직원 질문에 답하는 데 필요한 조문을 정확히 {k}개 고른다.
+- 질문에 직접 답하는 조문을 앞에 두고, 답의 조건·예외·정의·기준표를 알려 주는 조문도 포함한다.
+- 같은 규정의 비슷한 조문만 몰아 고르지 말고, 질문에 꼭 필요한 것만 고른다.
+- 후보 번호만 JSON으로 답한다: {{"순서": [번호, 번호, ...]}}
+
+질문: {q}
+
+후보:
+{cands}"""
 GROUP_BY_ARTICLE = True  # 상위 k개를 고를 때 같은 조의 항을 한 자리로 묶어 서로 다른 조를 k개 확보한다(같은 조의 다른 항은 형제 항 확장이 붙인다). 조 단위 색인에서는 효과가 없다
 CITE_WHOLE_ARTICLE = True  # 조 전체를 가리키는 인용을 항 단위 색인에서도 따라간다(_whole_article). 전후 비교를 위해 끌 수 있다
 
@@ -97,6 +107,7 @@ class Searcher:
         self.model.half()
         self.reranker = CrossEncoder(RERANK_MODEL, device="cuda")
         self.rerank_header = RERANK_HEADER
+        self._select_llm = None
         self.synonym_table = synonyms.load() if USE_SYNONYMS else {}
         self.glossary = glossary.load()
         self.glossary_filter = True  # 후보 단계 제외 (전후 비교를 위해 끌 수 있다)
@@ -275,6 +286,32 @@ class Searcher:
             used += len(r["body"])
         return out
 
+    def _llm_select(self, text, cands, k):
+        """리랭크 상위 후보(조 단위)를 LLM이 보고 질문에 필요한 k개를 중요한 순서로 고른다. 실패하거나 모자라면 리랭크 순서로 채운다."""
+        import json
+        import re as _re
+        if self._select_llm is None:
+            from langchain_openai import ChatOpenAI
+            from config import JUDGE_MODEL
+            self._select_llm = ChatOpenAI(model=JUDGE_MODEL, temperature=0, timeout=120, max_retries=2)
+        lines = []
+        for i, h in enumerate(cands, 1):
+            r = self.row_info[h["chunk_id"]]
+            title = self.documents.get(r["doc_id"], {}).get("title") or r["doc_id"]
+            lines.append(f"[{i}] {title} {r['article']} | " + _re.sub(r"\s+", " ", r["body_search"] or "")[:220])
+        try:
+            out = self._select_llm.invoke(SELECT_PROMPT.format(k=k, q=text, cands="\n".join(lines))).content
+            ids = [int(x) for x in json.loads(_re.search(r"\{.*\}", out, _re.S).group(0))["순서"]]
+        except Exception:  # noqa: BLE001
+            ids = []
+        chosen, seen = [], set()
+        for i in ids:
+            if 1 <= i <= len(cands) and i not in seen:
+                seen.add(i)
+                chosen.append(cands[i - 1])
+        chosen = chosen[:k]
+        return chosen + [h for h in cands if h["chunk_id"] not in {c["chunk_id"] for c in chosen}][:k - len(chosen)]
+
     # 전체 -------------------------------------------------------------------
     def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True,
               vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT, rewritten=None):
@@ -314,6 +351,8 @@ class Searcher:
             fused, self.last_glossary_excluded = glossary.filter_candidates(text, fused, self.glossary)
         if GROUP_BY_ARTICLE:
             fused = group_by_article(fused)
+        if LLM_SELECT_POOL and rerank and len(fused) > k:
+            fused = self._llm_select(text, fused[:LLM_SELECT_POOL], k)
         top = (exact + fused)[:k]
 
         out = []
