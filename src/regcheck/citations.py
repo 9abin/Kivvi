@@ -404,6 +404,10 @@ def extract_edges(reg: dict, registry: Registry) -> list[Edge]:
                 if hit[1] == reg["reg_id"]:
                     return None
                 return ("regulation", hit[0])
+            # 지침이 이름 없이 「규정 제7조」라고 쓰면 상위 규정을 가리킨다. 그 상위 규정이 공개 90개에 없으면(방첩업무 시행지침 → 방첩업무규정)
+            # 자기 문서로 읽지 않는다 (261016: 자기 문서 제7조로 연결돼 신설 시 깨짐 오경보)
+            if reg["name"].endswith("지침") and re.search(r"(?:^|[^가-힣])규정$", pre_s):
+                return ("external", "상위 규정")
             return default_doc
 
         # 1) 조 인용 (+ 장)

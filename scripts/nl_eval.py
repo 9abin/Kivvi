@@ -84,7 +84,8 @@ def main() -> None:
             "그중 규칙으로 작성": sum(r["by"] == "규칙" and r["ok"] for r in rows), "요청": n}
     out = ROOT / "out" / "nl_eval"
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"{re.sub(r'[^\w.-]', '_', args.model)}{'_ext' if 'ext' in args.file else ''}.json"
+    stem = Path(args.file).stem
+    path = out / f"{re.sub(r'[^\w.-]', '_', args.model)}{'' if stem == 'nl_requests' else '__' + stem}.json"
     path.write_text(json.dumps({"model": args.model, "summary": summ, "rows": rows}, ensure_ascii=False, indent=1), encoding="utf-8")
     runinfo.finish(run, [path], summ)
     print(summ, "→", path)

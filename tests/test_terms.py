@@ -213,3 +213,27 @@ def test_blind_spot_checklist_flags_structure_free_types_only_on_changed_text():
     assert names("직원은 매년 결산을 한다.", "직원은 분기마다 결산을 한다.") == []                        # 바뀐 부분에 해당 유형 낱말 없음
     assert "금액·비율 기준" in names("수당은 월 10만원을 지급한다.", "수당은 월 15만원을 지급한다.")
     assert len(blind_spots("징계 결재 한도 다만 요건 수당", "")) <= 3
+
+
+def test_insert_anchor_reads_before_and_after_forms_and_stops_at_gaps():
+    from regcheck.nl import insert_anchor, structural_plan, find_regulation
+    assert insert_anchor("제7조 앞에 새 조를 신설해줘. 제목은 디지털전환추진단, 내용은 디지털 전환을 추진한다.") == (6, "디지털전환추진단", "디지털 전환을 추진한다.")
+    assert insert_anchor("제6조 다음에 홍보팀 조문을 새로 넣고 내용은 '홍보팀을 둔다.'") == (6, "홍보팀", "홍보팀을 둔다.")
+    assert insert_anchor("마지막 항 끝에 문장을 덧붙여줘") is None                       # 덧붙이기는 신설이 아님
+    assert insert_anchor("내용은 아무거나 해 주고 제목은 없이 제7조 앞에 신설") is None      # 제목을 못 읽으면 LLM
+    # 결번이 있으면 번호 이동은 빈자리에서 멈춘다 (제23조가 없는 규정에서 「제21조부터 제26조까지」는 적용 실패)
+    reg = {"reg_id": "x", "name": "갑지침", "articles": [{"label": f"제{n}조", "title": "가", "deleted": False, "items": [], "id": f"x:{n}"} for n in (19, 20, 21, 22, 24)]}
+    plan = structural_plan(reg, "제21조 앞에 새 조를 신설. 제목은 협조, 내용은 '협조한다.'", [])
+    assert plan.startswith("제21조부터 제22조까지를 각각 제22조부터 제23조까지로 하고") and "제23조까지로" in plan and "제24조" not in plan
+    assert find_regulation({"a": {"name": "조직성과평가지침"}}, "조직성과평가 지침 제15조 앞에")["name"] == "조직성과평가지침"
+
+
+def test_near_miss_typo_flags_scrambled_words_but_not_style_contractions(monkeypatch):
+    import regcheck.spell as spell
+    monkeypatch.setattr(spell, "_LEX", None)
+    corpus = "대표이사가 승인하여야 한다. 직원은 업무를 숙지하여야 한다. 대표이사는 보고를 받는다."
+    got = spell.near_miss_words("대이표사가 승인하여야 한다. 업무를 숙지해야 한다.", corpus)
+    assert ("대이표사가", "대표이사가") in got                    # 자리바꿈: 규정에 있는 낱말로 한 글자만 고치면 됨
+    assert all(w != "숙지해야" for w, _ in got)                    # 「해야」는 「하여야」의 줄임 문체 → 오타 아님
+    assert spell.near_miss_words("전혀새로운말이 나온다", corpus) == []   # 글자 연쇄가 낯설어도 바로잡을 이웃이 없으면 신호 아님
+    monkeypatch.setattr(spell, "_LEX", None)

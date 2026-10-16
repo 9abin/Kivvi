@@ -90,6 +90,59 @@ def corpus_text() -> str:
                      for a in json.loads(Path(p).read_text(encoding="utf-8"))["articles"] for it in a["items"])
 
 
+_LEX: tuple | None = None
+STYLE = (("해야", "하여야"), ("해서", "하여서"), ("했", "하였"))   # 줄임 문체는 오타가 아니라 문체 차이 (규정은 「하여야」로 통일 → 「숙지해야」가 새 낱말로 걸림, 261016)
+
+
+def _lexicon(corpus: str | None):
+    global _LEX
+    if _LEX is None:
+        import collections
+        vocab = collections.Counter(re.findall(r"[가-힣]{2,}", corpus if corpus is not None else corpus_text()))
+        bg = {w[i:i + 2] for w in vocab for i in range(len(w) - 1)}
+        dele: dict[str, set] = collections.defaultdict(set)
+        for w in vocab:
+            for k in range(len(w)):
+                dele[w[:k] + w[k + 1:]].add(w)
+        _LEX = (vocab, bg, dele)
+    return _LEX
+
+
+def _near(w: str, vocab, dele) -> str | None:
+    """w에서 한 글자만 바로잡으면 규정에 실제 있는 낱말이 되는가 (자리바꿈, 글자 빠짐·추가, 한 글자 바꿈)"""
+    for i in range(len(w) - 1):
+        t = w[:i] + w[i + 1] + w[i] + w[i + 2:]
+        if t != w and t in vocab:
+            return t
+    for i in range(len(w)):
+        if w[:i] + w[i + 1:] in vocab:
+            return w[:i] + w[i + 1:]
+    for v in dele.get(w, ()):
+        return v
+    for i in range(len(w)):
+        for v in dele.get(w[:i] + w[i + 1:], ()):
+            if len(v) == len(w) and v != w and sum(a != b for a, b in zip(v, w)) == 1:
+                return v
+    return None
+
+
+def near_miss_words(text: str, corpus: str | None = None) -> list[tuple[str, str]]:
+    """새로 들인 문장에서 (깨진 낱말, 고친 낱말) — 90개 규정에 없는 글자 연쇄가 있고 + 한 글자만 바로잡으면 규정에 있는 낱말이 되는 것만.
+    LLM 없이 결정적. 오타 문항 284개에서 재현 76%(LLM 70%, 합치면 89%), 다른 규정으로 만든 사전 교차 검증에서 정상 낱말의 약 2.7%가 걸림 → 근거가 아니라
+    낮은 우선순위의 확인 신호 (리포트 51)."""
+    vocab, bg, dele = _lexicon(corpus)
+    flat = re.sub(r"「[^」]*」|\"[^\"]*\"", " ", text)   # 법령명·규정명·따옴표 안은 제외
+    for a, b in STYLE:
+        flat = flat.replace(a, b)
+    out: list[tuple[str, str]] = []
+    for w in re.findall(r"[가-힣]{2,}", flat):
+        if w in vocab or all(w[i:i + 2] in bg for i in range(len(w) - 1)):
+            continue
+        if (r := _near(w, vocab, dele)) and (w, r) not in out:
+            out.append((w, r))
+    return out
+
+
 def verify(text: str, e: dict, corpus: str | None = None) -> bool:
     w, r = str(e["wrong"]).strip(), str(e["right"]).strip()
     if not w or w == r or w not in text:

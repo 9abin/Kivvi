@@ -25,6 +25,8 @@ from regcheck.db import load_env  # noqa: E402
 OUT = ROOT / "eval" / "agent" / "nl_requests_ext.jsonl"
 NUM = re.compile(r"(\d+)(일|개월|회|년|명|퍼센트|%|만원|세|시간)")
 ADD_SENTENCE = "이 경우 소속 부서장에게 사전에 보고하여야 한다."
+INS_TITLE = "업무 협조"
+INS_BODY = "소속 부서장은 필요한 경우 관련 부서에 협조를 요청할 수 있다."
 STYLES = {
     "A": "격식 있는 업무 요청. 규정명과 조 번호를 모두 말한다.",
     "B": "동료에게 말하듯 구어체. 규정명은 말하지만 조 번호는 말하지 않고, 그 조의 내용(제목 낱말을 그대로 쓰지 말고 풀어서)으로 가리킨다.",
@@ -35,6 +37,7 @@ KIND_TEXT = {
     "NUM": "{old}을(를) {new}(으)로 바꾼다 (숫자 변경)",
     "DEL": "이 조 전체를 삭제한다",
     "ADD": f"이 조의 마지막 항 끝에 「{ADD_SENTENCE}」 문장을 덧붙인다",
+    "INS": f"이 조 바로 앞에 새 조를 신설한다 (뒤 번호는 하나씩 밀림). 제목 「{INS_TITLE}」, 내용 「{INS_BODY}」",
 }
 
 
@@ -50,10 +53,13 @@ def candidates(regs: dict):
             yield r, a, body, txt
 
 
-def build_intents(regs: dict, n: int, rng: random.Random) -> list[dict]:
+def build_intents(regs: dict, n: int, rng: random.Random, only: str = "") -> list[dict]:
     pool = list(candidates(regs))
     rng.shuffle(pool)
-    kinds = ["NUM"] * int(n * 0.4) + ["DEL"] * int(n * 0.3) + ["ADD"] * (n - int(n * 0.4) - int(n * 0.3))
+    if only:
+        kinds = [only] * n
+    else:
+        kinds = ["NUM"] * int(n * 0.4) + ["DEL"] * int(n * 0.3) + ["ADD"] * (n - int(n * 0.4) - int(n * 0.3))
     out, used = [], set()
     for kind in kinds:
         for r, a, body, txt in pool:
@@ -68,6 +74,11 @@ def build_intents(regs: dict, n: int, rng: random.Random) -> list[dict]:
                 new = str(int(m.group(1)) + (1 if int(m.group(1)) < 10 else 5)) + m.group(2)
                 intent = {"old": m.group(0), "new": new}
                 expect = {"contains": new}
+            elif kind == "INS":
+                num = int(a["label"][1:-1])
+                if num < 2 or any("의" in x["label"] for x in r["articles"] if not x["deleted"] and int(re.match(r"제(\d+)조", x["label"]).group(1)) >= num):
+                    continue   # 가지번호 조가 밀릴 범위에 있으면 적용기가 표현하지 못함
+                intent, expect = {}, {"inserted": a["label"]}
             elif kind == "DEL":
                 intent, expect = {}, {"deleted": True}
             else:
@@ -84,11 +95,12 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=100)
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--model", default="gpt-5.4-mini")
+    ap.add_argument("--only", default="", help="한 가지 개정 유형만 (예: INS). 출력은 nl_requests_ext_<유형>.jsonl")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     regs = {r["reg_id"]: r for r in (json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json"))}
     rng = random.Random(a.seed)
-    intents = build_intents(regs, a.n, rng)
+    intents = build_intents(regs, a.n, rng, a.only)
     rng.shuffle(intents)
     from openai import OpenAI
     client = OpenAI(api_key=load_env().get("OPENAI_API_KEY"), timeout=120)
@@ -110,11 +122,12 @@ def main() -> None:
         except Exception as e:   # 한 건 실패는 건너뜀
             print("실패", i, type(e).__name__)
             continue
-        rows.append({"id": f"X{len(rows) + 1:03d}", "style": style, "kind": it["kind"], "request": req, "reg": it["reg"], "reg_id": it["reg_id"],
+        rows.append({"id": f"{a.only or 'X'}{len(rows) + 1:03d}", "style": style, "kind": it["kind"], "request": req, "reg": it["reg"], "reg_id": it["reg_id"],
                      "article": it["article"], "with_reg": style in "BC", "expect": it["expect"]})
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in rows), encoding="utf-8")
-    print(f"{len(rows)}건 → {OUT} · 토큰 입력 {cost_in} 출력 {cost_out} (약 {(cost_in * 0.25 + cost_out * 2) / 1e6 * 1400:.0f}원 이하 추정)")
+    out_path = OUT.with_name(f"nl_requests_ext_{a.only.lower()}.jsonl") if a.only else OUT
+    out_path.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in rows), encoding="utf-8")
+    print(f"{len(rows)}건 → {out_path} · 토큰 입력 {cost_in} 출력 {cost_out} (약 {(cost_in * 0.25 + cost_out * 2) / 1e6 * 1400:.0f}원 이하 추정)")
 
 
 if __name__ == "__main__":

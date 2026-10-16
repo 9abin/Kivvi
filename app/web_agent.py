@@ -123,7 +123,8 @@ def targets(text: str) -> dict:
 
     with _lock:   # GPU를 채팅·개정안 작성과 나눠 쓴다
         return find_targets(text, regs, _vector_index(), lambda t: model.encode(t, normalize_embeddings=True),
-                            lambda q, ts: rr.predict([(q, t) for t in ts], batch_size=16, show_progress_bar=False).tolist(), rewrite=rewrite)
+                            lambda q, ts: rr.predict([(q, t) for t in ts], batch_size=16, show_progress_bar=False).tolist(),
+                            rewrite=rewrite if os.environ.get("TARGET_REWRITE") == "1" else None)   # 기본 끔: 독립 평가에서 효과 없음(조 @3 62%→60%, 리포트 51). 켜려면 TARGET_REWRITE=1
 
 
 def package_path(cid: str) -> Path:

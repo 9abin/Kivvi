@@ -237,9 +237,10 @@ def intent_issues(request: str, cs: dict, reg: dict, cands: list[dict]) -> list[
 def find_regulation(regs: dict[str, dict], request: str) -> dict | None:
     """요청에 적힌 규정명 (가장 긴 이름 우선). 다른 규정 인용(「급여규정 제21조」)과 헷갈리지 않게 처음 나온 이름."""
     hits = []
+    flat = request.replace(" ", "")   # 「조직성과평가 지침」처럼 띄어쓰기만 다른 이름도 같은 규정 (자연어 평가 D 말투 실패 원인의 일부, 261016)
     for r in regs.values():
         for n in {r["name"], r["name"].removeprefix("한국벤처투자 ")}:
-            i = request.find(n)
+            i = flat.find(n.replace(" ", ""))
             if i >= 0:
                 hits.append((i, -len(n), r))
     return sorted(hits, key=lambda x: (x[0], x[1]))[0][2] if hits else None
@@ -275,6 +276,49 @@ def article_text(a: dict) -> str:
     return "\n".join(lines)
 
 
+NEW_ART = re.compile(r"신설|새로\s*(?:넣|만들|두)|새\s*(?:조|조문|조항)|(?:조|조문|조항)\s*(?:을|를)?\s*추가")
+
+
+def insert_anchor(request: str) -> tuple[int, str, str] | None:
+    """조 신설 요청 → (그 뒤에 넣을 조 번호, 제목, 본문). 「제6조 다음에 X 조문을」, 「제7조 앞에 신설, 제목은 X, 내용은 Y」 모두 읽는다.
+    본문이 없으면 빈 문자열(LLM이 채움). 위치나 제목을 못 읽으면 None."""
+    if not NEW_ART.search(request):
+        return None
+    after = None
+    m = re.search(r"제\s*(\d+)\s*조\s*(?:의\s*)?다음(?:으로|에)?", request)
+    if m:
+        after = int(m.group(1))
+    else:
+        m = re.search(r"제\s*(\d+)\s*조[^.\n]{0,80}?(?:바로\s*)?(?:앞|전)(?:으로|에)", request)   # 화면은 「규정명 제N조」를 요청 앞에 붙이므로 「이 조 바로 앞에」와 떨어져 있어도 읽는다
+        if m and int(m.group(1)) >= 2:
+            after = int(m.group(1)) - 1
+    if after is None:
+        return None
+    title = None
+    t = re.search(r"제목(?:은|:|을)\s*['\"「‘“]?([^'\"」’”,.\n]{2,30}?)['\"」’”]?\s*(?:[,.]|내용|이고|이며|으로|로|$)", request)
+    if t:
+        title = t.group(1).strip()
+    else:
+        t = re.search(r"다음(?:으로|에)?\s*(.+?)\s*(?:조문|조항|조)(?:을|를)?\s*(?:새로|신설)", request)
+        if t:
+            title = t.group(1).strip(" '\"「」")
+    if not title or re.search(r"제\s*\d+\s*조|신설|앞에|다음|없이|해\s*주|해줘|넣어", title):   # 문장 일부를 제목으로 잘못 자른 경우는 규칙이 아니라 LLM·사람에게
+        return None
+    body = ""
+    b = re.search(r"내용(?:은|:)\s*['\"「‘“](.+?)['\"」’”]", request)
+    if not b:   # 따옴표 없는 본문은 문장만 있을 때 받는다. 「~라는 문장으로 해 주고」처럼 말투가 섞이면 규칙이 잘못 자르므로 LLM에 맡긴다
+        b = re.search(r"내용(?:은|:)\s*(.+?)\s*(?:[.]\s*$|$)", request)
+        if b and re.search(r"해\s*주|해줘|주세요|주시|으로\s*하|로\s*하|문장|넣어|밀어|[,]", b.group(1)):
+            b = None
+    if b:
+        body = b.group(1).strip()
+        if body and not body.endswith((".", "다")):
+            body += "."
+        elif body.endswith("다"):
+            body += "."
+    return after, title, body
+
+
 def structural_plan(reg: dict, request: str, cands: list[dict]) -> str | None:
     """삭제·신설·번호 이동은 규칙으로 개정문을 만든다 (작은 LLM이 가장 약한 부분). 못 읽으면 None → LLM."""
     live = [a for a in reg["articles"] if not a.get("deleted")]
@@ -287,14 +331,18 @@ def structural_plan(reg: dict, request: str, cands: list[dict]) -> str | None:
         if target:
             return f"{target['label']}를 삭제한다."
     # 신설: 「제6조 다음(으로|에) X 조문을 새로 넣고 (뒤 번호 밀어)… 내용은 '…'」
-    m = re.search(r"제\s*(\d+)\s*조\s*(?:의\s*)?다음(?:으로|에)?\s*(.+?)\s*(?:조문|조항|조)(?:을|를)?\s*(?:새로|신설)", request)
-    if m and re.search(r"신설|새로\s*(넣|만들|두)", request):
-        after, title = int(m.group(1)), m.group(2).strip(" '\"「」")
-        body = re.search(r"내용(?:은|:)\s*['\"「‘“](.+?)['\"」’”]", request)
+    anchor = insert_anchor(request)
+    if anchor:
+        after, title, body_text = anchor
+        body = re.match(r"(.+)", body_text) if body_text else None
         nums = sorted({int(re.match(r"제(\d+)조", a["label"]).group(1)) for a in live})
-        later = [n for n in nums if n > after]
+        later = []   # 밀릴 조: 신설 자리부터 이어지는 번호까지만 (결번이 있으면 거기서 멈춘다. 전산업무지침 제23조 결번, 261016)
+        n = after + 1
+        while n in nums:
+            later.append(n)
+            n += 1
         lines = []
-        if later and re.search(r"번호|밀", request):
+        if later:   # 신설 자리에 이미 조가 있으면 뒤 번호는 당연히 밀린다 (말하지 않아도 261016: 「제7조 앞에 신설」이 7B에서 실패)
             # 한 조만 밀리면 「제15조를 제16조로 하고」 (「제15조부터 제15조까지를 각각 …」은 법제 문장으로 어색, 261015 시연 리허설)
             move = (f"제{later[0]}조를 제{later[0] + 1}조로 하고, " if len(later) == 1 else
                     f"제{later[0]}조부터 제{later[-1]}조까지를 각각 제{later[0] + 1}조부터 제{later[-1] + 1}조까지로 하고, ")
@@ -318,12 +366,17 @@ def draft(regs: dict[str, dict], request: str, model: str = "qwen2.5:7b", reg: d
     cands = candidates(reg, request)
     # 뒤 번호를 밀라는데 밀릴 범위에 가지번호 조(제4조의2)가 있으면 적용기가 번호 이동을 표현할 수 없다 → LLM을 헛돌리지 않고 바로 안내
     # (261015 시연 리허설: 계약사무처리지침에서 3회 실패 뒤 원인과 다른 안내가 나감)
-    m = re.search(r"제\s*(\d+)\s*조\s*(?:의\s*)?다음", request)
-    if m and re.search(r"신설|새로\s*(넣|만들|두)", request) and re.search(r"번호|밀", request):
-        after = int(m.group(1))
+    anchor = insert_anchor(request)
+    if anchor:
+        after = anchor[0]
+        nums = {int(re.match(r"제(\d+)조", a["label"]).group(1)) for a in reg["articles"] if not a.get("deleted") and "의" not in a["label"]}
+        run, n = set(), after + 1
+        while n in nums:   # 밀릴 조 = 신설 자리부터 이어지는 번호 (결번에서 멈춤)
+            run.add(n)
+            n += 1
         branch = [a["label"] for a in reg["articles"] if not a.get("deleted") and "의" in a["label"]
-                  and int(re.match(r"제(\d+)조", a["label"]).group(1)) > after]
-        if branch:
+                  and int(re.match(r"제(\d+)조", a["label"]).group(1)) in run | {max(run, default=0) + 1}]
+        if run and branch:
             return {"ok": False, "tries": [], "error": f"뒤 번호를 밀 범위에 가지번호 조({', '.join(branch[:3])})가 있어 번호 이동 개정문을 만들 수 없습니다. "
                     f"「제{after}조의2를 신설」처럼 가지번호로 넣거나, 번호를 어떻게 옮길지 직접 적어 주세요."}
     plan = structural_plan(reg, request, cands)
@@ -336,6 +389,25 @@ def draft(regs: dict[str, dict], request: str, model: str = "qwen2.5:7b", reg: d
                         "candidates": [a["label"] for a in cands]}
         except AmendError:
             pass
+    if plan and plan.endswith(") "):   # 위치·제목은 규칙이 정했고 본문만 비었다 → LLM에는 개정문 전체가 아니라 본문 한 문장만 쓰게 한다 (7B가 통째로 쓰면 실패: 신설 평가)
+        body_tries = []
+        for _ in range(2):
+            try:
+                body = _post(model, [{"role": "system", "content": "사내 규정 조문의 본문을 쓴다. 요청에서 새로 넣을 조문의 내용만 법제 문체(…한다.)로 한두 문장으로 쓴다. 조 번호·제목·설명·따옴표 없이 본문만."},
+                                     {"role": "user", "content": request}]).strip().splitlines()[0].strip(" '\"「」")
+            except (OSError, IndexError):
+                break
+            cand = plan + body
+            try:
+                cs, new = build_changeset(reg, cand, "nl")
+                issues = intent_issues(request, cs, reg, cands)
+                if issues:
+                    raise AmendError("요청과 어긋남: " + " / ".join(issues))
+                body_tries.append({"output": cand, "error": "", "by": "rule+llm"})
+                return {"ok": True, "reg_id": reg["reg_id"], "reg_name": reg["name"], "amendment": cand, "changeset": cs,
+                        "new_reg": new, "tries": body_tries, "candidates": [a["label"] for a in cands]}
+            except AmendError as e:
+                body_tries.append({"output": cand, "error": str(e)})
     toc = ", ".join(f"{a['label']}({a['title']})" for a in reg["articles"] if not a.get("deleted"))
     user = (f"요청: {request}\n\n대상 규정: 「{reg['name']}」\n조 목록: {toc}\n\n관련 조문 원문:\n"
             + "\n\n".join(article_text(a) for a in cands) + "\n\n개정문만 출력:")

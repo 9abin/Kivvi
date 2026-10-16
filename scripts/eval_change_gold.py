@@ -68,6 +68,7 @@ def main() -> None:
     ap.add_argument("--split", choices=["all", "dev", "test"], default="all")
     ap.add_argument("--spell", default="", help="오타 검사 로컬 모델 (예: qwen3.5:9b). 비우면 끔")
     ap.add_argument("--neighbors", action="store_true", help="의미 이웃(out/relations/neighbors.json) 경로를 켬")
+    ap.add_argument("--vector", action="store_true", help="실제 사례(S01~S03)에 실시간 의미 유사 경로를 켬 = 화면(web_agent.draft)과 같은 설정 (CPU로 임베딩, 느림)")
     a = ap.parse_args()
     regs = {r["reg_id"]: r for r in (json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json"))}
     edges = jl(ROOT / "out" / "edges" / "edges_all.jsonl")
@@ -106,7 +107,7 @@ def main() -> None:
         for f in found:   # 채점용 분류: 새 문장 속 법령명 → law_name, 오타 의심 → typo
             if f.get("path") == "재검사(법령명)":
                 f["category"] = "law_name"
-            elif f.get("path") == "오타 의심":
+            elif str(f.get("path", "")).startswith("오타 의심"):   # LLM 지적과 글자 연쇄 신호 모두
                 f["category"] = "typo"
         row = {"id": x["id"], "kind": x["kind"], "note": x["note"], "found": [(f["category"], f["reg_id"], f.get("article"), f.get("para"))
                                                                           for f in found if f["category"] in (*MAJOR, "law_num")], "exp": []}
@@ -131,12 +132,17 @@ def main() -> None:
         results.append(row)
 
     # 실제 사례 (시나리오 S01~S03)
+    vec = None
+    if a.vector:
+        from sentence_transformers import SentenceTransformer
+        from regcheck.vectors import Index
+        vec = (SentenceTransformer("BAAI/bge-m3", device="cpu"), Index(ROOT / "out" / "vector" / "BAAI__bge-m3"))
     real = []
     for p in sorted((ROOT / "eval" / "scenarios").glob("S*.json")):
         sc = json.loads(p.read_text(encoding="utf-8"))
         ch = sc["change"]
         cs, _ = build_changeset(regs[ch["target"]["reg_id"]], ch["amendment"], sc["id"], sc["title"])
-        sres = score_scenario(run_check(cs, regs, rels, edges, lawdb=db, neighbors=nb), sc["expected"])
+        sres = score_scenario(run_check(cs, regs, rels, edges, lawdb=db, neighbors=nb, vector=vec), sc["expected"])
         tot = [r for cat, rows in sres.items() if cat != "not_affected" for r in rows]
         real.append((sc["id"], sum(r["result"] == "탐지" for r in tot), len(tot),
                      sum(r["result"] == "오탐" for r in sres.get("not_affected", []))))

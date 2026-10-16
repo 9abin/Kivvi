@@ -22,6 +22,7 @@ from .findings import locate
 
 DUP_MIN = 0.78   # 신설 조문 ↔ 같은 내규 기존 조문 유사도 (0.78~0.82이거나 간격이 작으면 인접 주제라 낮음, 0.82 이상 + 간격 0.04 이상이면 중간)
 DUP_HIGH = 0.82
+MAX_BIGRAM = 5       # 글자 연쇄 오타 카드는 개정안당 최대 5장
 MAX_CHAIN = 8        # 연쇄(2단계) 카드는 최대 8장 (허브 조 삭제 시 폭주 방지)
 MAX_MODEL = 6        # 한 개정안에서 모델 추정 카드(오타 제외)는 최대 6장
 NEIGHBOR_GAP = 0.03   # 의미 이웃: 다음 이웃보다 이만큼 높아야 「낮음」, 아니면 「참고」 (리포트 48)
@@ -442,6 +443,30 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                          "para": d["path"][0], "quote": e["wrong"], "context": d["new"], "path": "오타 의심", "target": "",
                          "priority": "중간", "handling": "고칠 수 있음", "suggest": e["right"],
                          "reason": f"오타·맞춤법 의심: 「{e['wrong']}」 → 「{e['right']}」? ({e.get('reason', '')}) — 로컬 모델 지적, 확인 필요"})
+    # 6-2) 글자 연쇄 오타: 개정안이 새로 들인 문장의 낱말 중 90개 규정에 한 번도 안 나온 글자 연쇄가 있으면 (LLM 없이, 낮은 우선순위)
+    if new_reg is not None:
+        from .spell import near_miss_words
+        if _CORPUS is None:
+            from .spell import corpus_text
+            _CORPUS = corpus_text()
+        new_by_origin2 = {a.get("_origin") or a["id"]: a for a in new_reg["articles"]}
+        pairs2 = [(next(a for a in reg["articles"] if a["id"] == o), new_by_origin2.get(o)) for o in content_changed if lmap.get(o, "") is not None]
+        pairs2 += [(None, a) for a in new_reg["articles"] if a["label"] in inserted_labels and not a.get("_origin")]
+        flagged = {x["quote"] for x in out if x.get("path") == "오타 의심"}
+        n_bg = 0
+        for old_art, new_art in pairs2:
+            if not new_art:
+                continue
+            items = _changed_items(old_art, new_art) if old_art else [{"path": it["path"], "old": "", "new": it["norm"]} for it in new_art["items"]]
+            for d in items:
+                for w, right in near_miss_words(d["new"], _CORPUS):
+                    if n_bg >= MAX_BIGRAM or w in d["old"] or w in flagged:
+                        continue
+                    n_bg += 1
+                    add({"category": "review", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": new_art["label"],
+                         "para": d["path"][0], "quote": w, "context": d["new"], "path": "오타 의심(글자 연쇄)", "target": "",
+                         "priority": "낮음", "handling": "고칠 수 있음", "suggest": right,
+                         "reason": f"새로 들인 낱말 「{w}」는 90개 규정에 없는 글자 연쇄인데, 한 글자만 바로잡으면 규정에 쓰이는 「{right}」가 됨 — 오타인지 확인 (규칙 검사, LLM 아님)"})
     order = {"breaks": 0, "new_conflicts": 1, "resolved": 2, "review": 3, "law_check": 4, "undeterminable": 5, "info": 6}
     prio = {"높음": 0, "중간": 1, "낮음": 2, "참고": 3}
     out = cap_model_cards(out, prio)
@@ -461,7 +486,7 @@ NOT_COVERED = [
 # 구조(인용·정의·같은 제목)로는 연결이 보이지 않지만, 틀어지면 권한·권리에 닿는 유형 (261015 분석: 기관·직위 38%, 절차 28%, 숫자 20%, 단서 17%의 조).
 # 규칙으로만 만든 안내라 틀릴 일은 없지만 「영향이 있다」는 뜻이 아니라 「이 유형은 시스템이 확인하지 못한다」는 뜻이다. 판단은 담당 부서.
 BLIND = [
-    ("권한·결재·심의기관", r"결재|전결|승인권자|위임|대표이사|이사회|위원회|감사",
+    ("권한·결재·심의기관", r"결재|전결|승인권자|위임|(?:대표이사|이사회|위원회|감사)(?:의|가|는|에게|에)?\s*(?:승인|의결|심의|결재|동의|보고)",
      "결재선·권한·심의기관이 바뀌면 다른 내규에 적힌 승인권자·심의기관·전결 사항이 함께 바뀌어야 할 수 있으나, 인용 없이 이어진 관계는 시스템이 확인하지 못함. 담당 부서와 확인"),
     ("신분·징계·인사처분 요건", r"징계|면직|해임|파면|직위해제|퇴직|해고|휴직|인사발령",
      "직원의 신분·처분 요건이 바뀌면 징계·퇴직금·보수·불복 절차 등 다른 내규가 연동될 수 있으나 시스템이 확인하지 못함. 인사 담당 부서와 확인"),
@@ -498,6 +523,8 @@ def basis_of(path: str) -> str:
       낱말 일치  같은 제목·같은 정의 용어 — 낱말은 확실하지만 「같은 낱말 = 같은 뜻」은 가정
       모델 추정  임베딩·reranker·LLM의 판단 (의미 유사·의미 이웃·오타)"""
     p = path or ""
+    if p.startswith("오타 의심(글자 연쇄)"):
+        return "낱말 일치"
     if p.startswith(("의미", "오타", "가설")):
         return "모델 추정"
     if p.startswith(("같은 제목", "정의 용어")):
