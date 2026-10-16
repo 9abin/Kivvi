@@ -65,6 +65,16 @@ def ollama_ps():
     return out.splitlines()[1:] if out else []
 
 
+def ctx_from_ps(lines):
+    """`ollama ps` 줄에서 컨텍스트 길이(예: 4096)를 읽는다. 설정에 num_ctx를 적지 않았을 때 환경 한 줄에 실제 값을 적기 위해서다."""
+    import re
+    for line in lines or []:
+        m = re.search(r"(?:GPU|CPU)\s+(\d{3,6})(?!\d)", line)
+        if m:
+            return int(m.group(1))
+    return None
+
+
 def env_line(model_tags, num_ctx=None):
     """측정 환경 한 줄: GPU, RAM, 드라이버, 모델 태그, num_ctx."""
     gpu = None

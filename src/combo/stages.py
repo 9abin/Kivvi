@@ -310,7 +310,7 @@ class Run:
             dm = reranker.m.hf_device_map
             offload = {"cpu_modules": sum(1 for v in dm.values() if v in ("cpu", "disk")), "total_modules": len(dm),
                        "gpu_mem": rcfg.get("gpu_mem"), "cpu_mem": rcfg.get("cpu_mem")}
-        data = {"meta": self.stage_meta({"reranker": rcfg.get("model"), "kind": rcfg.get("kind"), "load_sec": round(load_sec, 2),
+        data = {"meta": self.stage_meta({"reranker": None if rcfg.get("kind") == "none" else rcfg.get("model"), "kind": rcfg.get("kind"), "load_sec": round(load_sec, 2),
                                          "fp16": rcfg.get("fp16"), "offload": offload, "label": self.R}), "items": items}
         save_json(path, data)
         if reranker is not None:
@@ -581,8 +581,9 @@ class Run:
         T["ram_peak_gb"] = {"cands": cands["meta"].get("ram_peak_gb"), "rerank": rr["meta"].get("ram_peak_gb"), "final": env.ram_peak_gb()}
         T["offload"] = rr["meta"].get("offload")
         T["ollama_ps"] = {"rewrite": rew["meta"].get("ollama_ps"), "select": sel["meta"].get("ollama_ps") if sel else None}
-        tags = [self.cfg["embedding"]["model"], self.cfg["reranker"].get("model") or "없음"] + sorted({m.model for m in self._llms.values()})
-        T["env"] = env.env_line(tags, self.cfg["eval"].get("num_ctx"))
+        tags = [self.cfg["embedding"]["model"], "리랭커 없음" if self.cfg["reranker"].get("kind") == "none" else self.cfg["reranker"].get("model")]             + sorted({m.model for m in self._llms.values()})
+        ps = (rew["meta"].get("ollama_ps") or []) + ((sel["meta"].get("ollama_ps") or []) if sel else [])
+        T["env"] = env.env_line(tags, self.cfg["eval"].get("num_ctx") or env.ctx_from_ps(ps))
         by = {}
         for q in qrecs:
             key = q.get("유형") or "?"
