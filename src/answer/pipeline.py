@@ -20,10 +20,11 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from config import (ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, FAST_PIPELINE, PARTIAL_SHOW, QUERY_PLAN,
-                    USE_REWRITE)
+from config import (ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, FAST_PIPELINE, GAP_CHECK, GAP_CHECK_MODEL, PARTIAL_SHOW,
+                    QUERY_PLAN, USE_REWRITE)
+from src.answer.gapcheck import GapChecker, gap_notes
 from src.answer.generate import (Generator, flatten, order_entries, revision_notes,
-                                 state_notes)
+                                 state_notes, topic_notes)
 from src.search.glossary import filter_by_glossary
 from src.answer.guard import (contradicted_distinctions, filter_tables_by_scope, missing_terms,
                               unsupported_numbers)
@@ -80,6 +81,8 @@ class Assistant:
         self.last_plan = None
         self.searcher = Searcher()
         self.generator = Generator()
+        # 답변 뒤 누락 검사 (gapcheck.py). 되묻기·판정은 빠른 모델(GAP_CHECK_MODEL)로, FAST_PIPELINE이면 답을 돌려준 뒤 뒤에서 돌린다
+        self.gap = GapChecker(self.searcher, Generator(GAP_CHECK_MODEL)) if GAP_CHECK else None
         self.pool = ThreadPoolExecutor(max_workers=4) if FAST_PIPELINE else None  # GPT 호출 동시 실행용
 
     def close(self):
@@ -134,6 +137,16 @@ class Assistant:
             unsupported, verify_ok = pending.result()
             result["warnings"] = result["warnings"] + _verify_warnings(unsupported, verify_ok)
             result["unsupported"] = unsupported
+        gap_job = result.pop("pending_gap", None)
+        if gap_job is not None:
+            try:
+                result["gap"] = gap_job.result()
+            except Exception as e:  # 누락 검사는 보조 장치라 실패해도 답은 그대로 둔다
+                result["gap"] = {"오류": repr(e)[:200]}
+                result["warnings"] = result["warnings"] + ["누락 검사 실패: " + repr(e)[:120]]
+            extra = gap_notes(result["gap"])
+            if extra:
+                result["answer"] = result["answer"] + "\n\n" + "\n".join(extra)
         if "timing" in result:
             result["timing"]["checks"] = time.time() - result["timing"]["t0"]
         return result
@@ -213,9 +226,19 @@ class Assistant:
         if scope_excluded:
             out["warnings"] = out["warnings"] + [f"표 범위 필터: {m} {a}({t} 대상)는 {r}이라 근거에서 제외" for m, a, t, r in scope_excluded]
 
-        notes = state_notes(entries, out["cited"]) + revision_notes(entries, out["cited"])
+        notes = (state_notes(entries, out["cited"]) + revision_notes(entries, out["cited"])
+                 + topic_notes(entries, out["cited"]))  # 주제어 사전의 '함께' 조문 안내 (검색_설계.md 12절)
         if asks_past(question) and "현행 규정 기준입니다" not in out["answer"]:
             notes.append(CURRENT_NOTICE)
+        # 답변 뒤 누락 검사 (GAP_CHECK): 되묻기 검색 + 버린 후보 단서 → "※ 확인 필요". 결론은 바꾸지 않는다 (검색_설계.md 13절)
+        # FAST_PIPELINE이면 답을 돌려준 뒤 뒤에서 돌리고 finish()에서 안내문을 붙인다 (검색기는 그 사이 다른 질문에 쓰지 않는다)
+        gap_job = None
+        if self.gap is not None:
+            if self.pool:
+                gap_job = self.pool.submit(self.gap.run, question, out["answer"], entries, asker)
+            else:
+                out["gap"] = self.gap.run(question, out["answer"], entries, asker)
+                notes += gap_notes(out["gap"])
         if notes:
             out["answer"] = out["answer"] + "\n\n" + "\n".join(notes)
 
@@ -227,6 +250,8 @@ class Assistant:
         result = {**base, **out, "conflicts": conflicts, "unsupported": unsupported}
         if verify_job:
             result["pending_verify"] = verify_job
+        if gap_job:
+            result["pending_gap"] = gap_job
         return result
 
 

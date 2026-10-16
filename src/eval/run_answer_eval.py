@@ -57,8 +57,8 @@ def main():
             timing = r.get("timing") or timing
             rec = {"id": g["id"], "mode": r["mode"], "answer": r["answer"], "withheld": r.get("withheld"),
                    "warnings": r.get("warnings", []), "glossary_excluded": r.get("glossary_excluded", []),
-                   "entries": [{"문서명": e["문서명"], "article": e["article"], "상태": e["조문상태"]} for e in r["entries"]],
-                   "top_score": r.get("top_score"), "plan": r.get("plan"), "retried": r.get("retried"),
+                   "entries": [{"문서명": e["문서명"], "article": e["article"], "상태": e["조문상태"], "역할": e.get("역할"), "match": e.get("match")} for e in r["entries"]],
+                   "top_score": r.get("top_score"), "plan": r.get("plan"), "retried": r.get("retried"), "gap": r.get("gap"),
                    # 질문부터 초: 첫 글자(스트리밍) / 답 완성(사용자가 답을 다 받음) / 근거 검사까지 끝
                    "t_first_token": _round(timing.get("first_token")), "t_answer": _round(timing.get("answer")),
                    "t_checks": _round(timing.get("checks"))}

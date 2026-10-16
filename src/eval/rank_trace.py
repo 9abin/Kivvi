@@ -133,7 +133,7 @@ def main():
         if hint:
             extra = (("벡터(바꿔쓴)", s.vector_hits(hint, None), 0.7), ("키워드(바꿔쓴)", s.bm25_hits(hint, None), 0.3))
         fused = s.fuse(vec, key, extra=extra)
-        reranked = s.rerank(text, [dict(h) for h in fused[:RERANK_TOP]])
+        reranked = s.rerank(text, [dict(h) for h in s.rerank_window(fused)])  # MERGE_BEFORE_RERANK도 여기서 적용
         row = {"q": text, "hint": hint,
                "벡터": rank(by_article(vec), groups), "키워드": rank(by_article(key), groups),
                "보조벡터": rank(by_article(extra[0][1]), groups) if extra else None,

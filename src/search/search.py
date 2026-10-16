@@ -6,6 +6,8 @@
   4. 상위 후보를 리랭커로 다시 점수 매긴다
   5. 상위 k개에 형제 항을 붙이고 (3,000자 상한), cites를 1단계 따라간다
      (청크가 조 단위라 형제 항은 보통 없다. 긴 별표 조각처럼 같은 조항 이름을 나눠 가진 청크만 붙는다)
+  6. (config.USE_TOPIC_LINKS) 질문의 주제어로 흩어진 조문을 모아 리랭커로 고른 몇 개를 붙인다 (_related, topics.py).
+     이미 찾은 조·cites로 따라온 조문·같은 조의 항은 뺀다.
 
 사용 예:
   from src.search.search import Searcher
@@ -21,8 +23,10 @@ from kiwipiepy import Kiwi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from config import (EMBED_MODEL, EMBED_QUERY_INSTRUCT, HIGHLIGHT_HITS, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
-                    LAW_CITES_FROM_HITS, LLM_RERANK, RERANK_HEADER, RERANK_MODEL, RETURN_ARTICLE, RRF_K, USE_SYNONYMS)
-from src.search import glossary, synonyms
+                    LAW_CITES_FROM_HITS, LLM_RERANK, MERGE_BEFORE_RERANK, RERANK_DOC_CAP, RERANK_HEADER, RERANK_MODEL,
+                    RETURN_ARTICLE, RRF_K, TOPIC_ARTICLE_FILTER, TOPIC_MODE, TOPIC_RELATED_LIMIT, CASE_LINKS, CASE_LINKS_TABLE,
+                    TOPIC_RELATED_MIN_SCORE, USE_SYNONYMS, USE_TOPIC_LINKS)
+from src.search import glossary, synonyms, topics
 from src.search.bm25 import BM25
 from config import CONTEXT_CHAR_BUDGET
 from src.search.exact import parse_reference
@@ -33,6 +37,7 @@ RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
+RELATED_RERANK_TOP = 30  # 주제 링크 후보 중 리랭커에 넘기는 수 (후보 단계의 RERANK_TOP과 같게 두어 비용을 묶는다)
 # HIGHLIGHT_HITS: 조 전체를 넘길 때의 표시 (generate.HIT_NOTE가 답변 모델에 뜻을 알려 준다)
 HIT_MARK = "▶▶ [찾은 항] "    # 검색이 실제로 찾은 항 (강하게)
 SIB_MARK = "▷ [같은 조] "     # 같은 조의 나머지 항 (약하게)
@@ -119,11 +124,19 @@ class Searcher:
         self.glossary_filter = True  # 후보 단계 제외 (전후 비교를 위해 끌 수 있다)
         self.last_glossary_excluded = []
         self.last_hint = ""
+        # 주제어 사전 (검색_설계.md 12절). 사례 조문 링크(14절)도 주제 게이트에 쓴다
+        self.topics = topics.load() if (USE_TOPIC_LINKS or CASE_LINKS) else {}
+        # 조 → 연관 조 표 (TOPIC_MODE="article", 검색_설계.md 12.5). 찾은 조마다 조회만 한다
+        self.related_table = topics.load_related() if USE_TOPIC_LINKS and TOPIC_MODE == "article" else {}
+        # 사례 조문 링크 표 (CASE_LINKS, 검색_설계.md 14절). 같은 형식, 같은 조회 방식(_related_articles)
+        self.case_table = topics.load_related(CASE_LINKS_TABLE) if CASE_LINKS else {}
         # 2단계 LLM 리랭커 (LLM_RERANK, 검색_설계.md 5절): 교차 인코더 상위 LLM_RERANK_TOP개를 LLM이 다시 채점한다
         self.llm_reranker = None
         if LLM_RERANK:
             from src.search.llm_rerank import LLMReranker
             self.llm_reranker = LLMReranker()
+        self.last_related = []
+        self.last_reranked = []
         self._load_index()
 
     def _load_index(self):
@@ -134,6 +147,12 @@ class Searcher:
         self.row_info = {r["chunk_id"]: r for r in rows}
         docs = [(r["chunk_id"], (r["body_tokens"] or "").split()) for r in rows]
         self.bm25 = BM25(docs)
+        # 주제 → 청크 표. 색인 행을 그대로 훑으므로 조 단위·항 단위 어느 색인이든 맞고, 재색인되면 함께 다시 만든다.
+        self.topic_chunks, self.chunk_topics = topics.build_index(rows, self.topics)
+        # (문서, 조) → 항 청크 ID 목록 (항 순서). 사전의 '함께' 조문("23970_제25조")을 지금 색인의 청크로 바꿀 때 쓴다.
+        self.article_rows = defaultdict(list)
+        for r in sorted(rows, key=lambda r: _order_key(r["article"])):
+            self.article_rows[(r["doc_id"], _article_base(r["article"]))].append(r["chunk_id"])
 
     def _refresh_if_stale(self):
         """재색인으로 DB가 바뀌었으면 메모리의 BM25와 목록을 다시 읽는다. 검색 호출마다 한 번 확인한다."""
@@ -205,6 +224,31 @@ class Searcher:
         title = self.documents.get(row["doc_id"], {}).get("title") or row["doc_id"]
         label = " ".join(x for x in (title, row.get("section"), row["article"]) if x)
         return f"[{label}] {row['body_search']}"
+
+    def rerank_window(self, fused, top=RERANK_TOP, mode=None, doc_cap=None):
+        """리랭커에 넘길 후보. 기본("off")은 RRF 순위 앞 top개 항.
+        MERGE_BEFORE_RERANK(검색_설계.md 5절)이 "all"/"best"면 RRF 순서대로 조를 세어 서로 다른 조 top개를 창으로 잡는다.
+        "all"은 그 조에 속한 후보 항을 모두, "best"는 조마다 RRF 최고 순위 항 하나만 돌려준다. 항은 그대로 짧게 채점되므로
+        긴 조가 불리해지지 않는다. doc_cap(RERANK_DOC_CAP)이 있으면 한 규정에서 창에 넣는 조 수를 막는다 (넘친 조는 뒤로)."""
+        mode = MERGE_BEFORE_RERANK if mode is None else mode
+        doc_cap = RERANK_DOC_CAP if doc_cap is None else doc_cap
+        if mode == "off":
+            return fused[:top]
+        chosen, per_doc, skipped = {}, defaultdict(int), set()
+        for h in fused:
+            key = (h["doc_id"], _article_base(h["article"]))
+            if key in chosen or key in skipped:
+                continue
+            if doc_cap and per_doc[h["doc_id"]] >= doc_cap:
+                skipped.add(key)
+                continue
+            chosen[key] = h  # RRF 최고 순위 항
+            per_doc[h["doc_id"]] += 1
+            if len(chosen) >= top:
+                break
+        if mode == "best":
+            return list(chosen.values())
+        return [h for h in fused if (h["doc_id"], _article_base(h["article"])) in chosen]
 
     def rerank(self, text, cands):
         if not cands:
@@ -279,6 +323,159 @@ class Searcher:
                 out.append(entry)
         return out
 
+    def _article_item(self, h):
+        """항 청크 h가 속한 조 전체를 한 항목으로 (RETURN_ARTICLE일 때 주제 링크 결과에 쓴다).
+        _as_articles와 같은 모양이지만 찾은 항 표시(HIT_MARK·SIB_MARK)는 붙이지 않는다. 단서 표시는 붙인다."""
+        doc_id, base = h["doc_id"], _article_base(h["article"])
+        rows = sorted(self.store.find_article(doc_id, base), key=lambda r: _order_key(r["article"]))
+        body = "\n".join((mark_provisos(r["body"]) if HIGHLIGHT_HITS else r["body"]) for r in rows) or h["body"]
+        item = self._entry(h, status=h.get("status"))
+        item.update({"chunk_id": f"{doc_id}_{base}", "article": base, "body": body, "siblings": [], "cited": []})
+        return item
+
+    def _related(self, text, hint, results):
+        """주제 링크 확장 (검색_설계.md 12절, topics.py). 질문(과 바꿔 쓴 검색어)에 사전의 주제어가 있으면
+        같은 주제어를 담은 조문을 모아 리랭커로 다시 채점해 상위 TOPIC_RELATED_LIMIT개(서로 다른 조)를 돌려준다.
+
+        뺀다: 검색 결과 조, cites로 따라온 조문, 형제 항, 그리고 그 조들의 다른 항 (같은 내용이 두 번 들어가지 않게).
+        먼저 사전의 "함께" 조문(사람이 정한 보충 조문)을 점수와 무관하게 붙이고, 남은 자리를 리랭커 점수 순으로 채운다.
+        후보가 많으면 (제목이 주제어인 조, 주제어 등장 횟수) 순으로 RELATED_RERANK_TOP개만 리랭커에 넘긴다.
+        리랭커 점수가 TOPIC_RELATED_MIN_SCORE보다 낮은 것은 붙이지 않는다 (채용 건강검진처럼 주제어만 같은 조문).
+        반환 항목에는 "주제"(어느 주제어로 왔는지), "match": "주제링크", "연결상태": "주제연결"이 붙고,
+        "함께" 조문에는 "주제이유"(사전에 적은 이유)가 더 붙는다."""
+        self.last_related = []
+        found = topics.detect(" ".join(x for x in (text, hint) if x), self.topics) if self.topics else []
+        if not found:
+            return []
+        excluded, taken_articles = set(), set()
+        for r in results:
+            for e in (r, *r.get("cited", []), *r.get("siblings", [])):
+                excluded.add(e["chunk_id"])
+                taken_articles.add((e["doc_id"], _article_base(e["article"])))
+        seen = set()
+        pinned = []  # [(chunk_id, 주제, 이유)] 사전의 '함께' 조문. 같은 조는 한 번만, 이미 들어간 조는 뺀다
+        for t in found:
+            for p in self.topics[t].get("함께", []):
+                doc_id, _, base = p["대상"].partition("_")
+                key = (doc_id, base)
+                ids = self.article_rows.get(key) or []
+                if key in taken_articles or not ids:
+                    continue
+                # 항 단위 색인이면 그 조에서 주제어를 담은 항을, 없으면 첫 항을 대표로 삼는다
+                cid = next((c for c in ids if t in self.chunk_topics.get(c, {})), ids[0])
+                taken_articles.add(key)
+                seen.add(cid)
+                pinned.append((cid, t, p.get("이유", "")))
+        cands = []
+        for t in found:
+            for cid in self.topic_chunks.get(t, []):
+                row = self.row_info.get(cid)
+                if cid in seen or cid in excluded or row is None:
+                    continue
+                if (row["doc_id"], _article_base(row["article"])) in taken_articles:
+                    continue
+                seen.add(cid)
+                cands.append(cid)
+        if not pinned and not cands:
+            return []
+        top = topics.rank_candidates(cands, self.chunk_topics, found, RELATED_RERANK_TOP)
+        ranked = self.rerank(text, [{"chunk_id": cid, **self.row_info[cid]} for cid in [p[0] for p in pinned] + top])
+        by_id = {h["chunk_id"]: h for h in ranked}
+        reasons = {cid: (t, why) for cid, t, why in pinned}
+        ordered = [by_id[cid] for cid, _, _ in pinned] + [h for h in ranked if h["chunk_id"] not in reasons]
+        out, chosen = [], set()
+        for h in ordered:
+            is_pinned = h["chunk_id"] in reasons
+            if not is_pinned and h["rerank"] < TOPIC_RELATED_MIN_SCORE:
+                break
+            key = (h["doc_id"], _article_base(h["article"]))
+            if key in chosen:
+                continue
+            chosen.add(key)
+            item = self._article_item(h) if RETURN_ARTICLE else self._entry(h, status=h.get("status"))
+            topics_of = [t for t in found if t in self.chunk_topics.get(h["chunk_id"], {})]
+            if is_pinned and not topics_of:
+                topics_of = [reasons[h["chunk_id"]][0]]
+            item.update({"rerank": h["rerank"], "match": "주제링크", "연결상태": "주제연결", "주제": topics_of})
+            if is_pinned:
+                item["주제이유"] = reasons[h["chunk_id"]][1]
+            out.append(item)
+            if len(out) >= TOPIC_RELATED_LIMIT:
+                break
+        self.last_related = [(i["문서명"], i["article"], i["주제"], round(i["rerank"], 3), "함께" if "주제이유" in i else "")
+                             for i in out]
+        return out
+
+    def _related_articles(self, text, hint, results, table=None, exclude=(), use_filter=None, limit=None, match="연관조항"):
+        """연관 조항 표 방식 (TOPIC_MODE="article", 검색_설계.md 12.5). 검색으로 찾은 조마다 미리 만든 표
+        (data/manual/related_articles.json: 조 → [{"대상", "주제", "등급", "이유"}])를 조회해 연관 조를 전부 붙인다.
+        리랭커를 쓰지 않는다. 뺀다: 찾은 조, cites로 온 조문, 형제 항, 표끼리 겹치는 조. 순서: 찾은 조 순위 → 등급(핵심 먼저).
+        TOPIC_ARTICLE_FILTER면 질문·바꿔 쓴 검색어의 주제어와 겹치는 연관만 남긴다.
+        TOPIC_RELATED_LIMIT이 0이면 무제한(글자 예산이 정한다).
+        table·exclude·use_filter·limit·match를 주면 사례 링크 표(_case_links)가 같은 절차를 다른 표로 돈다."""
+        table = self.related_table if table is None else table
+        use_filter = TOPIC_ARTICLE_FILTER if use_filter is None else use_filter
+        limit = TOPIC_RELATED_LIMIT if limit is None else limit
+        self.last_related = []
+        if not table:
+            return []
+        asked = set(topics.detect(" ".join(x for x in (text, hint) if x), self.topics)) if use_filter else None
+        taken = set()
+        for e in exclude:
+            taken.add((e["doc_id"], _article_base(e["article"])))
+        for r in results:
+            for e in (r, *r.get("cited", []), *r.get("siblings", [])):
+                taken.add((e["doc_id"], _article_base(e["article"])))
+        picked = []  # (등급 순서, 찾은 조 순위, 대상 key, 항목)
+        for rank, r in enumerate(results):
+            src = f"{r['doc_id']}_{_article_base(r['article'])}"
+            for link in table.get(src, []):
+                doc_id, _, base = link["대상"].partition("_")
+                key = (doc_id, base)
+                if key in taken or not self.article_rows.get(key):
+                    continue
+                shown = link.get("주제", "")
+                if asked is not None:
+                    names = link.get("주제들") if "주제들" in link else [link.get("주제")]
+                    matched = [n for n in names if n in asked]
+                    if names and not matched:
+                        continue
+                    shown = matched[0] if matched else shown  # 머리에 질문과 맞은 주제어를 보인다
+                taken.add(key)
+                picked.append((0 if link.get("등급", "참고") == "핵심" else 1, rank, key, link, shown))
+        picked.sort(key=lambda p: (p[1], p[0]))
+        out = []
+        for grade, rank, key, link, shown in picked:
+            ids = self.article_rows[key]
+            cid = next((c for c in ids if link.get("주제") in self.chunk_topics.get(c, {})), ids[0])
+            h = {"chunk_id": cid, **self.row_info[cid]}
+            item = self._article_item(h) if RETURN_ARTICLE else self._entry(h, status=h.get("status"))
+            src = results[rank]
+            src_title = src.get("문서명") or self.documents.get(src["doc_id"], {}).get("title") or src["doc_id"]
+            item.update({"rerank": None, "match": match, "연결상태": match, "주제": [shown],
+                         "등급": "핵심" if grade == 0 else "참고",
+                         "연관출발": f"{src_title} {_article_base(src['article'])}"})
+            if link.get("이유"):
+                item["주제이유"] = link["이유"]
+            out.append(item)
+            if limit and len(out) >= limit:
+                break
+        self.last_related = [(i["문서명"], i["article"], i["주제"], i["연관출발"], i["등급"]) for i in out]
+        return out
+
+    def _case_links(self, text, hint, results, already=()):
+        """사례 조문 링크 (config.CASE_LINKS, 검색_설계.md 14절). 찾은 조가 같은 징계·감사 사례에 나온 조문이면 그 사례의
+        나머지 조문을 붙인다. 표는 data/manual/case_links.json (scripts/build_case_links.py). 개수 상한 없음(사례당 1~3개).
+        링크의 주제어(사례 유형에서 뽑은 topics.json 이름)가 질문·바꿔 쓴 검색어에 있을 때만 따라간다 (징계지침 제17조처럼
+        여러 사례가 지나는 조에서 엉뚱한 사례의 조문이 따라오지 않게). already(주제 링크로 이미 붙은 항목)와 겹치는 조는
+        뺀다. 사례 본문은 어디에도 넣지 않는다."""
+        if not self.case_table or not results:
+            return []
+        out = self._related_articles(text, hint, results, table=self.case_table, exclude=already, use_filter=True, limit=0, match="사례링크")
+        for i in out:
+            i["주제"] = [t for t in i["주제"] if t] or ["사례"]
+        return out
+
     # 전체 -------------------------------------------------------------------
     def search(self, text, k=5, filters=None, rerank=True, expand_siblings=True, expand_cites=True,
               vector_weight=HYBRID_VECTOR_WEIGHT, keyword_weight=HYBRID_KEYWORD_WEIGHT, rewritten=None,
@@ -292,8 +489,10 @@ class Searcher:
         vector_weight, keyword_weight: 기본값은 config.py 값. 가중치 비교(src/eval/sweep_weights.py)에서만 넘긴다.
         반환: [{"chunk_id", "doc_id", "article", "body", "score", "rerank", "match",
                 "siblings": [...], "cited": [...]}, ...]
+              USE_TOPIC_LINKS이면 첫 항목에 "related": [...] (주제 링크 확장, _related)가 더 붙는다.
         """
         self._refresh_if_stale()
+        self.last_related = []
         exact = self.exact_hits(text)
         taken = {h["chunk_id"] for h in exact}
 
@@ -314,29 +513,41 @@ class Searcher:
                 if h["chunk_id"] not in taken]
 
         if rerank:
-            fused = self.rerank(text, fused[:RERANK_TOP])
+            fused = self.rerank(text, self.rerank_window(fused))
             if getattr(self, "llm_reranker", None) is not None:  # 2단계: 상위 LLM_RERANK_TOP개를 LLM이 재채점 (실패 문서는 그 자리)
                 fused = self.llm_reranker.rerank(text, fused, self.rerank_text)
+        self.last_reranked = list(fused)  # 기록용: 리랭크된 후보 전체 (답변 뒤 누락 검사가 6위 이하를 되짚는 데 쓴다)
         # 확인된 다른 개념의 수치 근거는 후보 단계에서 빼서 빈자리를 다음 후보가 채우게 한다 (정확 조회 결과는 건드리지 않는다).
         self.last_glossary_excluded = []
         if self.glossary_filter:
             fused, self.last_glossary_excluded = glossary.filter_candidates(text, fused, self.glossary)
         if RETURN_ARTICLE:
-            return self._as_articles(exact + fused, k, expand_cites)
-        top = (exact + fused)[:k]
-
-        out = []
-        for h in top:
-            item = self._entry(h, status=h.get("status"))
-            item.update({
-                "score": h.get("score"),
-                "rerank": h.get("rerank"),
-                "llm_rerank": h.get("llm_rerank"),  # 2단계 LLM 점수 (0~10). 끄거나 LLM_RERANK_TOP 밖·실패면 None
-                "match": h.get("match", "정확조회"),
-                "siblings": self._siblings_within_limit(h) if expand_siblings else [],
-                "cited": self._cited(h) if expand_cites else [],
-            })
-            out.append(item)
+            out = self._as_articles(exact + fused, k, expand_cites)
+        else:
+            out = []
+            for h in (exact + fused)[:k]:
+                item = self._entry(h, status=h.get("status"))
+                item.update({
+                    "score": h.get("score"),
+                    "rerank": h.get("rerank"),
+                    "llm_rerank": h.get("llm_rerank"),  # 2단계 LLM 점수 (0~10). 끄거나 LLM_RERANK_TOP 밖·실패면 None
+                    "match": h.get("match", "정확조회"),
+                    "siblings": self._siblings_within_limit(h) if expand_siblings else [],
+                    "cited": self._cited(h) if expand_cites else [],
+                })
+                out.append(item)
+        # 주제 링크 확장은 인용 확장과 같은 "답변 근거 넓히기"라 expand_cites를 끈 검색 평가(src/eval/run)에서는 돌지 않는다.
+        if expand_cites and out:
+            related = []
+            if USE_TOPIC_LINKS:
+                related = (self._related_articles(text, hint, out) if TOPIC_MODE == "article"
+                           else self._related(text, hint, out))
+            if CASE_LINKS:
+                topic_last = list(self.last_related)
+                related = related + self._case_links(text, hint, out, already=related)
+                self.last_related = topic_last + self.last_related
+            if USE_TOPIC_LINKS or CASE_LINKS:
+                out[0]["related"] = related
         return out
 
     def _as_articles(self, ranked, k, expand_cites=True):
@@ -418,12 +629,24 @@ class Searcher:
             excluded += self.last_glossary_excluded
         self.last_hint = " / ".join(h for h in hints if h)
         self.last_glossary_excluded = excluded
-        return interleave(lists, total)
+        merged = interleave(lists, total)
+        # 하위 질문별 주제 링크 결과는 그대로 두되, 합친 결과에 이미 있는 조와 서로 겹치는 것은 한 번만 남긴다
+        chosen = {(h["doc_id"], _article_base(h["article"])) for h in merged}
+        for h in merged:
+            kept = []
+            for r in h.get("related") or []:
+                key = (r["doc_id"], _article_base(r["article"]))
+                if key not in chosen:
+                    chosen.add(key)
+                    kept.append(r)
+            if "related" in h:
+                h["related"] = kept
+        return merged
 
     def assemble(self, results, budget=CONTEXT_CHAR_BUDGET):
         """검색 결과를 답변 입력으로 조립한다.
 
-        순서: 검색 결과 → 인용 대상 → 형제 항. 같은 청크는 한 번만 넣고,
+        순서: 검색 결과 → 인용 대상 → 같은 주제 조문(주제 링크) → 형제 항. 같은 청크는 한 번만 넣고,
         전체 글자 수가 budget을 넘으면 그 항목은 건너뛴다. 결과는 (문서, 조) 단위로 묶는다.
         """
         seen = set()
@@ -451,6 +674,10 @@ class Searcher:
         for i, r in enumerate(results):
             for c in r.get("cited", []):
                 add(c, "인용", i)
+        for i, r in enumerate(results):
+            # LangChain Document를 거친 항목은 related가 None일 수 있다 (langchain_retriever._META_KEYS)
+            for c in r.get("related") or []:
+                add(c, "주제", len(results) + i)  # 같은 주제 조문은 검색으로 찾은 조문들 뒤에 둔다
         for i, r in enumerate(results):
             for sib in r.get("siblings", []):
                 add(sib, "형제항", i)

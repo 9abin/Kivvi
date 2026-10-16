@@ -58,6 +58,43 @@ RETURN_ARTICLE = os.environ.get("RETURN_ARTICLE", "1") == "1"
 #  LAW_CITES_FROM_HITS: 외부 법령 인용은 찾은 항이 직접 인용한 것만 따라간다 (조 안 다른 항의 법령 인용은 뺀다).
 HIGHLIGHT_HITS = os.environ.get("HIGHLIGHT_HITS", "1") == "1"
 LAW_CITES_FROM_HITS = os.environ.get("LAW_CITES_FROM_HITS", "1") == "1"
+# 주제 링크 확장 (docs/검색_설계.md 12절, src/search/topics.py): 질문(과 바꿔 쓴 검색어)에 주제어 사전의 주제어가 있으면
+# 같은 주제어를 담은 다른 조문을 모아 리랭커로 다시 채점하고 상위 몇 개를 "같은 주제 조문(참고)"으로 붙인다.
+# 인용(cites)은 "제N조"로 가리킨 조문만 따라가서, 건강검진 비용(복지후생 운영지침 제3조)과 공가(복무규정 제25조)처럼
+# 서로 가리키지 않는 조문은 이 길로만 이어진다. 이미 찾은 조·cites로 따라온 조문·같은 조의 항은 뺀다.
+# 2026.10.14 측정(100문항, bge, 끔→켬): 질문 중심 채점 정답 56→58, 오답 5→3, 금지 위반 4→2, 넘어간 근거 묶음 88→95,
+# 답 완성 +1.2초(근거 5.4→7.0개). 실행 간 흔들림(3~4문항) 범위라 기본 끔. 환경 변수 TOPIC_LINKS=1로 켠다 (검색_설계.md 12.4).
+USE_TOPIC_LINKS = os.environ.get("TOPIC_LINKS", "0") == "1"
+# 방식 (2026.10.15, 검색_설계.md 12.5):
+#  "rerank"  = 질문의 주제어로 후보를 모아 사전 '함께' 조문 + 원래 질문 리랭크 상위 TOPIC_RELATED_LIMIT개 (측정 완료, 위)
+#  "article" = 검색으로 찾은 조마다 미리 만든 연관 조항 표(RELATED_ARTICLES)를 조회해 전부 붙인다. 리랭커 없음.
+#              이미 찾은 조·cites로 온 조문·같은 조 항·표끼리 겹치는 것은 뺀다. 개수는 TOPIC_RELATED_LIMIT(0이면 무제한),
+#              글자 예산(CONTEXT_CHAR_BUDGET)이 넘치면 뒤부터 건너뛴다. 표는 scripts/build_related_articles.py가 초안을 만든다.
+TOPIC_MODE = os.environ.get("TOPIC_MODE", "rerank")
+TOPIC_RELATED_LIMIT = int(os.environ.get("TOPIC_LIMIT", "3" if TOPIC_MODE == "rerank" else "0"))  # 0 = 무제한
+RELATED_ARTICLES = os.path.join(MANUAL_DIR, "related_articles.json")  # 조 → 연관 조 표 (article 방식, 사람이 다듬는다)
+# article 방식에서 질문의 주제어와 겹치는 연관만 붙일지. 찾은 조가 엉뚱한 주제(해외 건강진단)면 그쪽 연관이 따라오는 것을 막는다.
+TOPIC_ARTICLE_FILTER = os.environ.get("TOPIC_ARTICLE_FILTER", "0") == "1"
+# 리랭커 점수(sigmoid)가 이보다 낮은 후보는 붙이지 않는다. ANSWER_NONE_BELOW와 같은 값: 정답 조문도 질문에 따라 0.0015
+# (Q041 복지후생 운영지침 제2조)처럼 낮게 나와서 0.01로 두면 걸린다 (2026.10.14, 11문항 측정). 사전의 '함께' 조문은 이 값과 무관하다.
+TOPIC_RELATED_MIN_SCORE = 0.001
+# 사례 조문 링크 (2026.10.15, 검색_설계.md 14절). 징계·감사 사례(data/manual/discipline_cases.jsonl) 33건이 짚은 조문 59개를
+# "같은 사례에 함께 나온 조문끼리" 양방향으로 이은 표(CASE_LINKS_TABLE, scripts/build_case_links.py). 검색으로 찾은 조가
+# 표에 있으면 그 사례의 나머지 조문을 "같은 주제 조문(참고)"으로 붙인다. 사례 본문은 쓰지 않는다. 주제 링크(TOPIC_LINKS)와
+# 독립이며 둘 다 켜면 주제 조문 뒤에 붙고 겹치는 조는 뺀다. 기본 끔, 측정 뒤 결정. 환경 변수 CASE_LINKS=1로 켠다.
+CASE_LINKS = os.environ.get("CASE_LINKS", "0") == "1"
+CASE_LINKS_TABLE = os.path.join(MANUAL_DIR, "case_links.json")
+TOPICS = os.path.join(MANUAL_DIR, "topics.json")   # 주제어 사전 (사람이 다듬는다. 주제별 조문 수는 scripts/topic_coverage.py)
+# 리랭커 앞에서 조로 합치기 (2026.10.15, 검색_설계.md 5절). 기본은 RRF 항 목록의 앞 30개를 리랭크하는데, 같은 조의 항이
+# 여러 개 들어가 창 안의 서로 다른 조가 16~29개뿐이다. 켜면 RRF 순서대로 조를 세어 서로 다른 조 30개를 창으로 잡는다.
+#  "all"  = 그 조들에 속한 후보 항을 모두 리랭크 (쌍 30 → 35~45). 항은 지금처럼 따로 채점하므로 긴 조가 불리하지 않다.
+#  "best" = 조마다 RRF 최고 순위 항 하나만 리랭크 (쌍 30 그대로)
+#  "off"  = 지금 방식. 2026.10.15 측정(93문항 rank_trace): R@5 off 0.565 / all 0.578 / best 0.565 — 창 밖 근거 4묶음이
+#           리랭커 앞에 왔지만 2묶음만 5위 안. 효과가 흔들림 수준이라 기본 off (검색_설계.md 5절).
+MERGE_BEFORE_RERANK = os.environ.get("MERGE_BEFORE_RERANK", "off")
+# 위 창을 잡을 때 한 규정에서 넣을 조 수 상한 (0 = 없음). 2026.10.15 측정: 2개로 두면 R@5 0.510으로 크게 나빠진다
+# (정답이 같은 규정의 여러 조인 문항을 창 밖으로 밀어냄). 쓰지 않는다.
+RERANK_DOC_CAP = int(os.environ.get("RERANK_DOC_CAP", "0"))
 # 2단계 LLM 리랭킹 (2026.10.15, src/search/llm_rerank.py, 검색_설계.md 5절). 교차 인코더(RERANK_MODEL) 상위 LLM_RERANK_TOP개를
 # LLM이 문서별로 독립 채점(0~10: 질문의 핵심 요건을 직접 규정 8~10 / 간접 관련 3~7 / 무관 0~2, 병렬 호출)해 다시 정렬한다.
 # 동점은 교차 인코더 순서, LLM_RERANK_TOP 밖은 교차 인코더 순서 그대로 뒤에. 호출·파싱 실패 문서는 교차 인코더 자리를 지킨다.
@@ -68,6 +105,18 @@ LLM_RERANK = os.environ.get("LLM_RERANK", "0") == "1"
 LLM_RERANK_TOP = int(os.environ.get("LLM_RERANK_TOP", "15"))
 LLM_RERANK_MODEL = os.environ.get("LLM_RERANK_MODEL", "gpt-4o-mini")  # 문서당 1회라 빠른 모델. 비교 시 환경 변수로 바꾼다
 LLM_RERANK_CACHE = os.path.join(BASE_DIR, "eval", "runs", "llm_rerank_cache.json")
+# 답변 뒤 누락 검사 (2026.10.15, src/answer/gapcheck.py, 검색_설계.md 13절): 답을 쓴 뒤 모델이 되묻는 질문(최대 GAP_CHECK_MAX_Q개)을
+# 만들어 다시 찾고, 리랭크 6위 이하의 단서 문장과 합쳐 "결론을 바꾸거나 조건을 붙이는 조문"이 있으면 답 끝에 "※ 확인 필요"를 붙인다.
+# 결론은 바꾸지 않는다. LLM 2회 + 검색 1~3회 (답변 뒤 차례로, 약 +3~5초). 측정 전이라 기본 끔. GAP_CHECK=1로 켠다.
+GAP_CHECK = os.environ.get("GAP_CHECK", "0") == "1"
+# 되묻기·판정에 쓰는 모델. 답변 모델(luna)로 돌리면 답 완성이 +13초(쉬운 판 50문항 9.0→22.3초)라 빠른 모델을 쓴다.
+GAP_CHECK_MODEL = os.environ.get("GAP_CHECK_MODEL", "gpt-4o-mini")
+GAP_CHECK_MAX_NOTES = 2  # 답 끝에 붙일 "※ 확인 필요" 수 상한. 1차 판정은 50문항 중 42문항에 평균 2.1개를 붙여 엄격 채점 정답 41→37
+GAP_CHECK_MAX_Q = 3      # 되묻는 질문 수 상한
+# 되묻는 질문마다 검색 상위 몇 개를 새 조문 후보로 볼지. 게이트 측정(93문항, 2026.10.15): 놓친 정답 66묶음 중
+# 상위 1개 → 18묶음(새 조문 1.5/문항), 상위 2개 → 27(3.4), 상위 3개 → 31(5.2). 2개가 건짐과 잡음의 균형점.
+GAP_CHECK_PER_Q = 2
+GAP_CHECK_MAX_NEW = 8    # 판정에 넘길 새 조문 수 상한 (되묻기 검색 결과 먼저, 버린 후보 단서는 그 뒤)
 # 응답 시간 줄이기 (2026.10.14). 호출 순서만 바꿔서 답변 내용은 같다. 끄면(FAST_PIPELINE=0) 예전처럼 하나씩 차례로 한다.
 #  - GPT 질문 바꿔쓰기를 기다리는 동안 원래 질문의 벡터·BM25 검색을 먼저 한다
 #  - 충돌 확인을 답변 작성과 동시에 한다 (근거만 보므로 답변을 기다릴 필요가 없다)

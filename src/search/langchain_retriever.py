@@ -16,7 +16,7 @@ from src.search.search import Searcher
 # 답변 단계가 쓰는 필드. Document.metadata에 그대로 담아서 되돌릴 수 있게 한다.
 _META_KEYS = ["chunk_id", "doc_id", "문서명", "위계", "개정표기", "출처URL",
              "article", "조문상태", "정정안내", "score", "rerank", "match",
-             "siblings", "cited", "하위질문"]
+             "siblings", "cited", "related", "하위질문"]  # related: 주제 링크 확장 (검색_설계.md 12절)
 
 
 def entry_to_document(e):
