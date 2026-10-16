@@ -504,16 +504,19 @@ class Run:
 
     @staticmethod
     def check_rewrite(rw, titles):
-        """바꿔 쓰기 출력 점검: 빈 출력, 형식 위반(여러 줄·너무 긺·JSON/코드블록), 없는 규정명·조 번호 포함."""
+        """바꿔 쓰기 출력 점검: 빈 출력, 형식 위반(여러 줄·너무 긺·JSON/코드블록), 없는 규정명·조 번호 포함, 한자(중국어) 섞임.
+
+        규정명은 '붙여 쓴 한글 낱말 + 규정/지침/규칙/세칙'만 보고 제목 목록에 없으면 지어낸 것으로 센다.
+        "휴가 관련 규정"처럼 띄어 쓴 일반어는 규정명이 아니라서 세지 않는다 (처음에는 이것까지 세어 58%로 과대 집계됐다)."""
         raw, text = rw.get("raw"), rw.get("rewritten")
         if not text:
-            return {"empty": True, "format": False, "invented": False}
+            return {"empty": True, "format": False, "invented": False, "cjk": False}
         lines = [x for x in (raw or "").strip().splitlines() if x.strip()]
         fmt_bad = len(lines) > 1 or len(text) > 200 or "{" in text or "```" in (raw or "")
         art = bool(re.search(r"제\s*\d+\s*조", text))
-        names = re.findall(r"([가-힣A-Za-z0-9·\s]{2,20}?(?:규정|지침|규칙|세칙))", text)
-        unknown = any(not any(n.strip().replace(" ", "") in t.replace(" ", "") for t in titles) for n in names)
-        return {"empty": False, "format": fmt_bad, "invented": art or unknown}
+        names = re.findall(r"([가-힣]{2,25}(?:규정|지침|규칙|세칙))", text)
+        unknown = any(not any(n in t.replace(" ", "") for t in titles) for n in names)
+        return {"empty": False, "format": fmt_bad, "invented": art or unknown, "cjk": bool(re.search(r"[一-鿿]", text))}
 
     def aggregate(self, qrecs, cands, rr, sel, rew):
         rks, fks = self.cfg["eval"]["rerank_ks"], self.cfg["eval"]["final_ks"]
@@ -536,7 +539,8 @@ class Run:
         agg["rewrite"]["recall30_change_vs_orig"] = {"diff": d[0], "ci": [d[1], d[2]]} if d else None
         chk = [q["rewrite_check"] for q in qrecs]
         agg["rewrite"].update({"empty_rate": sum(c["empty"] for c in chk) / n, "format_violation_rate": sum(c["format"] for c in chk) / n,
-                               "invented_rate": sum(c["invented"] for c in chk) / n})
+                               "invented_rate": sum(c["invented"] for c in chk) / n,
+                               "cjk_rate": sum(c.get("cjk", False) for c in chk) / n})
         for k in rks:
             agg["rerank"][f"core@{k}"] = rec(pairs(lambda q, k=k: q["rerank"]["core"][f"@{k}"]))
             agg["rerank"][f"aux@{k}"] = rec(apairs(lambda q, k=k: q["rerank"]["aux"][f"@{k}"]))

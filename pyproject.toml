@@ -4,6 +4,7 @@ version = "0.0.1"
 description = "KVIC 내부규정 조항 점검 에이전트와 규정 RAG 챗봇"
 requires-python = ">=3.12"
 dependencies = [
+    "accelerate>=1.15.0",
     "kiwipiepy>=0.24.0",
     "langchain>=1.4.3",
     "langchain-core>=1.6.7",

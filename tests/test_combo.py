@@ -78,11 +78,15 @@ class ConfigAndHelpersTest(unittest.TestCase):
     def test_check_rewrite(self):
         titles = ["직원채용지침", "여비규정"]
         ok = Run.check_rewrite({"raw": "여비규정 출장비", "rewritten": "여비규정 출장비"}, titles)
-        self.assertEqual(ok, {"empty": False, "format": False, "invented": False})
+        self.assertEqual(ok, {"empty": False, "format": False, "invented": False, "cjk": False})
         self.assertTrue(Run.check_rewrite({"raw": None, "rewritten": None}, titles)["empty"])
         self.assertTrue(Run.check_rewrite({"raw": "a\nb", "rewritten": "a"}, titles)["format"])
         self.assertTrue(Run.check_rewrite({"raw": "제5조", "rewritten": "제5조"}, titles)["invented"])
         self.assertTrue(Run.check_rewrite({"raw": "가나다규정 예외", "rewritten": "가나다규정 예외"}, titles)["invented"])
+        # 띄어 쓴 일반어("관련 규정")는 규정명이 아니다
+        self.assertFalse(Run.check_rewrite({"raw": "휴가 제도 관련 규정", "rewritten": "휴가 제도 관련 규정"}, titles)["invented"])
+        # 한자가 섞이면 표시한다
+        self.assertTrue(Run.check_rewrite({"raw": "출장归来 정산", "rewritten": "출장归来 정산"}, titles)["cjk"])
 
 
 class _FakeLLM:
