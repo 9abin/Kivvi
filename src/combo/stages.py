@@ -93,8 +93,10 @@ def fmt(x, nd=3):
 
 
 class Run:
-    def __init__(self, cfg, run_tag="", force=()):
+    def __init__(self, cfg, run_tag="", force=(), fresh=False):
         self.cfg, self.tag, self.force = cfg, run_tag, set(force)
+        # fresh: 같은 설정을 처음부터 다시 돌려 변동을 본다. 바꿔 쓰기·후보·리랭크도 태그를 붙인 새 파일에 만든다(기존 캐시를 쓰지 않고 덮어쓰지도 않는다)
+        self.sfx = f"_{run_tag}" if (fresh and run_tag) else ""
         d = cfg["data"]
         self.gold = [json.loads(line) for line in open(d["questions"], encoding="utf-8") if line.strip()]
         if d.get("limit"):
@@ -173,7 +175,7 @@ class Run:
 
     # ---- ① 바꿔 쓰기 ---------------------------------------------------
     def stage_rewrite(self):
-        path = self.p(f"rewrite_{self.Lrw}.json")
+        path = self.p(f"rewrite_{self.Lrw}{self.sfx}.json")
         data = load_json(path) or {"meta": {}, "items": {}}
         todo = [g for g in self.gold if g["id"] not in data["items"] or "rewrite" in self.force]
         if not todo:
@@ -221,7 +223,7 @@ class Run:
 
     # ---- ② 후보 --------------------------------------------------------
     def stage_cands(self, rew):
-        path = self.p(f"cands_{self.E}_{self.Lrw}.json")
+        path = self.p(f"cands_{self.E}_{self.Lrw}{self.sfx}.json")
         data = load_json(path)
         if data and "cands" not in self.force and all(g["id"] in data["items"] for g in self.gold):
             print(f"② 후보: 캐시 사용 ({os.path.basename(path)})", flush=True)
@@ -278,7 +280,7 @@ class Run:
 
     # ---- ③ 리랭크 ------------------------------------------------------
     def stage_rerank(self, cands):
-        path = self.p(f"rerank_{self.E}_{self.Lrw}_{self.R}.json")
+        path = self.p(f"rerank_{self.E}_{self.Lrw}_{self.R}{self.sfx}.json")
         data = load_json(path)
         if data and "rerank" not in self.force and all(g["id"] in data["items"] for g in self.gold):
             print(f"③ 리랭크: 캐시 사용 ({os.path.basename(path)})", flush=True)
