@@ -1,0 +1,41 @@
+# han_qwen3-emb-0.6b_none_30b_S0
+# 임베딩 Qwen/Qwen3-Embedding-0.6B | 리랭커 none | LLM qwen3:30b-a3b-instruct-2507-q4_K_M | 선택 끔
+# 코드는 고정이다. 바꾸는 것은 이 파일의 [embedding] [reranker] [llm.*] [select] 값뿐이다.
+name = "han_qwen3-emb-0.6b_none_30b_S0"
+
+[data]
+questions = "eval/answer_eval_100_tiered.jsonl"   # 개발용 평가셋. 시험용(holdout)은 마지막에 상위 2개 조합에만 1회: --set data.questions=\"eval/answer_eval_holdout.jsonl\"
+out_dir = "eval/combo"
+
+[rewrite]
+source = "llm"                                    # 담당 LLM이 질문 전체를 직접 바꿔 쓴다 (① 단계). 시간을 재므로 workers = 1
+workers = 1
+
+[embedding]
+model = "Qwen/Qwen3-Embedding-0.6B"
+fp16 = true
+instruction = "@config"   # config.EMBED_QUERY_INSTRUCT (질문 앞 지시문)
+max_seq_length = 512
+batch_size = 16
+
+[reranker]
+kind = "none"                    # 리랭커 없음: RRF 순서 그대로
+
+[llm.default]
+model = "qwen3:30b-a3b-instruct-2507-q4_K_M"
+base_url = "http://localhost:11434/v1"
+timeout = 600
+
+[select]
+enabled = false                              # 켬: 리랭크 상위 pool개 조에서 LLM이 k개(8, 10)를 고른다
+pool = 16
+ks = [8, 10]
+
+[judge]                                           # 채점 모델 (⑥ 답변 단계에서만 쓴다). 후보 LLM이 아닌 모델로 확정 필요 (미정)
+model = "gpt-5.6-luna"
+
+[eval]
+rerank_ks = [5, 8, 10, 16]
+final_ks = [8, 10]
+answer_k = 8
+# num_ctx = 4096                                  # Ollama에 적용한 컨텍스트 길이를 적어 두면 요약의 환경 한 줄에 기록된다
