@@ -321,3 +321,8 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 /* 개정 위치 찾기 후보 (조문 열기 검색창 아래) */
 .finder-cands { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
 .finder-cands .btn { justify-content: space-between; gap: 8px; text-align: left; }
+
+.explain { margin-top: 6px; font-size: 13px; }
+.explain button.link { background: none; border: 0; padding: 0; color: var(--accent, #1a56db); cursor: pointer; text-decoration: underline; font: inherit; }
+.explain p { margin: 4px 0; color: var(--gray-80, #333); }
+.explain small.basis { margin-left: 0; }

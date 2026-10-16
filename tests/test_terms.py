@@ -188,3 +188,28 @@ def test_spell_failure_does_not_break_the_check(monkeypatch):
     cs = {"reg_id": "1", "reg_name": "갑규정", "amendment": "", "changes": ch, "label_map": label_map(ch)}
     found = check(cs, rs, RELS, new_reg=new, spell_model="없는모델")
     assert isinstance(found, list)
+
+
+def test_explain_validation_blocks_invented_numbers_and_verdicts():
+    from regcheck.explain import valid
+    src = "인사규정 제37조를 삭제한다. 취업규칙 제12조 ① 당연면직 사유는 인사규정 제37조에 따른다. 3년"
+    assert valid("취업규칙 제12조가 삭제되는 인사규정 제37조를 인용하므로 사유 문구를 확인해 볼 만하다.", src)
+    assert not valid("취업규칙 제45조도 함께 확인해야 한다.", src)            # 입력에 없는 조 번호
+    assert not valid("이 조항은 반드시 고쳐야 한다.", src)                     # 단정
+    assert not valid("보상 기간은 5년이다.", src)                              # 입력에 없는 숫자
+
+
+def test_span_pair_handles_pure_append_at_end():
+    """항 끝에 문장만 덧붙이는 개정에서 IndexError가 나지 않는다 (nl._span_pair)"""
+    from regcheck.nl import _span_pair
+    old = "회사는 매년 결산을 한다."
+    _span_pair(old, old + " 이 경우 부서장에게 보고하여야 한다.")   # 값은 상관없고 IndexError 없이 끝나야 한다 (고치기 전에는 예외)
+
+
+def test_blind_spot_checklist_flags_structure_free_types_only_on_changed_text():
+    from regcheck.change_check import blind_spots
+    names = lambda o, n: [x[0] for x in blind_spots(o, n)]  # noqa: E731
+    assert "신분·징계·인사처분 요건" in names("직원이 당연면직 사유에 해당하면 퇴직한다.", "")            # 삭제는 조 전체를 봄
+    assert names("직원은 매년 결산을 한다.", "직원은 분기마다 결산을 한다.") == []                        # 바뀐 부분에 해당 유형 낱말 없음
+    assert "금액·비율 기준" in names("수당은 월 10만원을 지급한다.", "수당은 월 15만원을 지급한다.")
+    assert len(blind_spots("징계 결재 한도 다만 요건 수당", "")) <= 3

@@ -64,6 +64,7 @@ def main() -> None:
     ap.add_argument("cmd", choices=["make", "run"])
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--per", type=int, default=8, help="문제 심기 유형마다 문항 수")
+    ap.add_argument("--scale", type=int, default=1, help="문항 수 배율 (새 시드로 크게 만들 때: 설계에 쓰지 않은 시험)")
     ap.add_argument("--split", choices=["all", "dev", "test"], default="all")
     ap.add_argument("--spell", default="", help="오타 검사 로컬 모델 (예: qwen3.5:9b). 비우면 끔")
     ap.add_argument("--neighbors", action="store_true", help="의미 이웃(out/relations/neighbors.json) 경로를 켬")
@@ -73,8 +74,8 @@ def main() -> None:
     db = LawDB(LAW_DB)
     gold_path = ROOT / "eval" / "agent" / f"change_gold_s{a.seed}.jsonl"
     if a.cmd == "make":
-        items = make(regs, edges, db, a.seed, a.per)
-        items += make_extra(regs, edges, db, a.seed, len(items) + 1)   # v0 뒤에 덧붙임 (기존 번호는 그대로)
+        items = make(regs, edges, db, a.seed, a.per, a.scale)
+        items += make_extra(regs, edges, db, a.seed, len(items) + 1, scale=a.scale)   # v0 뒤에 덧붙임 (기존 번호는 그대로)
         gold_path.parent.mkdir(parents=True, exist_ok=True)
         gold_path.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in items), encoding="utf-8")
         print(f"변경안 골든셋 {len(items)}문항 → {gold_path}")

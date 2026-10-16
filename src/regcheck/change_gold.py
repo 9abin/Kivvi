@@ -25,7 +25,7 @@ import re
 from .lawdb import RENAMED
 
 RE_HANG = re.compile(r"[가-힣]")
-HISTORY = re.compile(r"[\[<][^\[\]<>]*(?:이동|개정|신설|삭제|전문개정)[^\[\]<>]*[\]>]")
+HISTORY = re.compile(r"[\[<][^\[\]<>]*(?:이동|개정|신설|삭제|전문개정|조문번호 변경|종전)[^\[\]<>]*[\]>]")   # 「[종전 제2조… 조문번호 변경]」도 이력 표시 (시드 3 G039에서 정답이 틀렸던 곳)
 MAJOR = ("breaks", "new_conflicts", "law_name", "typo")   # 문제없는 문항에서 나오면 안 되는 경보
 
 
@@ -90,8 +90,12 @@ def text_citers(regs: dict, reg: dict, label: str) -> list[dict]:
                     if not re.search(r"[」]|규정|지침|규칙|법률|법\s|법$|령\s|정관|강령|(?<![가-힣])영\s*$|(?<![가-힣])영\s", pre):   # 「영 제3조」 = 시행령 (261014 골든셋 G108)
                         out.append({"reg_id": r["reg_id"], "article": where, "para": para})
                         break
-            elif re.search(re.escape(reg["name"]) + r"[^.\n]{0,30}?" + pat_n, t):
-                out.append({"reg_id": r["reg_id"], "article": where, "para": para})
+            else:
+                # 규정명은 더 긴 이름의 일부가 아니어야 하고(「국가사이버안전관리규정」 속 「안전관리규정」: G045), 이름과 조 사이에 다른 문서 이름이 끼면 안 됨(「취업규칙 제46조 및 인사규정 제31조」: G014)
+                for m in re.finditer(r"(?<![가-힣])" + re.escape(reg["name"]) + r"([^.\n]{0,30}?)" + pat_n, t):
+                    if not re.search(r"[」]|규정|지침|규칙|법률|정관|강령", m.group(1)):
+                        out.append({"reg_id": r["reg_id"], "article": where, "para": para})
+                        break
     return out
 
 
@@ -99,7 +103,7 @@ def _typo(word: str) -> str:
     return word[0] + word[2] + word[1] + word[3:]   # 둘째·셋째 글자 자리 바꿈 (휴직기간 → 휴기직간)
 
 
-def make(regs: dict, edges: list[dict], db, seed: int = 1, per: int = 8) -> list[dict]:
+def make(regs: dict, edges: list[dict], db, seed: int = 1, per: int = 8, scale: int = 1) -> list[dict]:
     rng = random.Random(seed)
     out: list[dict] = []
 
@@ -118,9 +122,9 @@ def make(regs: dict, edges: list[dict], db, seed: int = 1, per: int = 8) -> list
             (dels if cit else deln).append((r, a, cit))
     rng.shuffle(dels)
     rng.shuffle(deln)
-    for r, a, cit in dels[:15]:
+    for r, a, cit in dels[:15 * scale]:
         add("DEL", r, f"{a['label']}를 삭제한다.", {"breaks": cit}, f"{a['label']}({a['title']}) 삭제 — 원문 검색 인용 {len(cit)}곳")
-    for r, a, _ in deln[:5]:
+    for r, a, _ in deln[:5 * scale]:
         add("DELN", r, f"{a['label']}를 삭제한다.", {}, f"{a['label']}({a['title']}) 삭제 — 원문에 인용 없음")
 
     # ── 문장 덧붙이기 + 문제 심기 ─────────────────────────
@@ -203,7 +207,7 @@ def make(regs: dict, edges: list[dict], db, seed: int = 1, per: int = 8) -> list
     rng.shuffle(pairs)
     seen_items = set()
     for r1, a1, it, tok, m, r2, a2, hit in pairs:
-        if it["id"] in seen_items or len([o for o in out if o["kind"] == "NUMC"]) >= 10:
+        if it["id"] in seen_items or len([o for o in out if o["kind"] == "NUMC"]) >= 10 * scale:
             continue
         seen_items.add(it["id"])
         new = str(int(m.group(1)) + 1) + tok[len(m.group(1)):]
@@ -247,13 +251,15 @@ def make(regs: dict, edges: list[dict], db, seed: int = 1, per: int = 8) -> list
     # ── 표현만 다듬기 ───────────────────────────────────
     clean = [(r, a, it) for r in regl for a, it in _items(r) if it["norm"].count("하여야 한다") == 1 and not re.search(r"제\s*\d+\s*조|\d", it["norm"])]
     rng.shuffle(clean)
-    for r, a, it in clean[:15]:
+    for r, a, it in clean[:15 * scale]:
         add("CLEAN", r, f'{_unit(a, it)} 중 "하여야 한다"를 "해야 한다"로 한다.', {}, "표현만 다듬음",
             not_affected=[{"reg_id": r["reg_id"], "article": a["label"], "para": it["path"][0]}])
     return out
 
 
-def make_extra(regs: dict, edges: list[dict], db, seed: int, start: int, n_ins: int = 15, n_insn: int = 5, n_mix: int = 15, n_typo: int = 42) -> list[dict]:
+def make_extra(regs: dict, edges: list[dict], db, seed: int, start: int, n_ins: int = 15, n_insn: int = 5, n_mix: int = 15, n_typo: int = 42,
+               scale: int = 1) -> list[dict]:
+    n_ins, n_insn, n_mix, n_typo = n_ins * scale, n_insn * scale, n_mix * scale, n_typo * scale
     """v0 106문항 뒤에 덧붙이는 문항 (기존 번호가 바뀌지 않게 별도 난수로)"""
     from .typo_gen import mutate
     rng = random.Random(seed + 1000)

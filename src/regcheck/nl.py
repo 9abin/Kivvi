@@ -42,6 +42,12 @@ RULES = """너는 한국 공공기관 내규를 고치는 보조자다. 설명·
 
 
 def _post(model: str, messages: list[dict], timeout: int = 180) -> str:
+    if model.startswith("gpt-"):   # 외부 모델 비교용 (평가 전용: 공개 규정 문장만 보냄). 운영 기본은 로컬 모델
+        from openai import OpenAI
+        from .db import load_env
+        r = OpenAI(api_key=load_env().get("OPENAI_API_KEY"), timeout=timeout).chat.completions.create(
+            model=model, messages=messages, reasoning_effort="low", max_completion_tokens=3000)
+        return r.choices[0].message.content or ""
     body = {"model": model, "messages": messages, "stream": False, "think": False,
             "options": {"temperature": 0, "num_ctx": 8192}}
     req = urllib.request.Request(OLLAMA, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
@@ -149,7 +155,7 @@ def _span_pair(old: str, new: str) -> tuple[str, str] | None:
 
     balance()
     # 숫자로 시작하면 바로 앞 수량어를 붙인다: 「2회」 → 「최대 2회」
-    if i1 > 1 and old[i1].isdigit() and old[i1 - 1] == " ":
+    if 1 < i1 < len(old) and old[i1].isdigit() and old[i1 - 1] == " ":   # i1 == len(old): 항 끝에 덧붙이는 개정 (자연어 확장 평가에서 8건 IndexError)
         k = i1 - 1
         while k > 0 and old[k - 1] not in stop:
             k -= 1

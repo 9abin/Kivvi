@@ -496,6 +496,16 @@
       body.append(top);
       if (x.quote) body.append(el("q", null, x.quote));
       body.append(el("div", "why", x.reason));
+      if (LIVE && x.key) {   // 설명 보기: 로컬 모델이 두 조문을 근거로 2~3문장으로 풀어 줌 (요약·해석, 판정 아님)
+        const ex = el("div", "explain"), eb = el("button", "link", "왜 확인해야 하나? (모델 요약)"); eb.type = "button";
+        eb.addEventListener("click", async () => {
+          eb.disabled = true; eb.textContent = "풀어 쓰는 중…";
+          try { const r = await api(`/api/explain?id=${encodeURIComponent(C.id)}&key=${encodeURIComponent(x.key)}`);
+            ex.replaceChildren(el("p", null, r.text || r.note), ...(r.text ? [el("small", "basis model", r.note)] : [])); }
+          catch (e) { eb.disabled = false; eb.textContent = "왜 확인해야 하나? (모델 요약)"; toast(e.message); }
+        });
+        ex.append(eb); body.append(ex);
+      }
       if (x.kind === "law") { const slot = el("div", "law-slot"); slot.dataset.quote = x.quote || ""; body.append(slot); }
       const dc = el("div", "decide");
       const acc = el("button", "acc"), rej = el("button", "rej"); acc.type = rej.type = "button";

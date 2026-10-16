@@ -275,6 +275,31 @@ def changeset(cid: str) -> dict:
             "impacts": impacts, "has_package": bool(pkg), "coverage": pkg.get("coverage")}
 
 
+_EXPLAIN: dict[tuple[str, str], dict] = {}
+
+
+def explain_card(cid: str, key: str) -> dict:
+    """카드 하나의 「왜 확인할 만한가」를 로컬 모델이 풀어 쓴다 (요청할 때만, 판정 아님, 검증 실패 시 기존 이유 문구 유지)"""
+    if (cid, key) in _EXPLAIN:
+        return _EXPLAIN[(cid, key)]
+    rows = q("select i.reg_id, i.article, i.para, i.quote, i.reason, i.path, c.amendment, c.payload from amend.impact i "
+             "join amend.changeset c on c.id = i.changeset_id where i.changeset_id = %s and i.review_key = %s", cid, key)
+    if not rows:
+        return {"error": "카드를 찾지 못했습니다"}
+    r, titles = rows[0], reg_titles()
+    from web_agent import HYPO_MODEL, load_package
+    from regcheck.explain import explain
+    pkg = load_package(cid) or {}
+    where = f"{titles.get(r['reg_id'], r['reg_id'])} {r['article'] or ''}" + (f" 제{r['para']}항" if r["para"] else "")
+    try:
+        text = explain(pkg.get("amendment_final") or r["amendment"], where, r["quote"] or "", readable(r["reason"] or ""), basis_of(r["path"]), HYPO_MODEL)
+    except OSError:
+        return {"error": f"로컬 모델 「{HYPO_MODEL}」에 연결하지 못했습니다. Ollama가 켜져 있는지 확인해 주세요"}
+    out = {"text": text, "note": "모델 요약 — 판정이 아닙니다. 담당자가 원문을 보고 판단하세요" if text else "설명을 만들지 못했습니다(검증 실패). 위 이유 문구를 참고하세요"}
+    _EXPLAIN[(cid, key)] = out
+    return out
+
+
 def regulation(reg_id: str) -> dict:
     """규정 전문 (본문 조만, 조 순서대로). 부칙·별표·별지는 원문 링크로"""
     rows = q("select d.article_id, d.label, d.title, c.chunk_id, c.body, c.status from ("
@@ -300,6 +325,7 @@ ROUTES = {
     "/api/amend": lambda p: amend(p.get("chunk", "")),
     "/api/changesets": lambda p: changesets(),
     "/api/changeset": lambda p: changeset(p.get("id", "")),
+    "/api/explain": lambda p: explain_card(p.get("id", ""), p.get("key", "")),
     "/api/regulation": lambda p: regulation(p.get("reg", "")),
     "/api/chat/status": lambda p: web_chat.status(),
     "/api/lawcheck": lambda p: lawcheck(p.get("id", "")),
