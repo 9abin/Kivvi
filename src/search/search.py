@@ -35,6 +35,7 @@ from src.store.pgstore import PgStore
 CANDIDATES = 50         # 방식별로 합치기 전 가져올 후보 수
 RERANK_TOP = 30         # 리랭커에 넘기는 후보 수 (RRF 상위)
 SIBLING_LIMIT = 3000    # 형제 항을 붙일 때의 글자 수 상한 (재색인 설계 4절)
+ARTICLE_CAP = 2000      # 조 전체 넘기기에서 조 하나가 이보다 길면 assemble이 찾은 항과 이웃 항만 남긴다 (scripts/exp_budget_shorten.py: 3000이면 정답 조가 밀려나고 2000이면 100문항에서 안 밀려남)
 CITE_LIMIT = 5          # 청크 하나당 cites에서 따라갈 최대 개수
 CITE_OK_STATUS = ("정상연결", "정정 확정", "외부연결")  # 실제 대상 청크가 있는 인용만 따라간다
 LLM_SELECT_POOL = 0  # 0이면 끔. 16이면 리랭크 상위 16개 조를 LLM이 보고 k개를 고른다 (scripts/exp_listwise_topk.py 실험, 평가 실행기의 --select-pool로 켠다)
@@ -80,6 +81,31 @@ def strip_marks(text):
     for m in (HIT_MARK, SIB_MARK, PROVISO_MARK):
         text = text.replace(m, "")
     return text
+
+
+SHORTENED_NOTE = "\n(분량 때문에 이 조의 나머지 항은 생략함)"
+MIN_SHORTENED = 500  # 남은 예산이 이보다 적으면 줄여 넣지 않고 건너뛴다
+_PARA_START = re.compile(r"(?m)^(?=" + re.escape(HIT_MARK) + "|" + re.escape(SIB_MARK) + ")")
+
+
+def shorten_article(body, limit):
+    """조 전체(body)가 예산에 안 들어갈 때 줄여 넣는다: 찾은 항(HIT_MARK)과 이웃 항을 limit자 안에서 항 순서대로 남긴다.
+    표시가 없는 조(항이 하나)는 앞에서부터 줄 단위로 limit자까지 남긴다. 줄인 곳에는 SHORTENED_NOTE가 붙는다."""
+    parts = [p for p in _PARA_START.split(body) if p]
+    hit = next((i for i, p in enumerate(parts) if p.startswith(HIT_MARK)), 0)
+    keep, used = {hit}, len(parts[hit])
+    lo, hi = hit - 1, hit + 1
+    while used < limit and (lo >= 0 or hi < len(parts)):
+        for i in (hi, lo):  # 뒤 항을 먼저, 그다음 앞 항
+            if 0 <= i < len(parts) and i not in keep and used + len(parts[i]) <= limit:
+                keep.add(i)
+                used += len(parts[i])
+        lo, hi = lo - 1, hi + 1
+    text = "".join(parts[i] for i in sorted(keep))
+    if len(text) > limit:  # 찾은 항 하나가 limit보다 길면 줄 단위로 자른다
+        cut = text[:limit]
+        text = cut[:cut.rfind("\n")] if "\n" in cut[limit // 2:] else cut
+    return text.rstrip() + SHORTENED_NOTE if len(text) < len(body) else body
 
 
 # 키워드 질의에서 뺄 형태소 태그: 조사, 어미, 문장부호
@@ -733,6 +759,13 @@ class Searcher:
             if cid in seen:
                 return
             n = len(entry["body"])
+            if (n > ARTICLE_CAP or used + n > budget) and role in ("정확조회", "검색") and budget - used >= MIN_SHORTENED:
+                # 조 하나가 ARTICLE_CAP보다 길거나 남은 예산에 안 들어가면 통째로 버리지 않고 찾은 항과 이웃 항만 줄여 넣는다.
+                # 긴 조 하나가 예산을 다 써서 뒤 순위의 짧은 조(정답일 수 있음)가 밀려나지 않게 ARTICLE_CAP을 상한으로 둔다.
+                short = shorten_article(entry["body"], min(ARTICLE_CAP, budget - used - len(SHORTENED_NOTE)))
+                if len(short) < n:
+                    entry = {**entry, "body": short}
+                    n = len(short)
             if used + n > budget:
                 return
             seen.add(cid)
