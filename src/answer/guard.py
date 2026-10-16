@@ -53,6 +53,41 @@ def _numbers(text):
 _PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:%|퍼센트)")
 
 
+# 답이 계산한 숫자에 계산식을 붙인 것: "60만원(40만원 × 150/100)", "150%(100% + 50% 가산)" (SYSTEM_PROMPT 규칙 19)
+_CALC = re.compile(r"(\d[\d,]*(?:\.\d+)?)[^\s\d()（）\[\]]{0,4}\s*[(（]([^()（）]*\d[^()（）]*)[)）]")
+_CALC_CONST = {"100", "60"}  # 백분율 기준, 시간↔분. 식 안에서만 재료로 인정한다
+
+
+def _verified_calcs(line, known):
+    """줄 안의 '결과(계산식)' 중 재료가 모두 근거·질문(또는 100, 60)에 있고 계산이 맞는 것의 (결과와 재료) 숫자들.
+    재료가 근거에 없거나(예: 40 × 1000) 계산이 틀리면 넣지 않는다 → 그 숫자는 지금처럼 '근거에 없음'으로 막힌다."""
+    ok = set()
+    for result, expr in _CALC.findall(line):
+        if not re.search(r"[×xX*÷/+\-−]|분의", expr):
+            continue  # 괄호 속이 계산식이 아니다 (예: "(1회 한정)")
+        e = re.sub(r"(\d+(?:\.\d+)?)\s*분의\s*(\d+(?:\.\d+)?)", r"(\2/\1)", expr)
+        e = e.replace("×", "*").replace("x", "*").replace("X", "*").replace("÷", "/").replace("−", "-")
+        e = re.sub(r"(?<=\d),(?=\d{3})", "", e)
+        e = re.sub(r"[^\d.+\-*/() ]", " ", e)
+        operands = re.findall(r"\d+(?:\.\d+)?", e)
+        if not operands or any(o not in known and o not in _CALC_CONST for o in operands):
+            continue
+        try:
+            value = eval(e, {"__builtins__": {}}, {})  # 숫자·사칙연산·괄호만 남긴 식
+        except Exception:  # noqa: BLE001 — 식이 깨졌으면 인정하지 않는다
+            continue
+        target = float(result.replace(",", ""))
+        if abs(value - target) <= max(0.01, abs(target) * 1e-6):
+            ok.add(result.replace(",", "").rstrip("."))
+            ok.update(operands)
+    return ok
+
+
+def _spoken_numbers(question):
+    """질문의 말로 된 수: '12시 반', '1시간 반' → 30분, 1.5시간, 90분."""
+    return {"30", "1.5", "90"} if re.search(r"(시|시간)\s*반", question) else set()
+
+
 def _multipliers(text):
     """근거의 비율 p%에서 계산되는 배수: 'p%를 가산'이면 1+p/100배, p%는 p/100배. (예: 50% 가산 -> 1.5배)"""
     out = set()
@@ -71,8 +106,12 @@ def unsupported_numbers(question, answer, entries):
     인용이 없는 줄은 근거 전체와 비교한다. 근거 안의 숫자는 쉼표를 뗀 정수 토큰으로 비교한다.
     근거 전체와 비교하도록 풀어 봤더니 Q054의 틀린 "40,000원"이 통과했다(국내여비 별표1에 같은 숫자가 있음).
     인용 번호만 틀린 정상 답변 약 3건/190건이 막히는 것은 감수한다. 틀린 숫자가 나가는 것이 더 나쁘다.
+
+    계산한 숫자 (2026.10.14): 근거 "40만원", "100분의 150"에서 계산한 "60만원"처럼 맞는 답이 막혔다(Q058, Q061).
+    답이 '결과(계산식)'을 붙이면 재료가 근거·질문에 있고 계산이 맞을 때만 통과시킨다(_verified_calcs).
+    질문의 "12시 반"을 "30분"으로 쓴 것도 통과시킨다(Q115, _spoken_numbers).
     """
-    asked = _numbers(question)
+    asked = _numbers(question) | _spoken_numbers(question)
     found = []
     for line in answer.split("\n"):
         line = line.strip()
@@ -82,7 +121,8 @@ def unsupported_numbers(question, answer, entries):
         pool = [entries[n - 1]["body"] for n in cited if 1 <= n <= len(entries)] or [e["body"] for e in entries]
         known = {t for body in pool for t in re.findall(r"\d+", body)} | _numbers(" ".join(pool))
         known |= _multipliers(" ".join(pool))
-        missing = sorted(n for n in _numbers(line) if n not in known and n not in asked)
+        calc = _verified_calcs(line, known | asked)
+        missing = sorted(n for n in _numbers(line) if n not in known and n not in asked and n not in calc)
         if missing:
             found.append((missing, line))
     return found
