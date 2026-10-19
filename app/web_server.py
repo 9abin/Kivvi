@@ -55,7 +55,9 @@ STATUS = {"초안": "draft", "검토": "review", "승인": "done", "공포": "do
 def connect():
     team = load_env(ROOT / ".env.team")
     if team.get("TEAM_USER"):
-        dsn = dict(host="127.0.0.1", port=team.get("TEAM_PORT", "5432"), dbname=team["TEAM_DATABASE"],
+        # TEAM_HOST가 있으면 그 주소로 (다른 PC에서 공유 DB를 읽을 때). 없으면 지금처럼 이 PC(127.0.0.1).
+        # 261019: 다른 PC에서 로컬 포워더(127.0.0.1 → 팀 PC)를 거치면 여러 행 응답이 쿼리마다 0.5초씩 걸려(윈도우 loopback 중계) 직접 접속으로
+        dsn = dict(host=team.get("TEAM_HOST") or "127.0.0.1", port=team.get("TEAM_PORT", "5432"), dbname=team["TEAM_DATABASE"],
                    user=team["TEAM_USER"], password=team["TEAM_PASSWORD"])
     else:
         e = load_env()

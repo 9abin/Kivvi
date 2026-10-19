@@ -217,7 +217,7 @@
   // 답변 한 덩어리: 표지 · 이름 · 상태 줄 + 카드 (Figma 화면 4)
   function aiShell(wrap, stateLabel, tone, ic) {
     const row = el("div", "ai"), av = el("div", "ai-av"), img = el("img"); img.src = "img/kiwi-96.png"; img.alt = ""; av.append(img);
-    const c = el("div", "ai-c"), head = el("div", "a-head"); head.append(el("b", null, "규정 도우미"));
+    const c = el("div", "ai-c"), head = el("div", "a-head"); head.append(el("b", null, "KIVVI"));
     if (stateLabel) { const s = el("span", "state " + (tone || "")); s.append(icon(ic), stateLabel); head.append(s); }
     c.append(head); row.append(av, c); wrap.append(row); return c;
   }
@@ -435,6 +435,7 @@
     node.stop?.(); pending.delete(cid);
     const done = renderMsg(q, res);
     if (node.isConnected) node.replaceWith(done);
+    if (!tool && res.entries) prefetchArticles(res.entries);   // 근거 원문을 미리 받아 두어 [n]을 누르면 바로 열리게
     c.msgs.push({ q, res }); c.at = Date.now(); saveFor(role0, list0); renderConvList();
     setBusy(null);
     if (ROLE_NOW !== role0) { toast(`${ROLE_LABEL_UI[role0]}의 대화 「${c.title}」에 답이 도착했습니다`); return; }
@@ -833,11 +834,25 @@
 
   // ── 데이터 불러오기 ──────────────────────────────────
   let artSeq = 0;   // 빠르게 여러 번 누르면 늦게 온 앞 응답이 뒤 응답을 덮지 않게, 마지막 요청만 그린다
+  // 근거 원문 미리 불러오기 (261019 사용자 요청: 원문 열기가 느림). 답이 오면 근거 조문의 원문·개정 정보를 뒤에서 받아 두고,
+  // 누를 때는 받아 둔 것을 쓴다. 5분 지나면 다시 받는다 (개정 정보는 개정안 작성·결정으로 바뀔 수 있음)
+  const ART_CACHE = new Map();   // chunk → { p: Promise<[art, m]>, at }
+  function fetchArticle(chunk) {
+    const hit = ART_CACHE.get(chunk);
+    if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.p;
+    const p = Promise.all([api(`/api/article?chunk=${encodeURIComponent(chunk)}`), api(`/api/amend?chunk=${encodeURIComponent(chunk)}`)]);
+    ART_CACHE.set(chunk, { p, at: Date.now() });
+    p.catch(() => ART_CACHE.delete(chunk));
+    return p;
+  }
+  function prefetchArticles(entries) {
+    (entries || []).filter((e) => isOpenable(e.chunk)).slice(0, 10).forEach((e) => fetchArticle(e.chunk).catch(() => {}));
+  }
   async function loadArticle(chunk, hint) {
     if (!LIVE || !isOpenable(chunk)) return false;
     const my = ++artSeq;
     try {
-      const [art, m] = await Promise.all([api(`/api/article?chunk=${encodeURIComponent(chunk)}`), api(`/api/amend?chunk=${encodeURIComponent(chunk)}`)]);
+      const [art, m] = await fetchArticle(chunk);
       if (my !== artSeq) return false;
       renderArticle(art); renderAmend(m); return true;
     } catch (e) {
