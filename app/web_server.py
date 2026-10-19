@@ -55,7 +55,11 @@ STATUS = {"초안": "draft", "검토": "review", "승인": "done", "공포": "do
 def connect():
     team = load_env(ROOT / ".env.team")
     if team.get("TEAM_USER"):
-        dsn = dict(host="127.0.0.1", port=team.get("TEAM_PORT", "5432"), dbname=team["TEAM_DATABASE"],
+        # TEAM_HOST가 있으면 그 주소로 (다른 PC에서 공유 DB를 읽을 때). 없으면 지금처럼 이 PC(127.0.0.1).
+        # 261019: 다른 PC에서 로컬 포워더(127.0.0.1 → 팀 PC)를 거치면 여러 행 응답이 쿼리마다 0.5초씩 걸려(윈도우 loopback 중계) 직접 접속으로
+        # 주소 모양일 때만 쓴다: 팀 PC의 .env.team에는 안내 문구 「(이 PC의 와이파이 IP — ipconfig로 확인)」가 들어 있어 그대로 쓰면 접속 실패 (261019 병합 때 확인)
+        host = (team.get("TEAM_HOST") or "").strip()
+        dsn = dict(host=host if re.fullmatch(r"[A-Za-z0-9.\-:]+", host) else "127.0.0.1", port=team.get("TEAM_PORT", "5432"), dbname=team["TEAM_DATABASE"],
                    user=team["TEAM_USER"], password=team["TEAM_PASSWORD"])
     else:
         e = load_env()

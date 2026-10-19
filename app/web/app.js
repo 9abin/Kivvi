@@ -7,11 +7,13 @@
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
   const S = window.SAMPLE;
   // 역할(시연용 전환): 일반 직원 / 개정 담당자(기안·결정·제출·공포 처리) / 승인권자(승인·반려). 서버가 역할을 확인한다 (app/web_agent.guard)
-  const PERSON = { employee: { name: "일반 직원(시연)", dept: "" }, editor: { name: S.user.name, dept: S.user.dept }, approver: { name: "승인권자(시연)", dept: "대표이사·이사회" } };
+  // 시연용 사람 (역할마다 이름·부서를 둔다: 아바타는 성씨, 부서 줄이 비면 하단 칸 높이가 역할마다 달라졌음 — 261019)
+  const PERSON = { employee: { name: "김지원", dept: "경영지원팀 (시연)" }, editor: { name: S.user.name, dept: S.user.dept }, approver: { name: "이준호", dept: "대표이사 (시연)" } };
   let USER = S.user.name;
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const clear = (n) => { while (n.firstChild) n.firstChild.remove(); return n; };
+  const SHOW_COVERAGE = false;   // 검토 화면의 「AI가 확인하지 못하는 것」 칸 (261019 사용자 요청으로 숨김. 데이터는 /api/changeset의 coverage에 그대로)
   let LIVE = false, CURRENT = null, CS = null, ROLE_NOW = "editor", CS_ALL = [];   // CS_ALL: 개정안 목록 (개정 업무 화면의 할 일)
   const isEditor = () => ROLE_NOW === "editor";
   const isApprover = () => ROLE_NOW === "approver";
@@ -44,9 +46,20 @@
   $("#user-name").textContent = USER; $("#user-dept").textContent = S.user.dept; $("#user-initial").textContent = USER[0];
 
   // ── 대화 기록 (이 브라우저에만) ─────────────────────────
+  // 역할(일반 직원·개정 담당자·승인권자)은 서로 다른 사람이므로 대화 기록도 역할마다 따로 둔다 (261019 사용자 지적: 셋이 같은 목록을 보던 문제).
+  // 키 "kvic-chat-v1:<역할>". 예전 키 "kvic-chat-v1"(역할 구분 없던 때)의 기록은 개정 담당자 것으로 이어받는다
   const STORE = "kvic-chat-v1";
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
-  const save = (v) => { try { localStorage.setItem(STORE, JSON.stringify(v.slice(0, 30))); } catch { /* 저장 못 해도 화면은 동작 */ } };
+  const storeKey = (role) => `${STORE}:${role}`;
+  const loadFor = (role) => {
+    try {
+      const v = JSON.parse(localStorage.getItem(storeKey(role)));
+      if (v) return v;
+      return role === "editor" ? (JSON.parse(localStorage.getItem(STORE)) || []) : [];
+    } catch { return []; }
+  };
+  const saveFor = (role, v) => { try { localStorage.setItem(storeKey(role), JSON.stringify(v.slice(0, 30))); } catch { /* 저장 못 해도 화면은 동작 */ } };
+  const load = () => loadFor(ROLE_NOW);
+  const save = (v) => saveFor(ROLE_NOW, v);
   let convs = load(), convId = null;
   const conv = () => convs.find((c) => c.id === convId);
 
@@ -101,7 +114,7 @@
   function newConv(amend = false, origin = null) {
     convId = null; AMEND_NEW = amend; AMEND_ORIGIN = amend ? origin : null;
     $("#chat-title").textContent = origin ? "함께 개정 요청" : amend ? "새 개정 요청" : "새 대화";
-    renderEmpty(); renderConvList(); show("chat"); setBusy(busy); $("#ask-q").focus();
+    renderEmpty(); resetPanel(); renderConvList(); show("chat"); setBusy(busy); $("#ask-q").focus();
   }
   // 원 개정안의 요청 문장에서 규정 이름 · 조 번호를 뺀 내용만 (고칠 조를 찾을 때 원 개정안의 규정 · 조로 잘못 찾지 않게)
   const plainRequest = (C) => C.title.replace(/\s*\([^)]*\)\s*$/, "").replace(/^\S+\s+—\s+/, "")
@@ -197,6 +210,16 @@
       if (/^[-•·]\s+/.test(s)) { if (!ul) { ul = el("ul"); body.append(ul); } const li = el("li"); inline(s.replace(/^[-•·]\s+/, ""), entries, li); ul.append(li); return; }
       ul = null; const p = el("p"); inline(s, entries, p); body.append(p);
     });
+    // 세부 불릿은 기본 접는다 (261019 사용자 요청): 결론만 보이고 「세부 N개 보기」로 펼친다. 「세부」 머리(h4)가 있으면 함께 접는다
+    const lists = [...body.querySelectorAll("ul")], n = lists.reduce((s, u) => s + u.children.length, 0);
+    if (n) {
+      const fold = el("div", "fold"); fold.hidden = true;
+      lists.forEach((u) => { const h = u.previousElementSibling; if (h && h.tagName === "H4") fold.append(h); fold.append(u); });
+      const tg = el("button", "link fold-toggle"); tg.type = "button"; tg.setAttribute("aria-expanded", "false");
+      const paint = () => { tg.textContent = fold.hidden ? `세부 ${n}개 보기 ▾` : "세부 접기 ▴"; tg.setAttribute("aria-expanded", String(!fold.hidden)); };
+      tg.addEventListener("click", () => { fold.hidden = !fold.hidden; paint(); }); paint();
+      body.append(tg, fold);
+    }
     return body;
   }
   // 근거 카드 · [n]을 한 번 누르면 바로 오른쪽 패널에 연다: 접혀 있으면 펼치고, 열린 카드를 표시하고, 패널을 잠깐 반짝여 바뀐 것을 보인다
@@ -206,7 +229,7 @@
     if (!isOpenable(e.chunk)) return toast(`${e.reg || "외부 법령"} ${e.article || ""} — 법령 원문은 내부규정 패널에 열 수 없습니다`);
     openPanel(); selectTab("src");
     document.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === e.chunk));
-    if (await loadArticle(e.chunk)) {
+    if (await loadArticle(e.chunk, e)) {
       const P = $("#panel-src"); P.classList.remove("flash"); void P.offsetWidth; P.classList.add("flash");
       const r = $("#src-panel").getBoundingClientRect();
       if (r.top > innerHeight || r.bottom < 0) $("#src-panel").scrollIntoView({ behavior: "smooth", block: "start" });   // 좁은 화면: 패널이 아래에 있음
@@ -215,7 +238,7 @@
   // 답변 한 덩어리: 표지 · 이름 · 상태 줄 + 카드 (Figma 화면 4)
   function aiShell(wrap, stateLabel, tone, ic) {
     const row = el("div", "ai"), av = el("div", "ai-av"), img = el("img"); img.src = "img/kiwi-96.png"; img.alt = ""; av.append(img);
-    const c = el("div", "ai-c"), head = el("div", "a-head"); head.append(el("b", null, "규정 도우미"));
+    const c = el("div", "ai-c"), head = el("div", "a-head"); head.append(el("b", null, "KIVVI"));
     if (stateLabel) { const s = el("span", "state " + (tone || "")); s.append(icon(ic), stateLabel); head.append(s); }
     c.append(head); row.append(av, c); wrap.append(row); return c;
   }
@@ -418,6 +441,7 @@
       AMEND_NEW = false; AMEND_ORIGIN = null; $("#chat-title").textContent = q.slice(0, 40);
     }
     const cid = convId, c = conv();
+    const role0 = ROLE_NOW, list0 = convs;   // 답을 기다리는 동안 역할을 바꿔도 이 대화는 원래 역할의 기록에 저장한다
     // 멀티턴: 이 대화의 앞 질문(답이 난 것) 3개를 함께 보낸다 → 서버가 이어 묻는 질문을 독립 질문으로 바꿔 검색 (web_chat.standalone)
     const history = c.msgs.filter((m) => m.res && !m.res.tool && !m.res.error && m.res.answer).slice(-3)
       .map((m) => ({ q: m.res.standalone || m.q, a: (m.res.answer || "").slice(0, 400) }));
@@ -433,12 +457,14 @@
     node.stop?.(); pending.delete(cid);
     const done = renderMsg(q, res);
     if (node.isConnected) node.replaceWith(done);
-    c.msgs.push({ q, res }); c.at = Date.now(); save(convs); renderConvList();
+    if (!tool && res.entries) prefetchArticles(res.entries);   // 근거 원문을 미리 받아 두어 [n]을 누르면 바로 열리게
+    c.msgs.push({ q, res }); c.at = Date.now(); saveFor(role0, list0); renderConvList();
     setBusy(null);
+    if (ROLE_NOW !== role0) { toast(`${ROLE_LABEL_UI[role0]}의 대화 「${c.title}」에 답이 도착했습니다`); return; }
     if (convId !== cid) { toast(`「${c.title}」 대화에 답이 도착했습니다`); return; }
-    const first = tool ? (res.find?.chunk || res.find?.candidates?.[0]?.chunk)
-      : leadEntry(res)?.chunk;
-    if (first) { loadArticle(first); selectTab("src"); openPanel(); done.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === first)); }
+    const lead = tool ? null : leadEntry(res);
+    const first = tool ? (res.find?.chunk || res.find?.candidates?.[0]?.chunk) : lead?.chunk;
+    if (first) { loadArticle(first, lead); selectTab("src"); openPanel(); done.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === first)); }
     t.scrollTop = t.scrollHeight; $("#ask-q").focus();
   }
   $("#composer").addEventListener("submit", (e) => { e.preventDefault(); if (busy) busy.abort(); else send(); });
@@ -456,8 +482,17 @@
     if (art.paras.length > 1 && art.highlight != null && art.highlight >= 0) {
       const n = el("p", "hl-note"); n.append(icon("info"), "노란 표시 부분이 답변 · 요청이 가리킨 항입니다."); P.append(n);
     }
-    P.scrollTop = 0; const hl = P.querySelector(".para.hl");   // 머리(규정명)가 보이게 위에서 시작, 강조 항이 화면 밖일 때만 내림
-    if (hl && hl.offsetTop + hl.offsetHeight > P.clientHeight) hl.scrollIntoView({ block: "nearest" });
+    P.scrollTop = 0; const hl = P.querySelector(".para.hl");
+    // 강조 항이 첫 항이 아니면 가운데로 내린다 — 「원문 →」를 눌렀는데 아무것도 안 움직이는 것처럼 보이던 문제 (261019). 첫 항이면 머리(규정명)가 보이게 위에서 시작
+    if (hl && art.highlight > 0) hl.scrollIntoView({ block: "center" });
+  }
+  // 오른쪽 패널 기본 상태: 새 대화 · 역할 전환 때 다른 대화(다른 사람)의 조문이 남지 않게 비운다 (261019)
+  function resetPanel() {
+    CURRENT = null; $("#amend-count").textContent = "";
+    const P = clear($("#panel-src")), ph = el("div", "panel-empty");
+    ph.append(icon("book"), el("b", null, "근거 원문"), el("span", null, "답변의 근거 번호나 근거 조문 카드를 누르면 여기에 원문이 열립니다. 위 검색창으로 조문을 직접 열 수도 있습니다."));
+    P.append(ph);
+    clear($("#panel-amend")).append(el("div", "none", "조문을 열면 개정 정보가 보입니다"));
   }
   async function showFullRegulation() {
     if (!CURRENT?.reg_id) return toast("먼저 조문을 여세요");
@@ -733,7 +768,7 @@
       const ol = el("ol", "qlist"); C.questions.forEach((x) => ol.append(el("li", null, `${x.where} — ${x.question}`))); s.append(ol); doc.append(s);
     }
     // 깨지는 인용(연쇄 수정 전 → 후)은 오른쪽 요약 맨 위에 한 줄로 보인다
-    if (C.coverage?.not_covered?.length) {   // 구조상 확인하지 못하는 유형 (판단은 사람이 이 범위를 알고 한다). 찾은 경로별 개수는 개발용이라 뺌 (261019)
+    if (SHOW_COVERAGE && C.coverage?.not_covered?.length) {   // 구조상 확인하지 못하는 유형. 261019 사용자 요청으로 화면에서는 숨김 (SHOW_COVERAGE)
       const s = el("section", "coverage"); s.append(el("h2", null, "AI가 확인하지 못하는 것"));
       const ul = el("ul", "hint"); C.coverage.not_covered.forEach((t) => ul.append(el("li", null, t)));
       s.append(ul); doc.append(s);
@@ -743,7 +778,13 @@
     const SD = clear($("#side"));
     // 요약: 담당자의 일(카드 결정)을 맨 위에 → 깨지는 인용 한 줄 → 종류별 거르기 (0인 종류는 뺌, 이름에 마우스를 올리면 뜻)
     const head = el("div", "decide-head");
-    head.append(el("b", "decide-left"), el("span", "hint", editable(C) ? "카드마다 수락 · 기각하세요. 수락한 카드만 최종안에 반영됩니다." : "수락한 카드만 최종안에 반영됩니다."));
+    // 결정이 잠긴 이유를 보인다 (261019: 승인권자·반려된 개정안에서 수락을 눌러도 아무 반응이 없어 보였음)
+    const lockWhy = editable(C) ? "" : (C.status === "초안" || C.status === "검토")
+      ? "카드 수락 · 기각은 개정 담당자가 합니다." + (isApprover() ? " 승인권자는 아래에서 승인 · 반려만 합니다." : "")
+      : `이 개정안은 「${(CS_LABEL[C.status] || [C.status])[0]}」 상태라 카드 결정이 잠겨 있습니다.`;
+    const hint = el("span", "hint" + (lockWhy ? " lock" : ""));
+    if (lockWhy) hint.append(icon("info"), lockWhy); else hint.append("카드마다 수락 · 기각하세요. 수락한 카드만 최종안에 반영됩니다.");
+    head.append(el("b", "decide-left"), hint);
     const [b0, b1] = C.breaks || [null, null];
     const br = el("p", "break-line " + (b1 ? "neg" : "pos"));
     br.append(icon(b1 ? "info" : "check-c"), b1 ? `깨지는 인용 ${b1}곳이 남아 있습니다 — 깨짐 카드를 확인하세요`
@@ -769,12 +810,40 @@
     const ol = el("ol", "rows");
     C.impacts.forEach((x) => {
       const li = el("li", "row"), body = el("div", "body"); li.dataset.kind = kindOf(x);
-      const top = el("div", "top"); top.append(el("span", "tag " + (TONE[x.kind] || ""), x.label), el("span", "where", x.where));
+      // 카드의 조문 이름을 누르면 그 조문 원문을 카드 안에 불러오고, 거기서 「개정 정보」 탭(개정안 작성)으로 이어진다 (261019 사용자 요청)
+      const where = el("button", "where"); where.type = "button"; where.title = "원문 보기"; where.append(x.where, icon("chev"));
+      const top = el("div", "top"); top.append(el("span", "tag " + (TONE[x.kind] || ""), x.label), where);
       // 근거 종류: 문서 명시(원문 인용) / 낱말 일치(같은 제목·용어) / 모델 추정(의미 유사·오타) — 모델 추정은 담당자 판단이 더 필요
       if (x.basis) { const b = el("span", "basis" + (x.basis === "모델 추정" ? " model" : ""), x.basis); b.title = x.path ? `발견 경로: ${x.path}` : ""; top.append(b); }
       body.append(top);
       if (x.quote) body.append(el("q", null, x.quote));
       body.append(el("div", "why", x.reason));
+      const artBox = el("div", "card-art"); artBox.hidden = true; body.append(artBox);
+      where.addEventListener("click", async () => {
+        if (!artBox.hidden) { artBox.hidden = true; where.classList.remove("open"); return; }
+        artBox.hidden = false; where.classList.add("open");
+        if (artBox.dataset.loaded) return;
+        clear(artBox).append(el("span", "hint", "원문을 불러오는 중…"));
+        if (!LIVE) return clear(artBox).append(el("span", "hint", "서버에 연결되지 않아 원문을 열 수 없습니다"));
+        try {
+          const f = await api(`/api/find?q=${encodeURIComponent(x.where)}`);
+          const chunk = f.chunk || f.candidates?.[0]?.chunk;
+          if (!chunk) throw new Error("조문을 찾지 못했습니다");
+          const [art] = await fetchArticle(chunk);
+          clear(artBox).append(el("b", null, `${art.reg} ${art.label}`));
+          art.paras.forEach((p, i) => artBox.append(el("p", "para" + (i === art.highlight ? " hl" : "") + (p.status === "삭제" ? " del" : ""), p.text)));
+          const acts = el("div", "card-art-acts");
+          const open = el("button", "btn tertiary small"); open.type = "button"; open.append(icon("book"), "근거 원문 패널에서 보기");
+          open.addEventListener("click", () => { show("chat"); openPanel(); loadArticle(chunk); selectTab("src"); });
+          acts.append(open);
+          if (editable(C) && /제\d+조/.test(x.where)) {   // 이 조를 고치는 길은 하나로: 원 개정안을 잇는 「함께 개정 요청」 (cascadeRequest, 261019 병합 때 합침)
+            const edit = el("button", "btn secondary small"); edit.type = "button"; edit.append(icon("edit"), "이 조도 함께 개정");
+            edit.addEventListener("click", () => cascadeRequest(C, x));
+            acts.append(edit);
+          }
+          artBox.append(acts); artBox.dataset.loaded = "1";
+        } catch (e) { clear(artBox).append(el("span", "hint", `원문을 열지 못했습니다 — ${e.message}`)); }
+      });
       if (LIVE && x.key) {   // 설명 보기: 로컬 모델이 두 조문을 근거로 2~3문장으로 풀어 줌 (요약·해석, 판정 아님)
         const ex = el("div", "explain"), eb = el("button", "link", "왜 확인해야 하나? (모델 요약)"); eb.type = "button";
         eb.addEventListener("click", async () => {
@@ -793,9 +862,9 @@
         acc.setAttribute("aria-pressed", String(x.state === "accept")); rej.setAttribute("aria-pressed", String(x.state === "reject"));
         li.classList.toggle("rejected", x.state === "reject"); tally();
       };
-      if (!editable(C)) { acc.disabled = rej.disabled = true; acc.title = rej.title = isEditor() ? "승인·공포·반려된 개정안은 결정을 바꿀 수 없습니다" : "카드 수락·기각은 개정 담당자가 합니다"; }
+      if (!editable(C)) { acc.setAttribute("aria-disabled", "true"); rej.setAttribute("aria-disabled", "true"); acc.title = rej.title = lockWhy; }   // 비활성 대신 잠금 표시: 누르면 이유를 알린다
       const decide = async (d) => {
-        if (!editable(C)) return;
+        if (!editable(C)) return toast(lockWhy);
         const next = x.state === d ? "clear" : d, prev = x.state;
         x.state = next === "clear" ? null : next; paint();
         if (!LIVE || !x.key) return;
@@ -820,7 +889,7 @@
   function tally() {
     if (!CS) return;
     const N = CS.impacts.length, na = CS.impacts.filter((x) => x.state === "accept").length, nr = CS.impacts.filter((x) => x.state === "reject").length;
-    $("#tally").textContent = `수락 ${na} / 기각 ${nr} / 남음 ${N - na - nr}${LIVE ? " · 결정은 바로 저장됩니다" : " · 예시 (저장 안 됨)"}`;
+    $("#tally").textContent = `수락 ${na} / 기각 ${nr} / 남음 ${N - na - nr}${LIVE ? (editable(CS) ? " · 결정은 바로 저장됩니다" : " · 결정 잠김") : " · 예시 (저장 안 됨)"}`;
     const left = $("#side .decide-left");
     if (left) left.textContent = !N ? "결정할 카드가 없습니다" : N - na - nr ? `결정할 카드 ${N}건 중 ${N - na - nr}건 남음` : `카드 ${N}건을 모두 결정했습니다`;
     $("#p-acc").style.width = N ? (na / N) * 100 + "%" : "0"; $("#p-rej").style.width = N ? (nr / N) * 100 + "%" : "0";
@@ -828,14 +897,39 @@
 
   // ── 데이터 불러오기 ──────────────────────────────────
   let artSeq = 0;   // 빠르게 여러 번 누르면 늦게 온 앞 응답이 뒤 응답을 덮지 않게, 마지막 요청만 그린다
-  async function loadArticle(chunk) {
+  // 근거 원문 미리 불러오기 (261019 사용자 요청: 원문 열기가 느림). 답이 오면 근거 조문의 원문·개정 정보를 뒤에서 받아 두고,
+  // 누를 때는 받아 둔 것을 쓴다. 5분 지나면 다시 받는다 (개정 정보는 개정안 작성·결정으로 바뀔 수 있음)
+  const ART_CACHE = new Map();   // chunk → { p: Promise<[art, m]>, at }
+  function fetchArticle(chunk) {
+    const hit = ART_CACHE.get(chunk);
+    if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.p;
+    const p = Promise.all([api(`/api/article?chunk=${encodeURIComponent(chunk)}`), api(`/api/amend?chunk=${encodeURIComponent(chunk)}`)]);
+    ART_CACHE.set(chunk, { p, at: Date.now() });
+    p.catch(() => ART_CACHE.delete(chunk));
+    return p;
+  }
+  function prefetchArticles(entries) {
+    (entries || []).filter((e) => isOpenable(e.chunk)).slice(0, 10).forEach((e) => fetchArticle(e.chunk).catch(() => {}));
+  }
+  async function loadArticle(chunk, hint) {
     if (!LIVE || !isOpenable(chunk)) return false;
     const my = ++artSeq;
     try {
-      const [art, m] = await Promise.all([api(`/api/article?chunk=${encodeURIComponent(chunk)}`), api(`/api/amend?chunk=${encodeURIComponent(chunk)}`)]);
+      const [art, m] = await fetchArticle(chunk);
       if (my !== artSeq) return false;
       renderArticle(art); renderAmend(m); return true;
-    } catch (e) { toast(e.message); return false; }
+    } catch (e) {
+      // 답변 근거는 조 단위 ID(24024_제30조)로 오는데 색인은 항 단위(24024_제30조_2항)라 서버가 못 찾는다 (261019 실측).
+      // 근거의 규정명·조(·▶▶ 표시에서 읽은 항)로 /api/find를 불러 실제 항 청크 ID를 받아 다시 연다. 가빈 검색기·서버는 그대로 둔다
+      if (hint && hint.reg && hint.article && /청크를 찾지 못했습니다/.test(e.message)) {
+        const hit = /▶▶ \[찾은 항\] ([①-⑳])/.exec(hint.text || ""), para = hit ? "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳".indexOf(hit[1]) + 1 : 0;
+        try {
+          const f = await api(`/api/find?q=${encodeURIComponent(`${hint.reg} ${hint.article}${para ? ` 제${para}항` : ""}`)}`);
+          if (f.chunk && f.chunk !== chunk) return loadArticle(f.chunk);
+        } catch { /* 되찾기도 실패하면 아래 원래 오류를 보인다 */ }
+      }
+      toast(e.message); return false;
+    }
   }
   async function loadChangeset(id) {
     if (!LIVE) return;
@@ -1136,13 +1230,19 @@
     if (b.dataset.cs) loadChangeset(b.dataset.cs);
   });
   document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); newConv(); } });
+  const ROLE_LABEL_UI = { employee: "일반 직원", editor: "개정 담당자", approver: "승인권자" };
   function setRole(role, first = false) {
+    const prev = ROLE_NOW;
     ROLE_NOW = role; USER = PERSON[role].name;
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
     document.querySelectorAll(".editor-only").forEach((x) => (x.hidden = role !== "editor"));
     document.querySelectorAll(".staff-only").forEach((x) => (x.hidden = role === "employee"));
     $("#user-name").textContent = USER; $("#user-dept").textContent = PERSON[role].dept; $("#user-initial").textContent = USER[0];
-    $("#user-role").textContent = { employee: "일반 직원", editor: "개정 담당자", approver: "승인권자" }[role];
+    $("#user-role").textContent = ROLE_LABEL_UI[role];
+    if (prev !== role) {   // 다른 사람으로 바뀐 것: 그 사람의 대화 기록을 불러오고 열려 있던 대화는 닫는다 (답을 기다리던 대화는 원래 역할의 기록에 저장됨)
+      convs = load(); convId = null; AMEND_NEW = false; $("#chat-title").textContent = "새 대화";
+      renderConvList(); renderEmpty(); resetPanel();
+    }
     if (!conv()) renderEmpty();   // 자주 묻는 질문이 역할마다 다르다 (개정 담당자에게만 개정 요청 예시)
     setBusy(busy);
     // 역할을 바꿔도 보던 화면을 유지한다. 그 역할이 못 보는 화면일 때만 기본 화면으로 (처음: 담당자 · 승인권자는 개정 업무)
