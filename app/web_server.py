@@ -89,7 +89,8 @@ def reg_titles() -> dict[str, str]:
 def status() -> dict:
     """접속 확인 + 가빈 청크와 우리 항의 대응 상태. 가빈이 public.chunks를 다시 적재하거나 청크 단위·ID 규칙을 바꾸면
     「가빈 청크 사라짐」이 늘어난다 → 화면이 경고하고, scripts/amend_load.py로 대응을 다시 계산한다 (docs/db-sharing-guide.md)"""
-    st = q("select (select count(*) from public.chunks) as chunks, (select count(*) from amend.changeset) as changesets, current_user as db_user")[0]
+    st = q("select (select count(*) from public.chunks) as chunks, (select count(*) from public.documents) as regs, "
+           "(select count(*) from amend.changeset) as changesets, current_user as db_user")[0]
     st["unmatched"] = {r["problem"]: r["n"] for r in q("select problem, count(*) as n from amend.v_chunk_unmatched group by 1")}
     st["stale"] = st["unmatched"].get("가빈 청크 사라짐", 0)
     return st
@@ -99,7 +100,26 @@ def find(text: str) -> dict:
     docs = sorted(reg_titles().items(), key=lambda x: -len(x[1]))
     flat = text.replace(" ", "")
     hit = next(((d, t) for d, t in docs if t.replace(" ", "") in flat), None)
+    guessed = False
+    if not hit:   # 「법인카드 지침 제1조」처럼 이름을 대충 쓴 경우: 비슷한 이름이 하나로 좁혀지면 그 규정으로 (regcheck.nl.find_regulation, 리포트 56)
+        from regcheck.nl import find_regulation
+        r = find_regulation(web_agent.corpus()[0], text)
+        if r:
+            hit, guessed = (r["reg_id"], r["name"]), True
     m = re.search(r"제?\s*(\d+)\s*조(?:\s*의\s*(\d+))?(?:\s*제?\s*(\d+)\s*항)?", text)
+    if not hit and m:   # 이름이 애매하지만(「보안지침」) 조 번호가 있으면: 이름이 비슷한 규정들의 그 조를 후보로 (조 번호를 버리고 일반 검색으로 가지 않게)
+        from regcheck.nl import similar_regulations
+        label = f"제{m.group(1)}조" + (f"의{m.group(2)}" if m.group(2) else "")
+        cands = []
+        for score, r in similar_regulations(web_agent.corpus()[0], text, k=5):
+            a = next((a for a in r["articles"] if a["label"] == label and not a.get("deleted")), None)
+            rows = q("select chunk_id from amend.chunk_detail where reg_id = %s and label = %s and chunk_id is not null "
+                     "group by chunk_id, hang order by min(hang) limit 1", r["reg_id"], label) if a and score >= 0.3 else []
+            if rows:
+                cands.append({"reg_id": r["reg_id"], "reg_name": r["name"], "label": label, "title": a["title"], "score": round(score, 3),
+                              "how": "이름이 비슷한 규정의 같은 조", "chunk": rows[0]["chunk_id"]})
+        if cands:
+            return {"candidates": cands, "query": text, "rewritten": "", "confident": False, "index": "규정 이름"}
     if not hit or not m:
         # 규정명·조 번호가 없으면 「무엇을 바꾸고 싶은지」로 보고 고칠 후보 조문을 찾는다 (사람이 고름, regcheck.target)
         if len(text.strip()) < 4:
@@ -118,7 +138,7 @@ def find(text: str) -> dict:
         return {"error": f"{hit[1]} {label}을(를) 찾지 못했습니다"}
     want = f"_{m.group(3)}항" if m.group(3) else None
     chunk = next((r["chunk_id"] for r in rows if want and r["chunk_id"].endswith(want)), rows[0]["chunk_id"])
-    return {"chunk": chunk, "reg": hit[1], "label": label}
+    return {"chunk": chunk, "reg": hit[1], "label": label, "guessed": guessed}
 
 
 def article(chunk: str) -> dict:
@@ -243,6 +263,7 @@ def readable(reason: str) -> str:
     m = re.search(r"\s*/\s*바뀐 항의 값 현행 (\[[^\]]*\]) → 개정안 (\[[^\]]*\]), 상대 (\[[^\]]*\])", reason)
     if m:
         reason = reason[:m.start()] + f". 값: 현행 {vals(m.group(1))} → 개정안 {vals(m.group(2))} (상대 조문 {vals(m.group(3))})" + reason[m.end():]
+    reason = reason.replace(" (법률 DB 연결 후)", "")   # 개발 단계 메모 (이미 저장된 카드에 남아 있음, 261019 change_check에서 뺌)
     return re.sub(r"\[([^\]]*)\]", lambda x: vals(x.group(0)) or x.group(0), reason)
 
 
@@ -294,7 +315,7 @@ def explain_card(cid: str, key: str) -> dict:
     try:
         text = explain(pkg.get("amendment_final") or r["amendment"], where, r["quote"] or "", readable(r["reason"] or ""), basis_of(r["path"]), HYPO_MODEL)
     except OSError:
-        return {"error": f"로컬 모델 「{HYPO_MODEL}」에 연결하지 못했습니다. Ollama가 켜져 있는지 확인해 주세요"}
+        return {"error": "설명 모델에 연결하지 못했습니다. " + ("API 키와 네트워크를 확인해 주세요" if HYPO_MODEL.startswith("gpt-") else "Ollama가 켜져 있는지 확인해 주세요")}
     out = {"text": text, "note": "모델 요약 — 판정이 아닙니다. 담당자가 원문을 보고 판단하세요" if text else "설명을 만들지 못했습니다(검증 실패). 위 이유 문구를 참고하세요"}
     _EXPLAIN[(cid, key)] = out
     return out
@@ -350,7 +371,7 @@ def with_open_changes(res: dict) -> dict:
 
 
 POSTS = {
-    "/api/ask": lambda b: with_open_changes(web_chat.ask(b.get("q", ""))),
+    "/api/ask": lambda b: with_open_changes(web_chat.ask(b.get("q", ""), b.get("history") or [])),
     "/api/draft": lambda b: allowed(b, "draft") or web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
     "/api/decide": lambda b: allowed(b, "decide") or web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
     "/api/submit": lambda b: allowed(b, "submit") or web_agent.submit(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),

@@ -12,11 +12,11 @@
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const clear = (n) => { while (n.firstChild) n.firstChild.remove(); return n; };
-  let LIVE = false, CURRENT = null, CS = null, ROLE_NOW = "editor";
+  let LIVE = false, CURRENT = null, CS = null, ROLE_NOW = "editor", CS_ALL = [];   // CS_ALL: 개정안 목록 (개정 업무 화면의 할 일)
   const isEditor = () => ROLE_NOW === "editor";
   const isApprover = () => ROLE_NOW === "approver";
-  const api = async (path, body) => {
-    const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: USER, role: ROLE_NOW, ...body }) } : { cache: "no-store" });
+  const api = async (path, body, signal) => {
+    const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: USER, role: ROLE_NOW, ...body }), signal } : { cache: "no-store", signal });
     const j = await r.json().catch(() => ({ error: r.statusText }));
     if (!r.ok || j.error) throw new Error(j.error || r.statusText);
     return j;
@@ -30,6 +30,10 @@
     "up-arrow": "M12 19V5M6 11l6-6 6 6", up: "M7 10v10H4V10zM7 10l4-7a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2l-2 7a2 2 0 0 1-2 1H7",
     down: "M17 14V4h3v10zM17 14l-4 7a2 2 0 0 1-3-2l1-5H5a2 2 0 0 1-2-2l2-7a2 2 0 0 1 2-1h10",
     check: "M5 12l5 5L20 7", x: "M6 6l12 12M18 6L6 18", arrow: "M5 12h14M13 6l6 6-6 6",
+    book: "M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z", panel: "M3 3h18v18H3zM15 3v18",
+    sparkle: "M12 3l1.9 5.8L20 10.7l-5.6 2.4L12 19l-2.4-5.9L4 10.7l6.1-1.9z", info: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01",
+    clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2", chev: "M9 6l6 6-6 6", "check-c": "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM8 12l3 3 5-5",
+    "search-x": "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3M8.5 8.5l5 5M13.5 8.5l-5 5", stop: "M7 7h10v10H7z", tool: "M14 7l3-3 3 3-3 3M17 4L9 12M4 20l5-5 2 2-5 5z",
   };
   const icon = (name) => {
     const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -49,17 +53,28 @@
   function renderConvList() {
     const box = clear($("#conv-list"));
     if (!convs.length) { box.append(el("div", "nav-group", "대화 기록 없음")); return; }
-    const today = new Date().toDateString();
-    const groups = [["오늘", (c) => new Date(c.at).toDateString() === today], ["이전", (c) => new Date(c.at).toDateString() !== today]];
+    const day = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    const today = day(Date.now()), DAY = 86400000;
+    const groups = [["오늘", (c) => day(c.at) === today], ["어제", (c) => day(c.at) === today - DAY],
+                    ["지난 7일", (c) => day(c.at) < today - DAY && day(c.at) >= today - 7 * DAY], ["이전", (c) => day(c.at) < today - 7 * DAY]];
     groups.forEach(([g, f]) => {
       const items = convs.filter(f); if (!items.length) return;
       box.append(el("div", "nav-group", g));
       const ul = el("ul", "nav");
       items.forEach((c) => {
-        const b = el("button"); b.type = "button"; b.append(el("span", "label", c.title));
+        const b = el("button"); b.type = "button"; b.append(icon(c.tool ? "tool" : "chat"), el("span", "label", c.title));
         if (c.id === convId) b.setAttribute("aria-current", "page");
         b.addEventListener("click", () => openConv(c.id));
-        const li = el("li"); li.append(b); ul.append(li);
+        const del = el("button", "del"); del.type = "button"; del.setAttribute("aria-label", `대화 삭제: ${c.title}`); del.title = "이 대화 삭제 (이 브라우저에서만)";
+        del.append(icon("x"));
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (pending.has(c.id)) return toast("답변을 기다리는 대화는 지울 수 없습니다");
+          convs = convs.filter((x) => x.id !== c.id); save(convs);
+          if (convId === c.id) newConv(); else renderConvList();
+          toast("대화를 지웠습니다");
+        });
+        const li = el("li"); li.append(b, del); ul.append(li);
       });
       box.append(ul);
     });
@@ -70,24 +85,73 @@
     const t = clear($("#thread"));
     if (!c) return renderEmpty();
     c.msgs.forEach((m) => t.append(renderMsg(m.q, m.res)));
-    renderConvList();
+    const p = pending.get(id); if (p) t.append(p.node);   // 답을 기다리는 중인 대화로 돌아오면 진행 표시를 다시 붙인다
+    renderConvList(); setBusy(busy);   // 입력칸 안내 문구가 대화 종류(질문 · 개정 요청)를 따른다
     const last = c.msgs[c.msgs.length - 1];
-    const first = last?.res?.entries?.find((e) => (last.res.cited || []).includes(e.n) && isOpenable(e.chunk)) || last?.res?.entries?.find((e) => isOpenable(e.chunk));
+    const first = last?.res && leadEntry(last.res);
     if (first) loadArticle(first.chunk);
     t.scrollTop = t.scrollHeight;
   }
-  function newConv() { convId = null; $("#chat-title").textContent = "새 대화"; renderEmpty(); renderConvList(); show("chat"); $("#ask-q").focus(); }
+  // amend: 개정 업무 화면의 「개정 요청 쓰기」로 연 대화. 이 대화의 메시지는 말투와 상관없이 개정 도구로 보낸다 (conv.mode = "amend")
+  let AMEND_NEW = false;
+  const amendConv = () => isEditor() && (conv() ? conv().mode === "amend" : AMEND_NEW);
+  function newConv(amend = false) {
+    convId = null; AMEND_NEW = amend; $("#chat-title").textContent = amend ? "새 개정 요청" : "새 대화";
+    renderEmpty(); renderConvList(); show("chat"); setBusy(busy); $("#ask-q").focus();
+  }
 
   // ── 채팅 ─────────────────────────────────────────────
-  const EXAMPLES = ["육아휴직은 몇 번까지 나눠 쓸 수 있나요?", "반반차(2시간)도 쓸 수 있나요?", "결혼하면 특별휴가 며칠 나와요?"];
+  // 자주 묻는 질문 (Figma 화면 2). 개정 담당자에게는 개정 요청 예시 하나 — 대화창에서 개정 도구를 부르는 시연
+  const FAQ = [["인사·복무", "육아휴직은 몇 번까지 나눠 쓸 수 있나요?"], ["인사·복무", "반반차(2시간)도 쓸 수 있나요?"],
+               ["복리·휴가", "결혼하면 특별휴가 며칠 나와요?"], ["인사·복무", "연차휴가는 며칠 받을 수 있나요?"]];
+  const FAQ_EDITOR = ["개정 요청", "인사규정 제30조 육아휴직 분할 사용 횟수를 3회로 늘려줘"];
+  // 개정 요청 대화의 첫 화면: 무엇을 적으면 되는지 · 적으면 무슨 일이 일어나는지 · 예시 (예시는 입력칸에 채우기만, 보내기는 담당자가)
+  const AMEND_EX = [["조 번호를 알 때", "인사규정 제30조 육아휴직 분할 사용 횟수를 3회로 늘려줘"],
+                    ["조를 지울 때", "인사규정 제37조 당연면직 조항을 삭제해줘"],
+                    ["조 번호를 모를 때", "육아휴직을 나눠 쓸 수 있는 횟수를 3회로 늘려줘"]];
+  function renderAmendEmpty() {
+    const t = clear($("#thread")), box = el("div", "empty-chat amend-start");
+    const hero = el("span", "amend-hero"); hero.append(icon("tool"));
+    box.append(hero, el("h2", null, "어떤 조문을 어떻게 바꿀까요?"),
+      el("span", null, "규정 이름 · 조 번호 · 바꿀 내용을 한 문장으로 적어 주세요. 이 대화의 요청은 모두 개정 도구로 갑니다."));
+    const ol = el("ol", "amend-steps");
+    [["고칠 조문 찾기", "적은 조문을 엽니다. 조 번호가 없으면 후보를 보여 드리고, 고르는 건 담당자입니다."],
+     ["AI 검토", "개정문 · 신구대비표를 쓰고, 깨지는 인용을 연쇄 수정하고, 영향 카드를 만듭니다."],
+     ["개정안 검토", "카드마다 수락 · 기각한 뒤 승인권자에게 제출합니다."]].forEach(([b, p], i) => {
+      const li = el("li"); li.append(el("span", "sn", String(i + 1)), el("b", null, b), el("p", null, p)); ol.append(li);
+    });
+    const ex = el("div", "faq"), grid = el("div", "faq-grid three");
+    ex.append(el("span", "label", "요청 예시 (누르면 입력칸에 채워집니다)"));
+    AMEND_EX.forEach(([cat, q]) => {
+      const b = el("button"); b.type = "button";
+      b.append(el("span", "tag warn", cat), icon("edit"), el("span", null, q));
+      b.addEventListener("click", () => { const ta = $("#ask-q"); ta.value = q; autosize(); ta.focus(); ta.setSelectionRange(q.length, q.length); });
+      grid.append(b);
+    });
+    ex.append(grid); box.append(ol, ex); t.append(box);
+  }
   function renderEmpty() {
+    if (amendConv()) return renderAmendEmpty();
     const t = clear($("#thread")), box = el("div", "empty-chat");
-    box.append(el("h2", null, "내부규정에 대해 물어보세요"), el("span", null, "답에는 근거 조문 번호가 붙고, 누르면 오른쪽에 원문이 열립니다."));
-    const ex = el("div", "examples");
-    EXAMPLES.forEach((q) => { const b = el("button"); b.type = "button"; b.append(q, icon("arrow")); b.addEventListener("click", () => send(q)); ex.append(b); });
-    box.append(ex); t.append(box);
+    const hero = el("img", "hero"); hero.src = "img/kiwi-256.png"; hero.alt = ""; hero.width = hero.height = 112;
+    box.append(hero, el("h2", null, "무엇이 궁금하신가요?"),
+      el("span", null, isEditor() ? "내부규정 조문을 근거로 답하고, 개정 요청은 개정 도구로 초안을 만들어 드립니다." : "내부규정 조문을 근거로 답해 드립니다."));
+    const faq = el("div", "faq"), grid = el("div", "faq-grid");
+    faq.append(el("span", "label", "자주 묻는 질문"));
+    (isEditor() ? [...FAQ.slice(0, 3), FAQ_EDITOR] : FAQ).forEach(([cat, q]) => {
+      const b = el("button"); b.type = "button";
+      b.append(el("span", "tag " + (cat === "개정 요청" ? "warn" : "accent"), cat), icon("arrow"), el("span", null, q));
+      b.addEventListener("click", () => send(q)); grid.append(b);
+    });
+    faq.append(grid); box.append(faq); t.append(box);
   }
   const isOpenable = (chunk) => chunk && /^\d+_/.test(chunk);
+  // 근거 패널에 먼저 열 조문: 답 본문에서 처음 인용한 번호(보통 결론 문장의 근거) → 인용 목록 → 아무 근거
+  function leadEntry(res) {
+    const es = (res.entries || []).filter((e) => isOpenable(e.chunk));
+    for (const m of (res.answer || "").matchAll(/\[(\d+)\]/g)) { const e = es.find((x) => x.n === +m[1]); if (e) return e; }
+    return es.find((e) => (res.cited || []).includes(e.n)) || es[0];
+  }
 
   // 가빈 답변 형식(**제목:**, - 불릿, [n] 인용)을 안전하게 그린다
   function inline(text, entries, into) {
@@ -115,21 +179,75 @@
     });
     return body;
   }
-  function openEntry(e) {
+  // 근거 카드 · [n]을 한 번 누르면 바로 오른쪽 패널에 연다: 접혀 있으면 펼치고, 열린 카드를 표시하고, 패널을 잠깐 반짝여 바뀐 것을 보인다
+  // (같은 조의 다른 항이면 형광만 옮겨 가서 「안 바뀐 것처럼」 보였음, 261018 사용자 지적)
+  async function openEntry(e) {
     if (!e) return;
-    if (isOpenable(e.chunk)) { loadArticle(e.chunk); selectTab("src"); }
-    else toast(`${e.reg || "외부 법령"} ${e.article || ""} — 법령 원문은 내부규정 패널에 열 수 없습니다`);
+    if (!isOpenable(e.chunk)) return toast(`${e.reg || "외부 법령"} ${e.article || ""} — 법령 원문은 내부규정 패널에 열 수 없습니다`);
+    openPanel(); selectTab("src");
+    document.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === e.chunk));
+    if (await loadArticle(e.chunk)) {
+      const P = $("#panel-src"); P.classList.remove("flash"); void P.offsetWidth; P.classList.add("flash");
+      const r = $("#src-panel").getBoundingClientRect();
+      if (r.top > innerHeight || r.bottom < 0) $("#src-panel").scrollIntoView({ behavior: "smooth", block: "start" });   // 좁은 화면: 패널이 아래에 있음
+    }
   }
-  function renderMsg(q, res) {
+  // 답변 한 덩어리: 표지 · 이름 · 상태 줄 + 카드 (Figma 화면 4)
+  function aiShell(wrap, stateLabel, tone, ic) {
+    const row = el("div", "ai"), av = el("div", "ai-av"), img = el("img"); img.src = "img/kiwi-96.png"; img.alt = ""; av.append(img);
+    const c = el("div", "ai-c"), head = el("div", "a-head"); head.append(el("b", null, "규정 도우미"));
+    if (stateLabel) { const s = el("span", "state " + (tone || "")); s.append(icon(ic), stateLabel); head.append(s); }
+    c.append(head); row.append(av, c); wrap.append(row); return c;
+  }
+  // 생성 중 단계 (Figma 화면 3). 서버가 단계 신호를 보내지 않으므로 경과 시간으로 넘기는 표시용 추정이다
+  const STEPS = {
+    ask: [["질문 분석", 0], ["문서 검색", 1.5, "내부규정에서 관련 조문을 찾고 있습니다"], ["답변 생성", 6, "찾은 조문을 근거로 답을 쓰고 있습니다"]],
+    amend: [["요청 분석", 0], ["고칠 조문 찾기", 1, "규정 이름 · 조 번호 · 바꿀 내용으로 위치를 찾고 있습니다"]],
+    draft: [["개정문 초안 작성", 0, "모델이 조문을 다시 쓰고 개정문으로 바꿉니다"], ["원문 적용 확인", 10, "개정문이 원문에 그대로 적용되는지 확인합니다"],
+            ["인용 · 영향 점검", 18, "이 조를 인용하는 곳과 관련 법령을 대조합니다"]],
+  };
+  function stepsCard(kind, title) {
+    const card = el("div", "steps-card"), b = el("b"); b.append(icon("sparkle"), title);
+    const meter = el("div", "meter"), bar = el("i"); meter.append(bar);
+    const ol = el("ol"), items = STEPS[kind].map(([t, , sub], i) => {
+      const li = el("li"), s = el("span", null, `${"①②③④"[i]} ${t} 중`); if (sub) s.append(el("small", null, sub)); li.append(s); ol.append(li); return li;
+    });
+    card.append(b, meter, ol);
+    const t0 = Date.now(), tick = () => {
+      const sec = (Date.now() - t0) / 1000; let cur = 0;
+      STEPS[kind].forEach(([, at], i) => { if (sec >= at) cur = i; });
+      items.forEach((li, i) => { li.className = i < cur ? "done" : i === cur ? "now" : ""; });
+      bar.style.width = Math.min(92, ((cur + 0.6) / items.length) * 100) + "%";
+    };
+    tick(); const timer = setInterval(tick, 500);
+    card.stop = () => clearInterval(timer);
+    return card;
+  }
+  let REGS = 0;
+  function renderMsg(q, res, kind = "ask") {
     const wrap = el("div", "msg");
     const qq = el("div", "q"); qq.append(el("span", null, q)); wrap.append(qq);
-    const a = el("div", "a"); wrap.append(a);
-    if (!res) { const th = el("div", "thinking"); th.append(el("span", "bar"), el("span", "label", "근거 찾는 중 · 0초")); a.append(th); return wrap; }
-    if (res.error) { a.append(el("div", "warnline", `답하지 못했습니다 — ${res.error}`)); return wrap; }
-    const head = el("div", "a-head");
-    const modeTag = { answer: ["답변", "pos"], partial: ["관련 조문만", "warn"], none: ["근거 없음", ""] }[res.mode] || ["답변", ""];
-    head.append(el("b", null, "규정 도우미"), el("span", "tag " + modeTag[1], modeTag[0]), el("span", "label", `${res.model} · ${res.sec}초`));
-    a.append(head, renderBody(res.answer, res.entries));
+    if (!res) {
+      const card = stepsCard(kind, kind === "amend" ? "개정 요청을 확인하고 있습니다" : "답변을 준비하고 있습니다");
+      aiShell(wrap).append(card); wrap.stop = card.stop; return wrap;
+    }
+    if (res.tool === "amend") return renderTool(wrap, q, res);
+    if (res.error) { aiShell(wrap, "답하지 못함", "warn", "info").append(el("div", "warnline", `답하지 못했습니다 — ${res.error}`)); return wrap; }
+    const ST = { answer: ["답변 완료", "pos", "check-c"], partial: ["관련 조문만", "warn", "info"], none: ["근거 없음", "", "info"] }[res.mode] || ["답변 완료", "pos", "check-c"];
+    const a = el("div", "a" + (res.mode === "none" ? " muted" : ""));
+    const shell = aiShell(wrap, ST[0], ST[1], ST[2]);
+    if (res.standalone) {   // 멀티턴: 이어 묻는 질문을 독립 질문으로 바꿔 검색했음 (Figma 화면 4 「이전 질문에 이어서 답변」)
+      const f = el("span", "follow-of"); f.title = `검색한 질문: ${res.standalone}`;
+      f.append(icon("arrow"), "이전 질문 ", el("b", null, `「${res.followup_of}」`), "에 이어서 답변");
+      shell.append(f);
+    }
+    shell.append(a);
+    if (res.mode === "none") {   // 근거 없음 (Figma 화면 5): 추측하지 않고 보류했다는 것을 보인다
+      const lead = el("div", "lead"); lead.append(icon("info"), renderBody(res.answer, res.entries)); a.append(lead);
+      const nb = el("div", "none-box"), tx = el("div");
+      tx.append(el("b", null, "관련 조문을 찾지 못했습니다"), `내부규정${REGS ? " " + REGS + "건" : ""}을 검색했지만 질문과 맞는 조문이 없어, 추측하지 않고 답변을 보류했습니다.`);
+      nb.append(icon("search-x"), tx); a.append(nb);
+    } else a.append(renderBody(res.answer, res.entries));
     const cited = new Set(res.cited || []);
     const used = res.entries.filter((e) => cited.has(e.n)), rest = res.entries.filter((e) => !cited.has(e.n));
     const shown = used.length ? used : rest.slice(0, 5);
@@ -157,9 +275,10 @@
       box.append(ul, el("p", null, "개정이 확정되면 이 답이 달라질 수 있습니다. 지금은 현행 조문 기준입니다."));
       a.append(box);
     }
-    const src = el("div", "sources"); src.append(el("span", "label", used.length ? `인용한 근거 ${used.length}` : `근거 후보 ${rest.length}`));
+    const src = el("div", "sources"); src.append(el("span", "label", used.length ? `근거 조문 ${used.length}건` : `근거 후보 ${shown.length}건`));
+    if (res.mode === "none") src.hidden = true;
     shown.forEach((e) => {
-      const c = el("button", "cite" + (isOpenable(e.chunk) ? "" : " off")); c.type = "button";
+      const c = el("button", "cite" + (isOpenable(e.chunk) ? "" : " off")); c.type = "button"; if (e.chunk) c.dataset.chunk = e.chunk;
       const ROLE = { "검색": "검색 결과", "형제항": "같은 조의 다른 항", "인용": "인용된 조문", "정확조회": "직접 찾은 조문", "관련 조문": "관련 조문" };
       const t = el("span"); t.append(`${e.reg || ""} ${e.article || ""}`, el("small", null, ROLE[e.role] || e.role || ""));
       const tags = el("span", "tags"); tags.append(el("span", "tag " + (e.state === "현행" ? "pos" : ""), e.state || ""));
@@ -169,7 +288,7 @@
     });
     a.append(src);
     (res.warnings || []).slice(0, 3).forEach((w) => a.append(el("div", "warnline", "⚠ " + w)));
-    const foot = el("div", "a-foot"); foot.append("참고용 답변 · 최종 판단은 담당 부서");
+    const foot = el("div", "a-foot"); foot.append("참고용 답변");   // 걸린 시간 · 모델 이름은 화면에 보이지 않는다 (res.sec · res.model은 의견 기록에만)
     const acts = el("span", "acts");
     const cp = el("button", "icon-btn"); cp.type = "button"; cp.setAttribute("aria-label", "답변 복사"); cp.append(icon("copy"));
     cp.addEventListener("click", async () => { try { await navigator.clipboard.writeText(res.answer); toast("답변을 복사했습니다"); } catch { toast("복사하지 못했습니다"); } });
@@ -182,28 +301,126 @@
     foot.append(acts); a.append(foot);
     return wrap;
   }
-  let busy = false;
-  async function send(text) {
-    const q = (text ?? $("#ask-q").value).trim();
-    if (!q || busy) return;
-    if (!LIVE) return toast("서버에 연결되지 않아 질문할 수 없습니다");
-    busy = true; $("#composer .send").disabled = true; $("#ask-q").value = "";
-    if (!conv()) { convId = "c" + Date.now(); convs.unshift({ id: convId, title: q.slice(0, 40), at: Date.now(), msgs: [] }); $("#chat-title").textContent = q.slice(0, 40); }
-    const t = $("#thread"); if (t.querySelector(".empty-chat")) clear(t);
-    const node = renderMsg(q, null); t.append(node); t.scrollTop = t.scrollHeight;
-    const lab = node.querySelector(".thinking .label"), t0 = Date.now();
-    const tick = setInterval(() => { const s = Math.round((Date.now() - t0) / 1000); lab.textContent = `${s < 6 ? "근거 찾는 중" : "답변 쓰는 중"} · ${s}초`; }, 1000);
-    let res;
-    try { res = await api("/api/ask", { q }); } catch (e) { res = { error: e.message }; }
-    clearInterval(tick);
-    node.replaceWith(renderMsg(q, res));
-    const c = conv(); c.msgs.push({ q, res }); c.at = Date.now(); save(convs); renderConvList();
-    const first = res.entries?.find((e) => (res.cited || []).includes(e.n) && isOpenable(e.chunk)) || res.entries?.find((e) => isOpenable(e.chunk));
-    if (first) loadArticle(first.chunk);
-    t.scrollTop = t.scrollHeight;
-    busy = false; $("#composer .send").disabled = false; $("#ask-q").focus();
+  // ── 개정 도구: 대화창의 개정 요청 → 고칠 조문 찾기(GET /api/find) → 개정안 작성(POST /api/draft) ──
+  // 질문은 RAG(가빈 파이프라인)가, 개정 요청은 우리 에이전트가 맡는다. 고르는 기준은 규칙(개정 담당자 + 「바꿔 · 고쳐 · 신설 …」)이고,
+  // 잘못 고르면 「질문으로 답 받기」로 되돌린다. 상위 모델이면 모델이 도구를 직접 고르게 할 수 있다 (발표 이야기, 리포트 57)
+  const AMEND_RE = /(개정해|개정하|바꿔|바꾸어|바꾸고|고쳐|고치고|수정해|신설|삭제해|없애|추가해|넣어|늘려|줄여|올려|낮춰|변경해)/;
+  const wantsAmend = (q) => isEditor() && AMEND_RE.test(q);
+  function targetBtn(sel, x) {
+    const b = el("button", "cite"); b.type = "button";
+    const t = el("span"); t.append(`${x.reg} ${x.label}${x.title ? `(${x.title})` : ""}`, el("small", null, x.how));
+    const n = el("span", "num"); n.append(icon("doc"));
+    b.append(n, t, el("small", null, "원문 →"));
+    b.addEventListener("click", () => {
+      loadArticle(x.chunk); selectTab("src"); openPanel();
+      if (sel.pickable) { b.parentElement.parentElement.querySelectorAll(".cite").forEach((o) => o.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", "true"); sel.chunk = x.chunk; sel.onPick?.(); }
+    });
+    return b;
   }
-  $("#composer").addEventListener("submit", (e) => { e.preventDefault(); send(); });
+  function draftRow(q, res, sel, wrap) {
+    const row = el("div", "tool-row"), go = el("button", "btn primary small"); go.type = "button";
+    go.append(icon("edit"), "이 조문으로 개정안 작성");
+    const note = el("small", "hint", sel.chunk ? "" : "후보 하나를 고르면 작성할 수 있습니다");
+    go.disabled = !sel.chunk; sel.onPick = () => { go.disabled = false; note.textContent = ""; };
+    go.addEventListener("click", async () => {
+      if (!LIVE) return toast("서버에 연결되지 않았습니다");
+      go.disabled = true;
+      const card = stepsCard("draft", "개정안을 만들고 있습니다"); row.after(card);
+      try {
+        const r = await api("/api/draft", { chunk: sel.chunk, request: q });
+        res.draft = { id: r.id, breaks: r.breaks, companion: r.companion, impacts: r.impacts, chunk: sel.chunk }; save(convs);
+        wrap.replaceWith(renderMsg(q, res)); await refreshChangesets(); loadArticle(sel.chunk);
+      } catch (e) { toast(e.message, 6000); go.disabled = false; }
+      finally { card.stop(); card.remove(); }
+    });
+    row.append(go, note); return row;
+  }
+  function draftDone(d) {
+    const box = el("div", "tool-done"), ul = el("ul");
+    box.append(el("b", null, `개정안 ${d.id} 초안을 만들었습니다`));
+    ul.append(el("li", null, `깨지는 인용 ${d.breaks?.[0] ?? 0} → ${d.breaks?.[1] ?? 0} (다른 규정의 인용까지 연쇄 수정)`),
+              el("li", null, `함께 개정할 규정 ${d.companion ?? 0}개 · 확인할 영향 ${d.impacts ?? 0}건`));
+    const go = el("button", "btn secondary small staff-only"); go.type = "button"; go.dataset.view = "review"; go.dataset.cs = d.id;
+    go.append("개정안 검토 열기", icon("arrow"));
+    box.append(ul, go); return box;
+  }
+  function renderTool(wrap, q, res) {
+    const done = !!res.draft, f = res.find || {};
+    const a = el("div", "a");
+    aiShell(wrap, done ? "개정안 작성됨" : "개정 도구", done ? "pos" : "tool", done ? "check-c" : "tool").append(a);
+    const sel = { chunk: f.chunk || res.draft?.chunk || null, pickable: !f.chunk && !done };
+    if (res.error || f.error) a.append(el("div", "warnline", res.error || f.error));
+    else if (f.chunk) {
+      a.append(el("p", "hint", f.guessed ? "개정 요청으로 이해했습니다. 규정 이름이 정확하지 않아 가장 비슷한 규정으로 찾았습니다." : "개정 요청으로 이해했습니다. 이 조문을 고칩니다."));
+      const t = el("div", "tool-target"); t.append(targetBtn(sel, { reg: f.reg, label: f.label, how: f.guessed ? "이름으로 추정" : "직접 찾은 조문", chunk: f.chunk })); a.append(t);
+    } else if (f.candidates?.length) {
+      a.append(el("p", "hint", f.confident ? "개정 요청으로 이해했습니다. 고칠 조문 후보입니다. 맞는 조문을 고르세요." : "고칠 조문이 확실하지 않습니다. 후보에서 고르거나, 규정 이름과 조 번호를 적어 다시 요청하세요."));
+      const t = el("div", "tool-target");
+      f.candidates.slice(0, 5).forEach((x) => {
+        const r = el("div", "tool-row");
+        const b = targetBtn(sel, { reg: x.reg_name, label: x.label, title: x.title, how: "모델 추정", chunk: x.chunk });
+        if (x.chunk === sel.chunk) b.setAttribute("aria-pressed", "true");
+        r.append(b); t.append(r);
+      });
+      a.append(t);
+    } else a.append(el("div", "warnline", "고칠 조문을 찾지 못했습니다. 규정 이름과 조 번호를 함께 적어 주세요."));
+    if (done) a.append(draftDone(res.draft));
+    else if (!res.error && !f.error && (f.chunk || f.candidates?.length)) a.append(draftRow(q, res, sel, wrap));
+    const foot = el("div", "a-foot"), alt = el("button", "link-btn", "질문이었나요? 질문으로 답 받기"); alt.type = "button";
+    alt.addEventListener("click", () => send(q, true));
+    foot.append("개정문은 참고 문안입니다. 담당자가 카드마다 수락 · 기각합니다.", alt); a.append(foot);
+    return wrap;
+  }
+
+  // 서버는 질문을 하나씩 처리한다 (GPU 하나, web_chat의 lock) → 화면도 한 번에 하나만 보낸다.
+  // 답을 기다리는 동안 다른 대화를 열거나 새 대화를 시작해도, 답은 보낸 대화(cid)에 붙는다.
+  const pending = new Map();   // 대화 id → { node }
+  let busy = null;             // 지금 보낸 요청의 AbortController
+  function setBusy(ctrl) {
+    busy = ctrl;
+    const s = $("#composer .send"), ta = $("#ask-q");
+    s.classList.toggle("stop", !!ctrl); s.setAttribute("aria-label", ctrl ? "멈추기" : "보내기"); s.replaceChildren(icon(ctrl ? "stop" : "up-arrow"));
+    ta.placeholder = ctrl ? "답변을 만들고 있습니다… (■ 버튼으로 멈추기)"
+      : amendConv() ? "개정 요청: ○○규정 제△조를 어떻게 바꿀지 적어 주세요" : "내부규정에 대해 궁금한 점을 질문해 보세요";
+  }
+  const autosize = () => { const ta = $("#ask-q"); ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 200) + "px"; };
+  $("#ask-q").addEventListener("input", autosize);
+  async function send(text, forceAsk) {
+    if (busy) return toast("앞 질문의 답을 만드는 중입니다. 끝나거나 멈춘 뒤 보내 주세요");
+    const q = (text ?? $("#ask-q").value).trim();
+    if (!q) return;
+    if (!LIVE) return toast("서버에 연결되지 않아 질문할 수 없습니다");
+    const tool = !forceAsk && (amendConv() || wantsAmend(q));
+    if (text == null) { $("#ask-q").value = ""; autosize(); }
+    if (!conv()) {
+      convId = "c" + Date.now(); convs.unshift({ id: convId, title: q.slice(0, 40), at: Date.now(), msgs: [], tool, mode: amendConv() ? "amend" : "ask" });
+      AMEND_NEW = false; $("#chat-title").textContent = q.slice(0, 40);
+    }
+    const cid = convId, c = conv();
+    // 멀티턴: 이 대화의 앞 질문(답이 난 것) 3개를 함께 보낸다 → 서버가 이어 묻는 질문을 독립 질문으로 바꿔 검색 (web_chat.standalone)
+    const history = c.msgs.filter((m) => m.res && !m.res.tool && !m.res.error && m.res.answer).slice(-3)
+      .map((m) => ({ q: m.res.standalone || m.q, a: (m.res.answer || "").slice(0, 400) }));
+    const t = $("#thread"); if (t.querySelector(".empty-chat")) clear(t);
+    const node = renderMsg(q, null, tool ? "amend" : "ask"); t.append(node); t.scrollTop = t.scrollHeight;
+    const ctrl = new AbortController(); pending.set(cid, { node }); setBusy(ctrl);
+    let res;
+    try { res = tool ? { tool: "amend", find: await api(`/api/find?q=${encodeURIComponent(q)}`, null, ctrl.signal) } : await api("/api/ask", { q, history }, ctrl.signal); }
+    catch (e) {
+      const msg = e.name === "AbortError" ? "멈췄습니다. 다시 물어보려면 질문을 보내 주세요" : e.message;
+      res = tool ? { tool: "amend", error: msg } : { error: msg, stopped: e.name === "AbortError" };
+    }
+    node.stop?.(); pending.delete(cid);
+    const done = renderMsg(q, res);
+    if (node.isConnected) node.replaceWith(done);
+    c.msgs.push({ q, res }); c.at = Date.now(); save(convs); renderConvList();
+    setBusy(null);
+    if (convId !== cid) { toast(`「${c.title}」 대화에 답이 도착했습니다`); return; }
+    const first = tool ? (res.find?.chunk || res.find?.candidates?.[0]?.chunk)
+      : leadEntry(res)?.chunk;
+    if (first) { loadArticle(first); selectTab("src"); openPanel(); done.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === first)); }
+    t.scrollTop = t.scrollHeight; $("#ask-q").focus();
+  }
+  $("#composer").addEventListener("submit", (e) => { e.preventDefault(); if (busy) busy.abort(); else send(); });
   $("#ask-q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 
   // ── 근거 원문 ────────────────────────────────────────
@@ -215,6 +432,9 @@
     h.append(el("h2", null, art.reg), meta);
     P.append(h, el("h3", "art-title", art.label));
     art.paras.forEach((p, i) => P.append(el("p", "para" + (i === art.highlight ? " hl" : "") + (p.status === "삭제" ? " del" : ""), p.text)));
+    if (art.paras.length > 1 && art.highlight != null && art.highlight >= 0) {
+      const n = el("p", "hl-note"); n.append(icon("info"), "노란 표시 부분이 답변 · 요청이 가리킨 항입니다."); P.append(n);
+    }
     P.scrollTop = 0; const hl = P.querySelector(".para.hl");   // 머리(규정명)가 보이게 위에서 시작, 강조 항이 화면 밖일 때만 내림
     if (hl && hl.offsetTop + hl.offsetHeight > P.clientHeight) hl.scrollIntoView({ block: "nearest" });
   }
@@ -271,7 +491,7 @@
     const btns = el("div", "row-btns"); const go = el("button", "btn primary"); go.type = "submit"; go.append(icon("edit"), "개정안 작성");
     btns.append(go); form.append(ta, btns);
     form.addEventListener("submit", (e) => { e.preventDefault(); draft(ta.value, form, go); });
-    row.append(form, el("p", "hint", "로컬 모델이 개정문 초안을 쓰고, 적용기가 원문과 맞는지 확인한 뒤 연쇄 수정·영향 점검까지 합니다. 결과는 참고 문안이며 자동 반영되지 않습니다."));
+    row.append(form, el("p", "hint", "모델이 개정문 초안을 쓰고, 적용기가 원문과 맞는지 확인한 뒤 연쇄 수정·영향 점검까지 합니다. 결과는 참고 문안이며 자동 반영되지 않습니다."));
     A.append(row);
     const n = m.inbound.length + m.findings.length + m.open.length;
     $("#amend-count").textContent = n ? String(n) : "";
@@ -351,19 +571,33 @@
     $("#tab-src").setAttribute("aria-selected", String(src)); $("#tab-amend").setAttribute("aria-selected", String(!src));
     $("#panel-src").hidden = !src; $("#panel-amend").hidden = src;
   }
+  // 근거 원문 패널 접기 · 펼치기 (Figma 화면 2·3·5는 접힌 세로 막대, 화면 4는 펼침)
+  function openPanel() { $("#view-chat").classList.remove("collapsed"); $("#rail").hidden = true; }
+  function closePanel() { $("#view-chat").classList.add("collapsed"); $("#rail").hidden = false; }
+  $("#panel-close").addEventListener("click", closePanel);
+  $("#panel-open").addEventListener("click", openPanel);
+  $("#panel-open2").addEventListener("click", openPanel);
   $("#tab-src").addEventListener("click", () => selectTab("src"));
   $("#tab-amend").addEventListener("click", () => selectTab("amend"));
 
   // ── 개정안 목록·검토 ─────────────────────────────────
   function renderChangesetList(list) {
     const ul = clear($("#cs-list"));
+    if (!list.length) ul.append(el("li", "nav-group", "개정안 없음"));
     list.forEach((c) => {
       const b = el("button"); b.type = "button"; b.dataset.view = "review"; b.dataset.cs = c.id;
-      b.append(el("span", "tag" + (c.status_label === "검토" ? " accent" : ""), c.id), el("span", "label", c.title.replace(/\s*\([^)]*\)\s*$/, "")));
+      const [lab, tone] = CS_LABEL[c.status_label] || [c.status_label || "", ""];
+      b.title = `${c.id} · ${c.reg || ""} — ${c.title}`;
+      b.append(icon("doc"), el("span", "label", `${c.reg ? c.reg + " " : ""}${c.title.replace(/\s*\([^)]*\)\s*$/, "")}`));
+      if (lab) b.append(el("span", "chip " + tone, lab));
       const li = el("li"); li.append(b); ul.append(li);
     });
   }
-  async function refreshChangesets() { if (LIVE) renderChangesetList(await api("/api/changesets")); }
+  async function refreshChangesets() {
+    if (!LIVE) return;
+    CS_ALL = await api("/api/changesets"); renderChangesetList(CS_ALL);
+    if (!$("#view-work").hidden) renderWork();
+  }
   // 상태: 초안 → 검토(제출) → 승인(최종안 저장) → 공포.  검토 중 반려 → 기각 (sql/amend_schema.sql CHECK)
   const CS_LABEL = { 초안: ["초안", ""], 검토: ["검토 요청됨", "accent"], 승인: ["승인", "pos"], 공포: ["공포", "pos"], 기각: ["반려", "neg"] };
   const editable = (C) => (C.status === "초안" || C.status === "검토") && isEditor();   // 카드 수락·기각은 담당자만. 승인권자는 보고 승인·반려
@@ -447,9 +681,20 @@
   }
   function renderChangeset(C) {
     CS = C;
-    $("#cs-id").textContent = C.id; $("#cs-title").textContent = `${C.reg} — ${C.title.replace(/\s*\([^)]*\)\s*$/, "")}`;
+    const ttl = C.title.replace(/\s*\([^)]*\)\s*$/, "").replace(/^\S+\s+—\s+/, "");   // 대화에서 만든 개정안은 제목이 요청 문장(규정 이름 포함)
+    $("#cs-id").textContent = `개정안 ${C.id}`; $("#cs-title").textContent = ttl.startsWith(C.reg) ? ttl : `${C.reg} — ${ttl}`;
     const [lab, tone] = CS_LABEL[C.status] || [C.status, ""];
-    $("#cs-status").textContent = lab; $("#cs-status").className = "tag " + tone;
+    $("#cs-status").textContent = lab; $("#cs-status").className = "chip " + tone;
+    // 진행 단계 (캔버스 화면 9의 단계 표시줄을 우리 상태에 맞춤): 초안 작성 → 검토 요청 → 승인 → 공포
+    const flow = clear($("#cs-flow")), ORDER = ["초안", "검토", "승인", "공포"], NAMES = ["초안 작성 · 카드 결정", "검토 요청", "승인 (최종안)", "공포"];
+    const at = C.status === "기각" ? 1 : ORDER.indexOf(C.status);
+    NAMES.forEach((nm, i) => {
+      if (i) flow.append(el("span", "bar" + (i <= at ? " done" : "")));
+      const stop = C.status === "기각" && i === 1, last = C.status === "공포" && i === 3;
+      const s = el("span", "stp " + (stop ? "stop" : i < at || last ? "done" : i === at ? "cur" : ""));
+      const sn = el("span", "sn", stop ? "!" : String(i + 1)); if ((i < at || last) && !stop) { sn.textContent = ""; sn.append(icon("check")); }
+      s.append(sn, stop ? "반려됨" : nm); if (i === at) s.setAttribute("aria-current", "step"); flow.append(s);
+    });
     const doc = clear($("#doc"));
     const s1 = el("section"); s1.append(el("h2", null, "개정문"), el("p", "amend-text", C.amendment)); doc.append(s1);
     const s2 = el("section"); s2.append(el("h2", null, "신·구조문 대비표"));
@@ -466,30 +711,43 @@
       const s = el("section"); s.append(el("h2", null, "담당 부서 확인 필요 (질의서)"));
       const ol = el("ol", "qlist"); C.questions.forEach((x) => ol.append(el("li", null, `${x.where} — ${x.question}`))); s.append(ol); doc.append(s);
     }
-    if (C.breaks) doc.append(el("p", "hint", `연쇄 수정: 깨지는 인용 ${C.breaks[0] ?? 0} → ${C.breaks[1] ?? 0}`));
-    if (C.coverage) {   // 이번 점검이 확인한 경로와, 구조상 확인하지 못하는 유형 (판단은 사람이 이 범위를 알고 한다)
-      const s = el("section", "coverage"); s.append(el("h2", null, "확인한 범위"));
-      const on = (C.coverage.paths || []).filter((x) => x.on), off = (C.coverage.paths || []).filter((x) => !x.on);
-      s.append(el("p", null, "확인한 경로 (찾은 곳): " + on.map((x) => `${x.name} ${x.found}`).join(" · ")
-        + (off.length ? ` / 끈 경로: ${off.map((x) => x.name).join(" · ")}` : "")));
-      const ul = el("ul", "hint"); (C.coverage.not_covered || []).forEach((t) => ul.append(el("li", null, `확인하지 못함: ${t}`)));
+    // 깨지는 인용(연쇄 수정 전 → 후)은 오른쪽 요약 맨 위에 한 줄로 보인다
+    if (C.coverage?.not_covered?.length) {   // 구조상 확인하지 못하는 유형 (판단은 사람이 이 범위를 알고 한다). 찾은 경로별 개수는 개발용이라 뺌 (261019)
+      const s = el("section", "coverage"); s.append(el("h2", null, "AI가 확인하지 못하는 것"));
+      const ul = el("ul", "hint"); C.coverage.not_covered.forEach((t) => ul.append(el("li", null, t)));
       s.append(ul); doc.append(s);
     }
     fillProcedure(C, doc);
 
     const SD = clear($("#side"));
-    const cnt = (k) => C.impacts.filter((x) => x.kind === k).length;
-    const sum = el("div", "summary");
-    // 깨짐 카드는 에이전트가 본 개정문 안에서 이미 고친 것일 수 있다 (연쇄 수정 breaks[0] → breaks[1])
-    const autoFixed = C.breaks && C.breaks[1] === 0 && cnt("break") > 0;
-    [[autoFixed ? `깨짐 → 0 자동 수정` : "깨짐", cnt("break"), cnt("break") > 0 && !autoFixed], ["충돌 해소", cnt("resolved")], ["법령 대조", cnt("law")], ["확인 필요", cnt("review") + cnt("topic")]].forEach(([t, v, hot]) => {
-      const s = el("span", hot ? "hot" : null); s.append(el("b", null, String(v)), t); sum.append(s);
+    // 요약: 담당자의 일(카드 결정)을 맨 위에 → 깨지는 인용 한 줄 → 종류별 거르기 (0인 종류는 뺌, 이름에 마우스를 올리면 뜻)
+    const head = el("div", "decide-head");
+    head.append(el("b", "decide-left"), el("span", "hint", editable(C) ? "카드마다 수락 · 기각하세요. 수락한 카드만 최종안에 반영됩니다." : "수락한 카드만 최종안에 반영됩니다."));
+    const [b0, b1] = C.breaks || [null, null];
+    const br = el("p", "break-line " + (b1 ? "neg" : "pos"));
+    br.append(icon(b1 ? "info" : "check-c"), b1 ? `깨지는 인용 ${b1}곳이 남아 있습니다 — 깨짐 카드를 확인하세요`
+      : b0 ? `깨지는 인용 ${b0}곳 → 연쇄 수정으로 0곳` : "이번 개정으로 깨지는 인용이 없습니다");
+    head.append(br);
+    const KINDS = [["break", "깨짐", "이번 개정으로 조 번호 · 문구가 맞지 않게 되는 인용"], ["resolved", "충돌 해소", "개정 뒤 다른 규정과 내용이 같아지는 곳"],
+                   ["law", "법령 대조", "개정한 조가 인용하는 법령 — 법령과 맞는지 비교할 곳"], ["review", "확인 필요", "같은 제목 · 비슷한 뜻으로 찾은 관련 조문 — 함께 고칠지 판단할 곳"]];
+    const kindOf = (x) => (x.kind === "topic" ? "review" : x.kind);
+    const fl = el("div", "kind-filter"); fl.setAttribute("role", "group"); fl.setAttribute("aria-label", "카드 종류로 거르기");
+    const filt = (k) => {
+      fl.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === k)));
+      SD.querySelectorAll(".rows > li").forEach((li) => (li.hidden = k !== "all" && li.dataset.kind !== k));
+    };
+    [["all", "전체", "모든 카드"], ...KINDS].forEach(([k, name, desc]) => {
+      const n = k === "all" ? C.impacts.length : C.impacts.filter((x) => kindOf(x) === k).length;
+      if (!n) return;
+      const b = el("button", "kf " + k); b.type = "button"; b.dataset.k = k; b.title = desc; b.setAttribute("aria-pressed", String(k === "all"));
+      b.append(name, el("b", null, String(n))); b.addEventListener("click", () => filt(k)); fl.append(b);
     });
-    SD.append(sum);
+    head.append(fl);
+    SD.append(head);
     const TONE = { break: "neg", resolved: "pos", law: "accent", review: "warn", topic: "" };
     const ol = el("ol", "rows");
     C.impacts.forEach((x) => {
-      const li = el("li", "row"), body = el("div", "body");
+      const li = el("li", "row"), body = el("div", "body"); li.dataset.kind = kindOf(x);
       const top = el("div", "top"); top.append(el("span", "tag " + (TONE[x.kind] || ""), x.label), el("span", "where", x.where));
       // 근거 종류: 문서 명시(원문 인용) / 낱말 일치(같은 제목·용어) / 모델 추정(의미 유사·오타) — 모델 추정은 담당자 판단이 더 필요
       if (x.basis) { const b = el("span", "basis" + (x.basis === "모델 추정" ? " model" : ""), x.basis); b.title = x.path ? `발견 경로: ${x.path}` : ""; top.append(b); }
@@ -535,16 +793,21 @@
     if (!CS) return;
     const N = CS.impacts.length, na = CS.impacts.filter((x) => x.state === "accept").length, nr = CS.impacts.filter((x) => x.state === "reject").length;
     $("#tally").textContent = `수락 ${na} / 기각 ${nr} / 남음 ${N - na - nr}${LIVE ? " · 결정은 바로 저장됩니다" : " · 예시 (저장 안 됨)"}`;
+    const left = $("#side .decide-left");
+    if (left) left.textContent = !N ? "결정할 카드가 없습니다" : N - na - nr ? `결정할 카드 ${N}건 중 ${N - na - nr}건 남음` : `카드 ${N}건을 모두 결정했습니다`;
     $("#p-acc").style.width = N ? (na / N) * 100 + "%" : "0"; $("#p-rej").style.width = N ? (nr / N) * 100 + "%" : "0";
   }
 
   // ── 데이터 불러오기 ──────────────────────────────────
+  let artSeq = 0;   // 빠르게 여러 번 누르면 늦게 온 앞 응답이 뒤 응답을 덮지 않게, 마지막 요청만 그린다
   async function loadArticle(chunk) {
-    if (!LIVE || !isOpenable(chunk)) return;
+    if (!LIVE || !isOpenable(chunk)) return false;
+    const my = ++artSeq;
     try {
       const [art, m] = await Promise.all([api(`/api/article?chunk=${encodeURIComponent(chunk)}`), api(`/api/amend?chunk=${encodeURIComponent(chunk)}`)]);
-      renderArticle(art); renderAmend(m);
-    } catch (e) { toast(e.message); }
+      if (my !== artSeq) return false;
+      renderArticle(art); renderAmend(m); return true;
+    } catch (e) { toast(e.message); return false; }
   }
   async function loadChangeset(id) {
     if (!LIVE) return;
@@ -557,14 +820,18 @@
     const box = clear($("#finder-cands")); box.hidden = true;
     try {
       const f = await api(`/api/find?q=${encodeURIComponent(text)}`);
-      if (f.chunk) { await loadArticle(f.chunk); selectTab("src"); return; }
+      if (f.chunk) {
+        await loadArticle(f.chunk); selectTab("src");
+        if (f.guessed) toast(`「${f.reg}」 ${f.label}(으)로 이해했습니다. 다른 규정이면 정확한 이름을 적어 주세요`);
+        return;
+      }
       // 규정·조를 모르는 요청 → 고칠 후보 조문 (모델 추정). 위치는 사람이 고른다
       if (!f.candidates || !f.candidates.length) return toast("고칠 조문 후보를 찾지 못했습니다. 규정 이름이나 조 번호를 적어 주세요");
       box.append(el("p", "hint", (f.confident ? "고칠 조문 후보입니다. 맞는 조문을 고르세요" : "후보가 확실하지 않습니다. 규정 이름이나 조 번호를 함께 적으면 더 정확합니다")
         + (f.rewritten ? ` (다시 찾은 검색어: 「${f.rewritten}」)` : "")));
       f.candidates.forEach((c) => {
         const b = el("button", "btn secondary small"); b.type = "button";
-        b.append(`${c.reg_name} ${c.label}(${c.title})`, el("small", "basis model", `모델 추정 ${Math.round(c.score * 100)}`));
+        b.append(`${c.reg_name} ${c.label}(${c.title})`, el("small", "basis model", "모델 추정"));
         b.addEventListener("click", async () => { box.hidden = true; await loadArticle(c.chunk); selectTab("src"); });
         box.append(b);
       });
@@ -574,7 +841,8 @@
   async function pollModel() {
     try {
       const s = await api("/api/chat/status");
-      $("#model-state").textContent = s.ready ? `${s.model} · Enter 보내기 · Shift+Enter 줄바꿈` : s.error ? `답변 모델 오류: ${s.error}` : `${s.model} 준비 중… (검색 모델 올리는 중)`;
+      $("#model-state").textContent = s.ready ? "Enter 보내기 · Shift+Enter 줄바꿈" : s.error ? "답변을 준비하지 못했습니다. 관리자에게 문의하세요" : "답변 준비 중…";
+      if (s.error) console.warn("답변 모델 오류:", s.error, s.model);
       if (!s.ready && !s.error) setTimeout(pollModel, 3000);
     } catch { /* 서버 없음 */ }
   }
@@ -587,6 +855,7 @@
     renderAmend({ open: [{ id: F.openChange.id, status: F.openChange.status, title: S.changeset.title }], inbound: F.inbound, findings: [],
                   laws: [], sameTitleLaws: F.law.map((x) => ({ law: x.where, article: "", text: x.note })) });
     renderChangesetList(S.changesets.map((c) => ({ ...c, status_label: "" })));
+    CS_ALL = S.changesets.map((c) => ({ ...c, status_label: "초안" })); if (!$("#view-work").hidden) renderWork();
     renderChangeset({ ...S.changeset, impacts: S.changeset.impacts.map((x) => ({ ...x, state: null })) });
   }
 
@@ -594,25 +863,26 @@
     renderConvList(); renderEmpty();
     try {
       const st = await api("/api/status");
-      LIVE = true;
-      $("#live").className = "live"; $("#live").textContent = `DB · 청크 ${st.chunks.toLocaleString()} · ${st.db_user}`;
+      LIVE = true; REGS = st.regs || 0;
+      if (REGS) $("#scope-text").textContent = `내부규정 ${REGS}건 기준 응답`;
+      $("#live").hidden = true;   // 정상일 때는 접속 정보(청크 수 · DB 계정)를 보이지 않는다 (서비스 화면, 261019)
       if (st.stale) {   // 가빈 청크가 다시 적재되거나 단위가 바뀌어 우리 항과의 대응이 끊김 → 근거 원문·개정 정보가 안 열릴 수 있음
-        $("#live").className = "live warn"; $("#live").textContent = `청크 대응 끊김 ${st.stale}곳`;
+        $("#live").hidden = false; $("#live").className = "live warn"; $("#live").textContent = `일부 조문을 열 수 없음`;
         $("#live").title = "챗봇 청크(public.chunks)가 바뀌었습니다. 관리자가 scripts/amend_load.py를 실행해 대응을 다시 계산해야 합니다.";
-        toast(`챗봇 청크가 바뀌어 조문 ${st.stale}곳의 대응이 끊겼습니다. 대응을 다시 계산해야 합니다.`, 6000);
+        console.warn(`청크 대응 끊김 ${st.stale}곳 — scripts/amend_load.py로 다시 계산`);
       }
       pollModel();
       await refreshChangesets();
       await loadArticle(S.article.chunk_id);
       const list = await api("/api/changesets"); if (list.length) await loadChangeset(list[0].id);
     } catch (e) {
-      $("#live").className = "live off"; $("#live").textContent = "예시 데이터 (서버 없음)";
+      $("#live").className = "live off"; $("#live").textContent = "서버에 연결되지 않음 · 예시 화면";
       renderSample();
     }
   })();
 
   // ── 변경 감시: 법률 DB 판 선택 → 탐색 시작(POST /api/scan/start) → 새로 생김·해결됨 ────────
-  const WATCH_BASE = { finding: "기준선 적재본", rebase: "비교 없이 기준으로 기록" };
+  const WATCH_BASE = { finding: "처음 점검 결과", rebase: "비교 없이 기준으로 기록" };
   const when = (s) => String(s || "").slice(0, 16).replace("T", " ");
   async function loadWatch(id) {
     if (!LIVE) { $("#watch-last").textContent = "서버에 연결되지 않아 탐색할 수 없습니다"; return; }
@@ -652,9 +922,7 @@
     hist.append(ul);
     const sc = res.scan; if (!sc) return;
     box.append(el("h2", null, "탐색 결과"));
-    const law = (sc.stats && sc.stats["법령 DB"]) || {};
-    box.append(el("p", "hint", `${sc.id} · ${when(sc.started_at)} · ${sc.law_snapshot} (법령 ${sc.law_count}개) · 비교 기준: ${WATCH_BASE[sc.base] || "직전 탐색 " + sc.base}` +
-      (law["법령 인용"] ? ` · 법령 인용 ${law["법령 인용"]}건 중 ${law["법령 연결"]}건 연결` : "")));
+    box.append(el("p", "hint", `${when(sc.started_at)} 탐색 · 법령 ${sc.law_count}개 · 비교 기준: ${WATCH_BASE[sc.base] || "직전 탐색"}`));
     const sum = el("div", "summary watch-sum");
     [["새로 생김", sc.counts.new, sc.counts.new > 0], ["해결됨", sc.counts.resolved, false], ["그대로", sc.counts.kept, false]].forEach(([t, n, hot]) => {
       const s = el("span", hot ? "hot" : null); s.append(t, el("b", null, String(n))); sum.append(s);
@@ -662,7 +930,7 @@
     box.append(sum);
     const draftable = res.items.filter((x) => x.change === "new" && (x.action || "").startsWith("초안")).length;
     if (draftable) {   // 감시 → 초안: 법령명 정비는 아래 「법령명 일괄 정비」에 새 판의 결과까지 들어가 있음
-      const p = el("p", "hint"); p.append(`새로 생긴 결과 중 ${draftable}건은 에이전트가 개정안 초안까지 만들 수 있습니다. `);
+      const p = el("p", "hint"); p.append(`새로 생긴 결과 중 ${draftable}건은 AI가 개정안 초안까지 만들 수 있습니다. `);
       const go = el("button", "btn secondary small"); go.type = "button"; go.append("법령명 정비 초안으로 이동");
       go.addEventListener("click", () => $("#lawname").scrollIntoView({ behavior: "smooth" }));
       p.append(go); box.append(p);
@@ -745,10 +1013,90 @@
     const foot = el("div", "actions-row"); foot.append(go); box.append(foot);
   }
 
+  // ── 개정 업무 첫 화면: 업무가 어떻게 흘러가는지 · 어디서 시작하는지 · 지금 내가 할 일 ──────
+  // 단계와 담당은 상태 흐름(초안 → 검토 → 승인 → 공포, sql/amend_schema.sql)과 역할 권한(app/web_agent.guard)에 맞춘다
+  const WORK_STEPS = [
+    { n: "개정 계기", who: "담당자", what: "질문하다 규정 사이 모순을 발견하거나, 법령이 바뀌었거나, 개정 지시가 내려옴" },
+    { n: "개정 요청", who: "담당자", what: "대화창에 「○○규정 제△조 … 바꿔줘」처럼 한 문장으로 요청" },
+    { n: "AI 검토", who: "AI", what: "고칠 조문 찾기 → 개정문 · 신구대비표 → 깨지는 인용 연쇄 수정 → 영향 카드" },
+    { n: "카드 결정 · 제출", who: "담당자", what: "영향 카드마다 수락 · 기각하고 승인권자에게 제출", status: "초안" },
+    { n: "승인 · 반려", who: "승인권자", what: "수락한 카드만 반영된 최종안을 보고 승인하거나 반려", status: "검토" },
+    { n: "공포", who: "담당자", what: "최종안 내려받기 · 등록 · 공지. 함께 개정할 규정은 새 초안으로 이어짐", status: "승인" },
+  ];
+  const TODO = {   // 역할별로 지금 손댈 개정안: 상태 → [할 일, 버튼]
+    editor: { 초안: ["영향 카드를 결정하고 제출하세요", "결정하러 가기"], 승인: ["승인됐습니다. 공포 처리하세요", "공포 처리하기"], 검토: ["승인권자 검토를 기다리는 중", "보기"] },
+    approver: { 검토: ["담당자가 제출했습니다. 승인 또는 반려하세요", "검토하러 가기"] },
+  };
+  const csTitle = (c) => {   // 대화에서 만든 개정안은 제목이 「제30조 — 요청 문장(규정 이름 포함)」 (renderChangeset과 같게 정리)
+    const t = c.title.replace(/\s*\([^)]*\)\s*$/, "").replace(/^\S+\s+—\s+/, "");
+    return !c.reg || t.startsWith(c.reg) ? t : `${c.reg} — ${t}`;
+  };
+  function renderWork() {
+    const D = clear($("#work-doc")), role = isApprover() ? "approver" : "editor";
+    const by = (s) => CS_ALL.filter((c) => c.status_label === s);
+    $("#work-scope").textContent = role === "editor" ? "개정 담당자" : "승인권자";
+
+    // 1. 흐름: 6단계, 단계마다 누가 하는지와 지금 그 단계에 있는 개정안 수
+    const s1 = el("section", "work-flow");
+    s1.append(el("h2", null, "규정 개정은 이렇게 진행됩니다"),
+      el("p", "hint", "AI는 초안과 영향 점검까지 만듭니다. 고칠지 말지는 카드마다 담당자가 정하고, 확정은 승인권자가 합니다. 법적 판단은 하지 않습니다."));
+    const ol = el("ol", "wf");
+    WORK_STEPS.forEach((s, i) => {
+      const li = el("li", "wf-step" + (s.who === "AI" ? " agent" : "") + (s.who === (role === "editor" ? "담당자" : "승인권자") ? " mine" : ""));
+      const top = el("div", "wf-top"); top.append(el("span", "sn", String(i + 1)), el("span", "who", s.who));
+      li.append(top, el("b", null, s.n), el("p", null, s.what));
+      if (s.status) { const k = by(s.status).length; li.append(el("span", "chip " + (k ? "accent" : ""), `지금 ${k}건`)); }
+      ol.append(li);
+    });
+    s1.append(ol); D.append(s1);
+
+    // 2. 시작하는 곳 (담당자만): 업무는 세 가지 계기에서 시작한다
+    if (role === "editor") {
+      const s2 = el("section");
+      s2.append(el("h2", null, "어디서 시작하나요"));
+      const g = el("div", "start-grid");
+      const card = (ic, title, desc, label, fn) => {
+        const b = el("button", "start"); b.type = "button";
+        const h = el("span", "start-h"); h.append(icon(ic), el("b", null, title));
+        b.append(h, el("span", null, desc), el("span", "go", label)); b.lastChild.append(icon("arrow"));
+        b.addEventListener("click", fn); g.append(b);
+      };
+      card("edit", "바꿀 내용을 알 때", "개정 요청 대화를 엽니다. 적은 요청으로 AI가 고칠 조문을 찾아 초안을 만듭니다.", "개정 요청 쓰기", () => newConv(true));
+      card("search", "법령이 바뀌었을 때", "새로 반입한 법률 DB로 탐색해, 바뀐 법령을 인용하는 내규와 법령명 정비 초안을 봅니다.", "변경 감시 열기", () => show("watch"));
+      card("book", "조문부터 보고 싶을 때", "조문을 열어 인용하는 곳 · 점검 결과 · 관련 법령을 본 뒤 그 조의 개정을 요청합니다.", "조문 열기", () => {
+        show("chat"); openPanel(); selectTab("amend"); $("#finder-q").focus();
+      });
+      s2.append(g); D.append(s2);
+    }
+
+    // 3. 내가 할 일: 역할에 맞는 상태의 개정안만
+    const s3 = el("section");
+    const mine = CS_ALL.filter((c) => TODO[role][c.status_label]);
+    s3.append(el("h2", null, `내가 할 일 ${mine.filter((c) => !(role === "editor" && c.status_label === "검토")).length}건`));
+    if (!LIVE) s3.append(el("p", "hint", "예시 데이터입니다 (서버 없음)."));
+    if (!mine.length) s3.append(el("div", "none", role === "editor" ? "진행 중인 개정안이 없습니다. 위에서 개정을 시작하세요." : "검토를 기다리는 개정안이 없습니다."));
+    const ul = el("ol", "rows todo");
+    mine.sort((a, b) => (a.status_label === "검토") - (b.status_label === "검토")).forEach((c) => {
+      const [what, btn] = TODO[role][c.status_label], [lab, tone] = CS_LABEL[c.status_label] || [c.status_label, ""];
+      const li = el("li", "row" + (role === "editor" && c.status_label === "검토" ? " wait" : "")), body = el("div", "body"), top = el("div", "top");
+      top.append(el("span", "chip " + tone, lab), el("span", "where", csTitle(c)), el("small", null, c.id));
+      const go = el("button", "btn " + (role === "editor" && c.status_label === "검토" ? "tertiary" : "primary") + " small"); go.type = "button";
+      go.dataset.view = "review"; go.dataset.cs = c.id; go.append(btn, icon("arrow"));
+      const row = el("div", "todo-row"); row.append(el("span", "why", what), go);
+      body.append(top, row); li.append(body); ul.append(li);
+    });
+    if (mine.length) s3.append(ul);
+    const done = by("공포").length, rej = by("기각").length;
+    if (done || rej) s3.append(el("p", "hint", `끝난 개정안: 공포 ${done}건 · 반려 ${rej}건 (왼쪽 「내 개정안」 목록에 있습니다)`));
+    D.append(s3);
+  }
+
   // ── 화면 전환·권한 ──────────────────────────────────
   function show(view) {
     $("#view-chat").hidden = view !== "chat"; $("#view-review").hidden = view !== "review"; $("#view-watch").hidden = view !== "watch";
+    $("#view-work").hidden = view !== "work";
     if (view === "watch") { loadWatch(); loadLawname(); }
+    if (view === "work") renderWork();
     document.querySelectorAll(".nav button[data-view]").forEach((b) => {
       if (b.dataset.view === view && !b.closest("#cs-list")) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
@@ -760,16 +1108,23 @@
     if (b.dataset.cs) loadChangeset(b.dataset.cs);
   });
   document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); newConv(); } });
-  function setRole(role) {
+  function setRole(role, first = false) {
     ROLE_NOW = role; USER = PERSON[role].name;
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
     document.querySelectorAll(".editor-only").forEach((x) => (x.hidden = role !== "editor"));
     document.querySelectorAll(".staff-only").forEach((x) => (x.hidden = role === "employee"));
     $("#user-name").textContent = USER; $("#user-dept").textContent = PERSON[role].dept; $("#user-initial").textContent = USER[0];
-    if (role === "employee") { show("chat"); selectTab("src"); }
-    else if (role === "approver") show("review");        // 승인권자는 개정안 검토 화면에서 승인·반려
+    $("#user-role").textContent = { employee: "일반 직원", editor: "개정 담당자", approver: "승인권자" }[role];
+    if (!conv()) renderEmpty();   // 자주 묻는 질문이 역할마다 다르다 (개정 담당자에게만 개정 요청 예시)
+    setBusy(busy);
+    // 역할을 바꿔도 보던 화면을 유지한다. 그 역할이 못 보는 화면일 때만 기본 화면으로 (처음: 담당자 · 승인권자는 개정 업무)
+    const ALLOWED = { employee: ["chat"], editor: ["chat", "work", "review", "watch"], approver: ["chat", "work", "review"] };
+    const now = ["chat", "work", "review", "watch"].find((v) => !$(`#view-${v}`).hidden);
+    if (first || !ALLOWED[role].includes(now)) show(role === "employee" ? "chat" : "work");
+    else if (now === "work") renderWork();   // 할 일 · 시작하는 곳이 역할마다 다르다
+    if (role === "employee") selectTab("src");
     if (CS) renderChangeset(CS);   // 역할에 따라 버튼·결정 가능 여부가 달라진다
   }
   document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
-  setRole("editor");
+  setRole("editor", true);
 })();

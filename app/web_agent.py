@@ -2,7 +2,7 @@
 
 쓰기는 .env 계정으로 접속한 뒤 `SET ROLE editor`로 권한을 낮춰서 한다 (amend.changeset·impact 쓰기, decision_log 덧붙이기만).
 개정안은 참고 문안이다. 규정 원문(public)과 우리 파싱 결과(out/parsed)는 바꾸지 않는다 (AGENTS §3).
-  draft(chunk, request)        자연어 요청 → 로컬 LLM(DRAFT_MODEL, 기본 qwen2.5:7b) 개정문 초안 → 적용기 검증 → 연쇄 수정 → 영향 → DB 초안 저장
+  draft(chunk, request)        자연어 요청 → LLM(DRAFT_MODEL, 기본 gpt-5.6-luna API · 폐쇄망은 qwen2.5:7b) 개정문 초안 → 적용기 검증 → 연쇄 수정 → 영향 → DB 초안 저장
   decide(cid, key, state, ..)  영향 카드 수락·기각 → decision_log
   submit(cid, ..)              개정안 상태 「검토」(화면: 검토 요청됨) + decision_log. 상태 값은 sql/amend_schema.sql CHECK (초안·검토·승인·공포·기각)
   package_html(cid)            개정 패키지 HTML (내려받기)
@@ -28,10 +28,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from regcheck.db import load_env  # noqa: E402
 
-SPELL_MODEL = os.environ.get("SPELL_MODEL", "qwen3.5:9b") or None   # 오타 검사 로컬 모델 (바뀐 문장만). 운영은 더 큰 모델 권장(리포트 38), 끄려면 SPELL_MODEL=
+# 261019: 오타 검사 · 주제 추론 · 카드 설명도 API(luna)로 — 시연 중 로컬 9B가 GPU 메모리를 차지하지 않게. 폐쇄망: SPELL_MODEL · HYPO_MODEL=qwen3.5:9b
+SPELL_MODEL = os.environ.get("SPELL_MODEL", "gpt-5.6-luna") or None   # 오타 검사 (바뀐 문장만). 큰 모델일수록 낫다(리포트 38), 끄려면 SPELL_MODEL=
 HYPOTHESIS = os.environ.get("HYPOTHESIS", "1") != "0"   # 가설 카드 (리포트 49 후속)
-HYPO_MODEL = os.environ.get("HYPO_MODEL", "qwen3.5:9b")      # 주제 추론은 9B가 7B보다 낫다 (7B는 주제 2개, 9B는 3개)
-DRAFT_MODEL = os.environ.get("DRAFT_MODEL", "qwen2.5:7b")   # 자연어 개정 평가에서 7/8 (리포트 28). 9B는 6/8
+HYPO_MODEL = os.environ.get("HYPO_MODEL", "gpt-5.6-luna")    # 주제 추론 · 카드 설명. 로컬이면 9B가 7B보다 낫다 (7B는 주제 2개, 9B는 3개)
+DRAFT_MODEL = os.environ.get("DRAFT_MODEL", "gpt-5.6-luna")   # 261018 API로 바꿈: 자연어 개정 120건 의도 맞음 7B 93 · 30B 108 · luna 116 (리포트 57). 폐쇄망: DRAFT_MODEL=qwen2.5:7b
 STATES = {"accept": "수락", "reject": "기각"}
 _lock = threading.Lock()
 
@@ -80,19 +81,29 @@ _own_models: dict = {}
 
 
 def _models():
-    """임베딩·reranker: 채팅(가빈 검색기)이 이미 올린 같은 모델이 있으면 같이 쓴다 (8GB GPU에 두 벌 올리지 않게)."""
+    """임베딩·reranker: 채팅(가빈 검색기)이 이미 올린 같은 모델이 있으면 같이 쓴다 (8GB GPU에 두 벌 올리지 않게).
+    우리 색인(out/vector/BAAI__bge-m3: 의미 유사 · 중복 · 가설)은 bge-m3 벡터라 bge-m3가 필요하다. 채팅이 Ollama 임베딩
+    (261019 기본 Qwen3-Embedding-4B)을 쓰면 searcher.model이 없으므로 bge-m3만 따로 올리고 reranker는 같이 쓴다."""
+    shared_rr = None
     try:
         import web_chat
         a = web_chat._state.get("assistant")
         if a is not None:
-            return a.searcher.model, a.searcher.reranker
+            if a.searcher.model is not None:
+                return a.searcher.model, a.searcher.reranker
+            shared_rr = a.searcher.reranker
     except Exception:
         pass
-    if not _own_models:
-        from sentence_transformers import CrossEncoder, SentenceTransformer
+    if "m" not in _own_models:
+        from sentence_transformers import SentenceTransformer
         m = SentenceTransformer("BAAI/bge-m3", device="cuda")
         m.half()
-        _own_models["m"], _own_models["r"] = m, CrossEncoder("BAAI/bge-reranker-v2-m3", device="cuda", model_kwargs={"dtype": "float16"})
+        _own_models["m"] = m
+    if shared_rr is not None:
+        return _own_models["m"], shared_rr
+    if "r" not in _own_models:
+        from sentence_transformers import CrossEncoder
+        _own_models["r"] = CrossEncoder("BAAI/bge-reranker-v2-m3", device="cuda", model_kwargs={"dtype": "float16"})
     return _own_models["m"], _own_models["r"]
 
 
@@ -101,6 +112,32 @@ def _vector_index():
     import numpy as np
     d = ROOT / "out" / "vector" / "BAAI__bge-m3"
     return np.load(d / "embeddings.npy"), [json.loads(l) for l in (d / "chunks.jsonl").read_text(encoding="utf-8").splitlines()]
+
+
+TARGET_INDEX = os.environ.get("TARGET_INDEX", "qwen3-embedding-4b-q8_0")   # 개정 위치 찾기 전용 색인 (리포트 55). bge로 되돌리려면 BAAI__bge-m3
+TARGET_K = 5   # 화면에 보일 후보 수. 3 → 5: 조 @3 69% → @5 77% (리포트 55). 어차피 사람이 고른다
+
+
+@lru_cache(maxsize=1)
+def _target_index():
+    """개정 위치 찾기 색인 (vecs, chunks), meta. Ollama 임베딩 색인이 없으면 None → bge 색인을 쓴다."""
+    import numpy as np
+    d = ROOT / "out" / "vector" / TARGET_INDEX
+    if TARGET_INDEX == "BAAI__bge-m3" or not (d / "embeddings.npy").exists():
+        return None
+    meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+    return (np.load(d / "embeddings.npy"), [json.loads(l) for l in (d / "chunks.jsonl").read_text(encoding="utf-8").splitlines()]), meta
+
+
+def _ollama_embed(meta: dict, texts: list[str]):
+    import urllib.request
+
+    import numpy as np
+    body = json.dumps({"model": meta["model"], "input": [meta.get("query_instruction", "") + t for t in texts], "truncate": True}).encode("utf-8")
+    req = urllib.request.Request("http://127.0.0.1:11434/api/embed", data=body, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        v = np.asarray(json.loads(r.read())["embeddings"], dtype=np.float32)
+    return v / np.linalg.norm(v, axis=1, keepdims=True)
 
 
 @lru_cache(maxsize=1)
@@ -121,10 +158,20 @@ def targets(text: str) -> dict:
                {"role": "user", "content": q}]
         return _post(DRAFT_MODEL, msg, timeout=60).strip().splitlines()[0][:80]
 
+    rerank = lambda q, ts: rr.predict([(q, t) for t in ts], batch_size=16, show_progress_bar=False).tolist()  # noqa: E731
+    rw = rewrite if os.environ.get("TARGET_REWRITE") == "1" else None   # 기본 끔: 독립 평가에서 효과 없음(조 @3 62%→60%, 리포트 51). 켜려면 TARGET_REWRITE=1
     with _lock:   # GPU를 채팅·개정안 작성과 나눠 쓴다
-        return find_targets(text, regs, _vector_index(), lambda t: model.encode(t, normalize_embeddings=True),
-                            lambda q, ts: rr.predict([(q, t) for t in ts], batch_size=16, show_progress_bar=False).tolist(),
-                            rewrite=rewrite if os.environ.get("TARGET_REWRITE") == "1" else None)   # 기본 끔: 독립 평가에서 효과 없음(조 @3 62%→60%, 리포트 51). 켜려면 TARGET_REWRITE=1
+        ti = _target_index()
+        if ti:   # Qwen3-Embedding-4B 색인 (Ollama): 조 @3 62% → 69% (리포트 55). Ollama가 꺼져 있으면 bge로
+            try:
+                out = find_targets(text, regs, ti[0], lambda t: _ollama_embed(ti[1], t), rerank, rewrite=rw, k=TARGET_K)
+                out["index"] = TARGET_INDEX
+                return out
+            except Exception:
+                pass
+        out = find_targets(text, regs, _vector_index(), lambda t: model.encode(t, normalize_embeddings=True), rerank, rewrite=rw, k=TARGET_K)
+        out["index"] = "BAAI__bge-m3"
+        return out
 
 
 def package_path(cid: str) -> Path:
@@ -153,8 +200,9 @@ def draft(chunk: str, request: str, user: str) -> dict:
     with _lock:   # 로컬 LLM·GPU를 채팅과 나눠 쓰므로 한 번에 하나
         try:
             res = nl_draft(regs, full_request, model=DRAFT_MODEL, reg=reg)
-        except (OSError, TimeoutError) as e:   # 로컬 모델(Ollama)이 꺼져 있거나 모델 이름이 없을 때 (urllib의 URLError·HTTPError는 OSError)
-            return {"error": f"로컬 모델 「{DRAFT_MODEL}」에 연결하지 못했습니다. Ollama가 켜져 있는지, 모델이 설치돼 있는지 확인해 주세요 ({type(e).__name__})"}
+        except Exception as e:   # 로컬 모델(Ollama)이 꺼졌거나 모델 이름이 없을 때, API 키·네트워크 오류 (urllib의 URLError·HTTPError는 OSError)
+            where = "API 키(.env OPENAI_API_KEY)와 네트워크" if DRAFT_MODEL.startswith("gpt-") else "Ollama가 켜져 있는지, 모델이 설치돼 있는지"
+            return {"error": f"개정안 작성 모델 「{DRAFT_MODEL}」에 연결하지 못했습니다. {where}를 확인해 주세요 ({type(e).__name__})"}
         if not res.get("ok"):
             if not res.get("tries") and res.get("error"):   # LLM 전에 걸러진 경우는 그 안내를 그대로
                 return {"error": res["error"], "tries": 0}
