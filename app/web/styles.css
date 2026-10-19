@@ -515,3 +515,17 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 /* 261019 사용자 요청 ③: 「오늘 · 어제 · 내 개정안」 묶음 사이를 선으로 구분 (첫 묶음 위에는 선 없음) */
 .nav-group { border-top: 1px solid var(--gray-20); margin: 10px 12px 0; padding: 12px 12px 4px; }
 #conv-list > .nav-group:first-child { border-top: 0; margin-top: 0; padding-top: 4px; }
+
+/* 261019 사용자 요청 ④: 하단 사용자 칸 높이를 역할과 무관하게 같게 (이름·부서 두 줄 자리 고정) */
+.me .who { min-height: 44px; }
+.me .who small { display: block; min-height: 1.35em; }
+
+/* 261019 사용자 요청 ⑤: 「오늘 · 어제 · 내 개정안」 머리글을 색 띠로 — 아래 항목들과 한눈에 구분 */
+.nav-group { border-top: 0; margin: 10px 12px 4px; padding: 6px 12px; border-radius: var(--radius-s); background: var(--secondary-5); color: var(--secondary); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+#conv-list > .nav-group:first-child { border-top: 0; margin-top: 0; padding-top: 6px; }
+
+/* 261019 사용자 요청 ⑥: 개정 업무 6단계에서 「내 역할」 단계를 뚜렷하게 — 두꺼운 테두리 + 색 배경 + 「내 단계」 띠 */
+.wf-step.mine { background: var(--secondary-5); border: 2px solid var(--secondary); box-shadow: 0 0 0 3px var(--secondary-10); padding-top: 26px; }
+.wf-step.mine::before { content: "내 단계"; position: absolute; top: 0; left: 0; padding: 2px 10px; border-radius: 0 0 var(--radius-s) 0; background: var(--secondary); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+.wf-step.mine b { color: var(--secondary); }
+.wf-step.mine .chip.accent { background: var(--secondary); color: #fff; }

@@ -7,7 +7,8 @@
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
   const S = window.SAMPLE;
   // 역할(시연용 전환): 일반 직원 / 개정 담당자(기안·결정·제출·공포 처리) / 승인권자(승인·반려). 서버가 역할을 확인한다 (app/web_agent.guard)
-  const PERSON = { employee: { name: "일반 직원(시연)", dept: "" }, editor: { name: S.user.name, dept: S.user.dept }, approver: { name: "승인권자(시연)", dept: "대표이사·이사회" } };
+  // 시연용 사람 (역할마다 이름·부서를 둔다: 아바타는 성씨, 부서 줄이 비면 하단 칸 높이가 역할마다 달라졌음 — 261019)
+  const PERSON = { employee: { name: "김지원", dept: "경영지원팀 (시연)" }, editor: { name: S.user.name, dept: S.user.dept }, approver: { name: "이준호", dept: "대표이사 (시연)" } };
   let USER = S.user.name;
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
