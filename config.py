@@ -23,7 +23,13 @@ HWP_SUBPROCESS_PYTHON = None  # None이면 현재 실행 중인 Python 사용
 # 검색 색인 (BGE-m3 임베딩, 저장은 PostgreSQL + pgvector: docs/DB_설정.md)
 # 임베딩 모델 비교(2026.10.14): 환경 변수 EMBED_MODEL로 바꾼다. DB의 벡터도 같은 모델로 만든 것이어야 한다
 # (scripts/embed_variant.py가 모델별 DB 사본을 만든다). 질문용 접두어가 있는 모델은 search.py가 알아서 붙인다.
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-m3")  # 첫 실행 때 내려받음 (약 2.2GB)
+# 2026.10.19 최종: Qwen3-Embedding-4B (Ollama, 2560차원). RAG 조합 실험(99문항, docs/reports/261019-1050-59)에서 최종@10
+# bge-m3 0.810 → 4B 0.889, 짝지은 차이 +0.071 [+0.015 ~ +0.131]로 유의한 유일한 부품. 8B는 +0.020(차이 없음)이라 4B에서 멈춤.
+# 이름에 ":"가 있으면 Ollama 모델로 보고(OLLAMA_URL), 문서 벡터는 DB가 아니라 RAG_VECTOR_DIR의 파일에 둔다
+# (DB chunks.embedding은 vector(1024)라 2560차원이 들어가지 않음. 실험의 src/combo와 같은 방식). 되돌리기: EMBED_MODEL=BAAI/bge-m3
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "qwen3-embedding:4b-q8_0")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")  # localhost는 Windows에서 호출마다 약 2초 늦음 (리포트 55)
+RAG_VECTOR_DIR = os.path.join(BASE_DIR, "out", "rag_vectors")  # Ollama 임베딩의 문서 벡터 캐시 (DB 본문이 바뀌면 다시 만든다)
 # 지시문을 받는 임베딩 모델(Qwen3-Embedding)용 질문 지시문
 EMBED_QUERY_INSTRUCT = "Instruct: Given an employee's question, retrieve the internal regulation clause that answers it\nQuery: "
 EMBED_DIM = 1024
@@ -127,7 +133,9 @@ FAST_PIPELINE = os.environ.get("FAST_PIPELINE", "1") == "1"
 #  - 오타 질문에서는 도움: Hit@10 0.78 → 0.84, Recall@10 0.665 → 0.714
 #  - 답변 100문항(팀 DB 항→조 + 강조 + 시간 개선): 오답 8 → 4, 답못함 11 → 8, 금지 위반 6 → 3, 정답 29 같음
 #  - 비용: 답 완성까지 약 1.7초 (8.7 → 10.4초)
-USE_REWRITE = os.environ.get("USE_REWRITE", "1") == "1"
+#  - 2026.10.19 끔: Qwen3-4B 임베딩에서는 켬/끔 차이 없음(끔 +0.010 [+0.000 ~ +0.030], 99문항, 리포트 59),
+#    「법카 → 법정카드」처럼 잘못 바꾸는 경우가 있고 호출 1번(약 1.7초)이 든다. bge-m3로 되돌리면 켜는 쪽이 나았음(−0.029, 유의하지 않음)
+USE_REWRITE = os.environ.get("USE_REWRITE", "0") == "1"
 
 # 답변에 넘기는 근거 전체 글자 수 상한 (임시값, 답변 단계에서 조정)
 CONTEXT_CHAR_BUDGET = 8000
@@ -135,7 +143,9 @@ CONTEXT_CHAR_BUDGET = 8000
 # 답변 근거의 출발점이 되는 리랭크 상위 청크 수. 2026.10.14 5에서 8로 바꿈 (docs/검색_실험_261014.md).
 # 항 단위 색인 100문항에서 정답 근거 Recall 0.56 → 0.67, 정답 26 → 34, 오답 7 → 3(같은 조 묶기·인용 복구 포함).
 # 답변 입력이 길어져도 응답시간은 그대로였다(18.5초 → 18.4초): 시간은 입력 길이보다 모델의 생각 시간이 정한다.
-TOP_K = 8
+# 2026.10.19 8 → 10: 답변 비교(로컬 30B 정답 47 · luna 60)를 근거 10개로 쟀다(리포트 59). 검색만 보면 4B에서
+# 최종@8 0.841 → @10 0.865(+0.024), @12 0.881. 화면(app/web_chat)과 평가 실행기가 모두 이 값을 쓴다.
+TOP_K = 10
 
 # 서로 독립인 모델 호출을 동시에 실행한다: 바꿔쓰기와 원질문 검색, 충돌 확인과 답변 생성, 근거 검사와 코드 검사.
 # 호출 횟수와 내용은 그대로이고 기다리는 시간만 줄인다. 끄면 예전처럼 순서대로 실행한다(전후 시간 비교용).

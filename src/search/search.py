@@ -16,13 +16,16 @@
   s.search("감사 종류", k=5, filters={"tier": "규정"})
   s.search("감사 종류", k=5, filters={"doc_ids": ["23234"], "min_year": 2025})
 """
+import os
 import re
 from collections import defaultdict
+
+import numpy as np
 
 from kiwipiepy import Kiwi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
-from config import (EMBED_MODEL, EMBED_QUERY_INSTRUCT, HIGHLIGHT_HITS, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
+from config import (EMBED_MODEL, EMBED_QUERY_INSTRUCT, OLLAMA_URL, RAG_VECTOR_DIR, HIGHLIGHT_HITS, HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT,
                     LAW_CITES_FROM_HITS, LLM_RERANK, MERGE_BEFORE_RERANK, RERANK_DOC_CAP, RERANK_HEADER, RERANK_MODEL,
                     RETURN_ARTICLE, RRF_K, TOPIC_ARTICLE_FILTER, TOPIC_MODE, TOPIC_RELATED_LIMIT, CASE_LINKS, CASE_LINKS_TABLE,
                     TOPIC_RELATED_MIN_SCORE, USE_SYNONYMS, USE_TOPIC_LINKS)
@@ -66,6 +69,11 @@ def mark_provisos(text):
         parts = re.split(r"(?<=다\.)\s+", line)
         out.append(" ".join(PROVISO_MARK + p if _PROVISO.search(p) and PROVISO_MARK not in p else p for p in parts))
     return "\n".join(out)
+
+
+def is_ollama_model(name):
+    """Ollama 모델 이름(「qwen3-embedding:4b-q8_0」처럼 태그가 붙음)인가. sentence-transformers 이름은 「BAAI/bge-m3」 꼴."""
+    return ":" in name and "/" not in name
 
 
 def query_prompt(model):
@@ -178,8 +186,15 @@ class Searcher:
     def __init__(self):
         self.store = PgStore()
         self.kiwi = Kiwi()
-        self.model = SentenceTransformer(EMBED_MODEL, device="cuda")
-        self.model.half()
+        # Ollama 임베딩(이름에 ":", 2026.10.19 기본 qwen3-embedding:4b-q8_0)은 문서 벡터를 DB 대신 파일에 둔다 (config.RAG_VECTOR_DIR)
+        self.embedder, self._vec_ids, self._vec_mat, self._vec_doc = None, None, None, None
+        if is_ollama_model(EMBED_MODEL):
+            from src.combo.models import OllamaEmbedder
+            self.model = None
+            self.embedder = OllamaEmbedder(EMBED_MODEL, base_url=OLLAMA_URL, instruction=EMBED_QUERY_INSTRUCT)
+        else:
+            self.model = SentenceTransformer(EMBED_MODEL, device="cuda")
+            self.model.half()
         self.reranker = CrossEncoder(RERANK_MODEL, device="cuda")
         self.rerank_header = RERANK_HEADER
         self._select_llm = None
@@ -217,6 +232,28 @@ class Searcher:
         self.article_rows = defaultdict(list)
         for r in sorted(rows, key=lambda r: _order_key(r["article"])):
             self.article_rows[(r["doc_id"], _article_base(r["article"]))].append(r["chunk_id"])
+        if self.embedder is not None:
+            self._load_doc_vectors()
+
+    def _load_doc_vectors(self):
+        """Ollama 임베딩의 문서 벡터 (색인 청크 전체). 임베딩 입력은 src/index/build.py · src/combo/searcher.py와 같다
+        (장이 있으면 머리말, 본문은 body_search). 같은 모델 · 본문이면 캐시를 쓰고, DB 본문이 바뀌었으면 다시 만든다 (처음 한 번 수 분)."""
+        from src.combo.models import doc_vectors, safe, sha
+        ids = list(self.row_info)
+        texts = [f"[{r['section']}]\n{r['body_search']}" if r.get("section") else (r["body_search"] or "")
+                 for r in (self.row_info[c] for c in ids)]
+        meta = {"model": self.embedder.name, "doc_prefix": "", "max_seq_length": 0, "n": len(texts), "text_hash": sha(*texts)}
+        os.makedirs(RAG_VECTOR_DIR, exist_ok=True)
+        path = os.path.join(RAG_VECTOR_DIR, f"emb_{safe(self.embedder.name)}.npy")
+        try:
+            mat = doc_vectors(self.embedder, texts, path, meta)
+        except RuntimeError:   # 다른 본문으로 만든 캐시 → 지우고 다시
+            for p in (path, path[:-4] + ".meta.json"):
+                if os.path.exists(p):
+                    os.remove(p)
+            mat = doc_vectors(self.embedder, texts, path, meta)
+        self._vec_ids, self._vec_mat = ids, mat
+        self._vec_doc = np.array([self.row_info[c]["doc_id"] for c in ids])
 
     def _refresh_if_stale(self):
         """재색인으로 DB가 바뀌었으면 메모리의 BM25와 목록을 다시 읽는다. 검색 호출마다 한 번 확인한다."""
@@ -248,6 +285,13 @@ class Searcher:
         return [t.form for t in self.kiwi.tokenize(text) if not t.tag.startswith(_SKIP_TAGS)]
 
     def vector_hits(self, text, doc_ids):
+        if self.embedder is not None:   # 파일 문서 벡터와 내적 (src/combo/searcher.ComboSearcher.vector_hits와 같음)
+            qv = self.embedder.encode_queries([text])[0]
+            sims = self._vec_mat @ qv
+            if doc_ids is not None:
+                sims = np.where(np.isin(self._vec_doc, list(doc_ids)), sims, -np.inf)
+            top = [i for i in np.argsort(-sims)[:CANDIDATES] if sims[i] > -np.inf]
+            return [{**self.row_info[self._vec_ids[i]], "chunk_id": self._vec_ids[i], "score": float(sims[i])} for i in top]
         vec = self.model.encode([text], normalize_embeddings=True, convert_to_numpy=True, **query_prompt(self.model))[0]
         return self.store.vector_search(vec, k=CANDIDATES, doc_ids=doc_ids)
 
