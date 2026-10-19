@@ -45,9 +45,20 @@
   $("#user-name").textContent = USER; $("#user-dept").textContent = S.user.dept; $("#user-initial").textContent = USER[0];
 
   // ── 대화 기록 (이 브라우저에만) ─────────────────────────
+  // 역할(일반 직원·개정 담당자·승인권자)은 서로 다른 사람이므로 대화 기록도 역할마다 따로 둔다 (261019 사용자 지적: 셋이 같은 목록을 보던 문제).
+  // 키 "kvic-chat-v1:<역할>". 예전 키 "kvic-chat-v1"(역할 구분 없던 때)의 기록은 개정 담당자 것으로 이어받는다
   const STORE = "kvic-chat-v1";
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
-  const save = (v) => { try { localStorage.setItem(STORE, JSON.stringify(v.slice(0, 30))); } catch { /* 저장 못 해도 화면은 동작 */ } };
+  const storeKey = (role) => `${STORE}:${role}`;
+  const loadFor = (role) => {
+    try {
+      const v = JSON.parse(localStorage.getItem(storeKey(role)));
+      if (v) return v;
+      return role === "editor" ? (JSON.parse(localStorage.getItem(STORE)) || []) : [];
+    } catch { return []; }
+  };
+  const saveFor = (role, v) => { try { localStorage.setItem(storeKey(role), JSON.stringify(v.slice(0, 30))); } catch { /* 저장 못 해도 화면은 동작 */ } };
+  const load = () => loadFor(ROLE_NOW);
+  const save = (v) => saveFor(ROLE_NOW, v);
   let convs = load(), convId = null;
   const conv = () => convs.find((c) => c.id === convId);
 
@@ -408,6 +419,7 @@
       AMEND_NEW = false; $("#chat-title").textContent = q.slice(0, 40);
     }
     const cid = convId, c = conv();
+    const role0 = ROLE_NOW, list0 = convs;   // 답을 기다리는 동안 역할을 바꿔도 이 대화는 원래 역할의 기록에 저장한다
     // 멀티턴: 이 대화의 앞 질문(답이 난 것) 3개를 함께 보낸다 → 서버가 이어 묻는 질문을 독립 질문으로 바꿔 검색 (web_chat.standalone)
     const history = c.msgs.filter((m) => m.res && !m.res.tool && !m.res.error && m.res.answer).slice(-3)
       .map((m) => ({ q: m.res.standalone || m.q, a: (m.res.answer || "").slice(0, 400) }));
@@ -423,8 +435,9 @@
     node.stop?.(); pending.delete(cid);
     const done = renderMsg(q, res);
     if (node.isConnected) node.replaceWith(done);
-    c.msgs.push({ q, res }); c.at = Date.now(); save(convs); renderConvList();
+    c.msgs.push({ q, res }); c.at = Date.now(); saveFor(role0, list0); renderConvList();
     setBusy(null);
+    if (ROLE_NOW !== role0) { toast(`${ROLE_LABEL_UI[role0]}의 대화 「${c.title}」에 답이 도착했습니다`); return; }
     if (convId !== cid) { toast(`「${c.title}」 대화에 답이 도착했습니다`); return; }
     const lead = tool ? null : leadEntry(res);
     const first = tool ? (res.find?.chunk || res.find?.candidates?.[0]?.chunk) : lead?.chunk;
@@ -1130,13 +1143,19 @@
     if (b.dataset.cs) loadChangeset(b.dataset.cs);
   });
   document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); newConv(); } });
+  const ROLE_LABEL_UI = { employee: "일반 직원", editor: "개정 담당자", approver: "승인권자" };
   function setRole(role, first = false) {
+    const prev = ROLE_NOW;
     ROLE_NOW = role; USER = PERSON[role].name;
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
     document.querySelectorAll(".editor-only").forEach((x) => (x.hidden = role !== "editor"));
     document.querySelectorAll(".staff-only").forEach((x) => (x.hidden = role === "employee"));
     $("#user-name").textContent = USER; $("#user-dept").textContent = PERSON[role].dept; $("#user-initial").textContent = USER[0];
-    $("#user-role").textContent = { employee: "일반 직원", editor: "개정 담당자", approver: "승인권자" }[role];
+    $("#user-role").textContent = ROLE_LABEL_UI[role];
+    if (prev !== role) {   // 다른 사람으로 바뀐 것: 그 사람의 대화 기록을 불러오고 열려 있던 대화는 닫는다 (답을 기다리던 대화는 원래 역할의 기록에 저장됨)
+      convs = load(); convId = null; AMEND_NEW = false; $("#chat-title").textContent = "새 대화";
+      renderConvList(); renderEmpty();
+    }
     if (!conv()) renderEmpty();   // 자주 묻는 질문이 역할마다 다르다 (개정 담당자에게만 개정 요청 예시)
     setBusy(busy);
     // 역할을 바꿔도 보던 화면을 유지한다. 그 역할이 못 보는 화면일 때만 기본 화면으로 (처음: 담당자 · 승인권자는 개정 업무)
