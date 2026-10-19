@@ -1,0 +1,8 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 43037.13it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   7%|▋         | 28/393 [00:00<00:01, 272.17it/s]Loading weights:  14%|█▍        | 56/393 [00:00<00:02, 164.30it/s]Loading weights:  21%|██        | 83/393 [00:00<00:01, 192.96it/s]Loading weights:  27%|██▋       | 105/393 [00:00<00:01, 166.14it/s]Loading weights:  32%|███▏      | 124/393 [00:00<00:01, 158.98it/s]Loading weights:  36%|███▌      | 141/393 [00:00<00:01, 158.55it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 441.67it/s]
+BGE 상위 16개 조 준비 완료
+BGE 순서 Hit@1/3/5/10 0.41/0.74/0.83/0.88 MRR 0.585
+BGE 상위 10개 조          Recall 0.731 (전부  63)
+  Luna 10개 순서 Hit@1/3/5/10 0.64/0.90/0.91/0.94 MRR 0.767
+Luna가 16개 중 10개 선택 #1  Recall 0.788 (전부  70) | 파싱 실패 0, 개수 모자라 채움 2 | 103초

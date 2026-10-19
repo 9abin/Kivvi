@@ -1,0 +1,13 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 30956.90it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   4%|▎         | 14/393 [00:00<00:02, 130.57it/s]Loading weights:   7%|▋         | 28/393 [00:00<00:02, 132.57it/s]Loading weights:  11%|█         | 42/393 [00:00<00:02, 126.80it/s]Loading weights:  14%|█▍        | 55/393 [00:00<00:02, 124.56it/s]Loading weights:  18%|█▊        | 69/393 [00:00<00:02, 127.73it/s]Loading weights:  24%|██▍       | 96/393 [00:00<00:01, 165.46it/s]Loading weights:  29%|██▉       | 113/393 [00:00<00:01, 147.21it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 462.18it/s]
+후보 준비 완료
+RRF 상위 50개 안의 정답 130/156 (0.833)  (상위 30개는 126/156)
+
+[1. BGE50만] 리랭크 0.9초/질문
+  Recall k5 0.571(49) k8 0.686(58) k10 0.724(63) k12 0.731(63) k16 0.763(68)
+  Hit@1/3/5/10 0.41/0.73/0.80/0.88 MRR 0.580
+[2. BGE50 → 상위 16개 → Luna] Luna  8개  Recall 평균 0.718 (회차 0.731, 0.705) 전부 62.5 | Hit@1/3/5/10 0.68/0.86/0.87/0.88 MRR 0.768
+[2. BGE50 → 상위 16개 → Luna] Luna 10개  Recall 평균 0.737 (회차 0.737, 0.737) 전부 64.0 | Hit@1/3/5/10 0.68/0.86/0.87/0.88 MRR 0.768
+[3. RRF 50개 → Luna 직접] Luna  8개  Recall 평균 0.772 (회차 0.782, 0.763) 전부 67.0 | Hit@1/3/5/10 0.69/0.86/0.91/0.93 MRR 0.781
+[3. RRF 50개 → Luna 직접] Luna 10개  Recall 평균 0.785 (회차 0.795, 0.776) 전부 69.0 | Hit@1/3/5/10 0.69/0.86/0.90/0.93 MRR 0.785

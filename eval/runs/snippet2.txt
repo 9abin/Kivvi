@@ -1,0 +1,9 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 15867.38it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   3%|▎         | 12/393 [00:00<00:03, 119.78it/s]Loading weights:   6%|▌         | 24/393 [00:00<00:03, 119.20it/s]Loading weights:   9%|▉         | 36/393 [00:00<00:03, 103.79it/s]Loading weights:  15%|█▍        | 57/393 [00:00<00:02, 137.63it/s]Loading weights:  18%|█▊        | 72/393 [00:00<00:02, 131.38it/s]Loading weights:  23%|██▎       | 91/393 [00:00<00:02, 135.37it/s]Loading weights:  37%|███▋      | 144/393 [00:00<00:01, 227.32it/s]Loading weights:  71%|███████   | 278/393 [00:00<00:00, 494.85it/s]Loading weights:  91%|█████████ | 358/393 [00:01<00:00, 541.96it/s]Loading weights: 100%|██████████| 393/393 [00:01<00:00, 342.09it/s]
+후보와 문장 점수 준비 완료 (문장 점수 0.6초/질문)
+[앞부분   220자] Luna 10개 선택  Recall 평균 0.788 (회차 0.788, 0.788) 전부 확보 70.0 | 호출 평균 8.2초, 해석 실패 0, 개수 모자라 채움 6/200
+[앞부분   300자] Luna 10개 선택  Recall 평균 0.785 (회차 0.788, 0.782) 전부 확보 69.5 | 호출 평균 8.1초, 해석 실패 0, 개수 모자라 채움 1/200
+[관련 문맥 300자] Luna 10개 선택  Recall 평균 0.792 (회차 0.788, 0.795) 전부 확보 70.5 | 호출 평균 7.5초, 해석 실패 1, 개수 모자라 채움 2/200
+[앞부분   600자] Luna 10개 선택  Recall 평균 0.792 (회차 0.795, 0.788) 전부 확보 70.5 | 호출 평균 7.6초, 해석 실패 2, 개수 모자라 채움 3/200
+[관련 문맥 600자] Luna 10개 선택  Recall 평균 0.801 (회차 0.795, 0.808) 전부 확보 72.0 | 호출 평균 7.5초, 해석 실패 2, 개수 모자라 채움 4/200

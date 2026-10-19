@@ -1,0 +1,30 @@
+# 공통 기준 실행: 기본 구성(E1 · R1 · 선택 끔 · luna 바꿔 쓰기 캐시). 4명 모두 먼저 돌려 가이드 값과 맞는지 확인한다.
+# 기준 값: 후보 30개 안 필수 근거 0.904 (113/125), 리랭크 후 필수 Recall@8 0.800, @16 0.896, Hit@1 41/98,
+#          시간 기준값(RTX 4070 Laptop 8GB): bge 리랭크 질문당 0.3초, 질문 임베딩 bge-m3 15ms
+name = "baseline"
+
+[data]
+questions = "eval/answer_eval_100_tiered.jsonl"   # 개발용 평가셋. 시험용(holdout)은 마지막에 상위 2개 조합에만 1회
+out_dir = "eval/combo"
+
+[rewrite]
+source = "file"                                   # file = 저장된 바꿔 쓰기 사용, llm = 아래 [llm.rewrite] 모델로 직접 생성
+file = "eval/runs/rewrite-cache.json"             # gpt-5.6-luna가 만든 캐시 (비교 기준으로만 사용)
+label = "luna-cache"
+
+[embedding]
+model = "BAAI/bge-m3"
+fp16 = true
+
+[reranker]
+kind = "cross"                                    # none(리랭커 없음) | cross | qwen
+model = "BAAI/bge-reranker-v2-m3"
+fp16 = true                                       # 가이드 R1: CrossEncoder fp16 (fp32와 순위는 같고 질문당 0.66초 → 0.19초)
+
+[select]
+enabled = false
+
+[eval]
+rerank_ks = [5, 8, 10, 16]
+final_ks = [8, 10]
+answer_k = 8

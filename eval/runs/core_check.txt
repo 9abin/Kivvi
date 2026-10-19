@@ -1,0 +1,10 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 33333.46it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   5%|▍         | 18/393 [00:00<00:02, 145.82it/s]Loading weights:   9%|▊         | 34/393 [00:00<00:02, 146.64it/s]Loading weights:  12%|█▏        | 49/393 [00:00<00:02, 120.54it/s]Loading weights:  16%|█▌        | 62/393 [00:00<00:02, 117.30it/s]Loading weights:  19%|█▉        | 75/393 [00:00<00:02, 118.15it/s]Loading weights:  24%|██▎       | 93/393 [00:00<00:02, 133.88it/s]Loading weights:  35%|███▌      | 139/393 [00:00<00:01, 230.39it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 480.38it/s]
+정답 근거 190개, 필수 126개, 보조 64개
+[회차 1] Luna 8개: 전체 근거 152/190 (0.800), 필수 근거 111/126 (0.881)
+[회차 1] Luna 10개: 전체 근거 156/190 (0.821), 필수 근거 113/126 (0.897)
+  8개 → 10개로 갈 때: 필수 근거 새로 든 2개 / 빠진 0개, 보조 근거 새로 든 2개 / 빠진 0개
+[회차 2] Luna 8개: 전체 근거 152/190 (0.800), 필수 근거 111/126 (0.881)
+[회차 2] Luna 10개: 전체 근거 155/190 (0.816), 필수 근거 113/126 (0.897)
+  8개 → 10개로 갈 때: 필수 근거 새로 든 2개 / 빠진 0개, 보조 근거 새로 든 1개 / 빠진 0개

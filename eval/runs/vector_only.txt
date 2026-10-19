@@ -1,0 +1,15 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 24949.38it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   5%|▍         | 19/393 [00:00<00:01, 188.14it/s]Loading weights:  15%|█▌        | 60/393 [00:00<00:01, 296.26it/s]Loading weights:  25%|██▍       | 98/393 [00:00<00:00, 331.21it/s]Loading weights:  35%|███▍      | 137/393 [00:00<00:00, 326.99it/s]Loading weights:  45%|████▍     | 176/393 [00:00<00:00, 280.49it/s]Loading weights:  52%|█████▏    | 206/393 [00:00<00:00, 243.78it/s]Loading weights:  60%|█████▉    | 235/393 [00:00<00:00, 229.59it/s]Loading weights:  66%|██████▌   | 259/393 [00:01<00:00, 199.24it/s]Loading weights:  71%|███████   | 280/393 [00:01<00:00, 190.56it/s]Loading weights: 100%|██████████| 393/393 [00:01<00:00, 322.19it/s]
+
+[하이브리드] 후보 30개 안에 정답 126/156 = 0.808 | 후보 만드는 시간(검색만) 0.20초/질문
+  BGE 점수순 Recall k5 0.583(51) k8 0.686(59) k10 0.731(63) k12 0.737(64) k16 0.808(73)
+  Hit@1/3/5/10 0.41/0.74/0.83/0.88 MRR 0.585
+  BGE 16개 → Luna 8개 선택 Recall 0.756 (67)
+  BGE 16개 → Luna 10개 선택 Recall 0.788 (70)
+
+[벡터 단독] 후보 30개 안에 정답 123/156 = 0.788 | 후보 만드는 시간(검색만) 0.16초/질문
+  BGE 점수순 Recall k5 0.583(50) k8 0.699(59) k10 0.718(61) k12 0.724(62) k16 0.776(69)
+  Hit@1/3/5/10 0.43/0.76/0.83/0.87 MRR 0.590
+  BGE 16개 → Luna 8개 선택 Recall 0.744 (66)
+  BGE 16개 → Luna 10개 선택 Recall 0.744 (66)

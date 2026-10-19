@@ -83,20 +83,54 @@ def _exclusions(question, bodies, table):
     return excluded
 
 
+_CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+_PARA_START = re.compile(r"(?:^|(?<=\s))(?=[①-⑳])")
+_TITLE_ONLY = re.compile(r"^\s*제\d+조(?:의\d+)?\([^)]*\)\s*$")
+
+
+def paragraphs(body):
+    """조 본문을 항(①, ② …)으로 나눈다. 조 제목만 있는 첫 조각('제5조(정의)')은 첫 항에 붙인다.
+    항 표시가 없으면(한 항짜리 조, 별표) 본문 전체가 한 조각이다."""
+    parts = [p for p in _PARA_START.split(body or "") if p]
+    if len(parts) > 1 and _TITLE_ONLY.match(parts[0]):
+        parts = [parts[0] + parts[1], *parts[2:]]
+    return parts or [body or ""]
+
+
+def _para_label(article, part):
+    m = re.search(r"[①-⑳]", part[:40])
+    return f"{article} 제{_CIRCLED.index(m.group(0)) + 1}항" if m else article
+
+
+def _trim(question, items, table):
+    """청크가 조 단위라 항마다 판정한다. 뺄 항만 본문에서 지우고, 모든 항이 빠지는 청크만 통째로 뺀다.
+    (조 전체를 한 덩어리로 보면 다른 개념의 항 하나 때문에 수치 없는 절차 항까지 빠지고,
+    한 조의 다른 항에 두 용어가 함께 있으면 다른 개념의 수치 항이 그대로 남는다.)
+    반환: (남긴 항목, [(항목 위치, 조항 표기, 이유), ...]). 다 빼게 되면 하나도 빼지 않는다."""
+    kept, dropped = [], []
+    for i, item in enumerate(items):
+        parts = paragraphs(item["body"])
+        excluded = _exclusions(question, parts, table)
+        dropped += [(i, _para_label(item["article"], parts[j]) if len(parts) > 1 else item["article"], why)
+                    for j, why in sorted(excluded.items())]
+        if len(excluded) == len(parts):
+            continue
+        if excluded:
+            item = {**item, "body": "".join(p for j, p in enumerate(parts) if j not in excluded).strip()}
+        kept.append(item)
+    if not kept:
+        return items, []
+    return kept, dropped
+
+
 def filter_by_glossary(question, entries, table):
     """근거 조립 뒤 단계(형제 항 포함). (남긴 근거, 뺀 근거 목록). 뺀 근거는 (문서명, 조항, 이유). 다 빼게 되면 하나도 빼지 않는다."""
-    excluded = _exclusions(question, [e["body"] for e in entries], table)
-    kept = [e for i, e in enumerate(entries) if i not in excluded]
-    if not kept:
-        return entries, []
-    return kept, [(entries[i]["문서명"], entries[i]["article"], why) for i, why in sorted(excluded.items())]
+    kept, dropped = _trim(question, entries, table)
+    return kept, [(entries[i]["문서명"], label, why) for i, label, why in dropped]
 
 
 def filter_candidates(question, cands, table):
-    """후보를 고르는 단계. 빼면 그 자리를 다음 후보가 채운다. (남긴 후보, 뺀 후보 목록). 뺀 후보는 (doc_id, 조항, 이유).
-    정확 조회 결과는 이 함수를 거치지 않는다. 다 빼게 되면 하나도 빼지 않는다."""
-    excluded = _exclusions(question, [c["body"] for c in cands], table)
-    kept = [c for i, c in enumerate(cands) if i not in excluded]
-    if not kept:
-        return cands, []
-    return kept, [(cands[i]["doc_id"], cands[i]["article"], why) for i, why in sorted(excluded.items())]
+    """후보를 고르는 단계. 통째로 빠진 후보 자리는 다음 후보가 채운다. (남긴 후보, 뺀 후보 목록). 뺀 후보는 (doc_id, 조항, 이유).
+    일부 항만 빠진 후보는 그 항을 지운 본문으로 남는다. 정확 조회 결과는 이 함수를 거치지 않는다. 다 빼게 되면 하나도 빼지 않는다."""
+    kept, dropped = _trim(question, cands, table)
+    return kept, [(cands[i]["doc_id"], label, why) for i, label, why in dropped]

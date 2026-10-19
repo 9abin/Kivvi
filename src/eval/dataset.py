@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from config import OUT_DIR
+from src.chunk.articles import article_id
 
 EVAL_DIR = Path(__file__).resolve().parents[2] / "eval"
 QUESTIONS_PATH = EVAL_DIR / "questions.jsonl"
@@ -21,6 +22,12 @@ QUESTION_FIELDS = {"q", "유형", "세부유형", "정답"}
 def is_indexable(row: dict[str, Any]) -> bool:
     """src/index/build.py의 is_indexed와 같은 기준. 색인되지 않은 청크는 검색 평가 정답이 될 수 없다."""
     return row.get("상태") == "정상" and not re.search(r"_(부칙|별지)(_중복\d+)?$", str(row.get("id", "")))
+
+
+def resolve_gold(chunk_id: str, chunk_ids: set[str]) -> str:
+    """정답 ID를 지금 청크 ID로 맞춘다. 정답 파일은 항 단위 시절 ID('X_제8조_2항')로 적혀 있어서,
+    청크에 그대로 없으면 그 항이 들어 있는 조 청크('X_제8조')로 본다."""
+    return chunk_id if chunk_id in chunk_ids else article_id(chunk_id)
 
 
 def non_indexed_ids(catalog: dict[str, dict[str, Any]]) -> set[str]:
@@ -105,10 +112,11 @@ def validate_questions(
             continue
         if len(set(gold)) != len(gold):
             errors.append(f"{index}번: 정답 조문 ID가 중복되어 있습니다.")
-        missing = [chunk_id for chunk_id in gold if chunk_id not in chunk_ids]
+        missing = [chunk_id for chunk_id in gold if resolve_gold(chunk_id, chunk_ids) not in chunk_ids]
         if missing:
             errors.append(f"{index}번: 청크 파일에 없는 정답 조문 ID: {', '.join(missing)}")
-        unindexed = [chunk_id for chunk_id in gold if chunk_id in (non_indexed or set())]
+        unindexed = [chunk_id for chunk_id in gold
+                     if resolve_gold(chunk_id, chunk_ids) in (non_indexed or set())]
         if unindexed:
             errors.append(
                 f"{index}번: 삭제 조문·부칙처럼 색인되지 않는 정답 조문 ID: {', '.join(unindexed)}"

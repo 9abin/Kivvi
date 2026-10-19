@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     chunk_id          text PRIMARY KEY,                       -- id
     doc_id            text NOT NULL REFERENCES documents(doc_id),
     article           text,                                   -- 조항
+    section           text,                                   -- 장 (장·절 경로, 예: "제2장 감사의 종류 > 제1절 정기감사")
     status            text NOT NULL CHECK (status IN ('정상', '삭제')),
     is_indexed        boolean NOT NULL,                       -- 색인대상
     body              text NOT NULL,                          -- 본문 (원문 표기)
@@ -45,6 +46,9 @@ CREATE INDEX IF NOT EXISTS documents_tier_idx ON documents (tier);
 CREATE INDEX IF NOT EXISTS chunks_body_tokens_gin
     ON chunks USING gin (to_tsvector('simple', body_tokens))
     WHERE is_indexed;
+
+-- 기존 DB에 장 칼럼 추가 (2026.10.13, 조 단위 청킹과 함께 추가)
+-- ALTER TABLE chunks ADD COLUMN IF NOT EXISTS section text;
 
 -- 다시 만들 때 (순서 중요: chunks를 먼저 지운다)
 -- DROP TABLE IF EXISTS chunks;

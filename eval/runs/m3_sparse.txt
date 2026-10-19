@@ -1,0 +1,35 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 24969.52it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   3%|▎         | 11/393 [00:00<00:04, 83.13it/s]Loading weights:   7%|▋         | 27/393 [00:00<00:02, 122.18it/s]Loading weights:  21%|██        | 82/393 [00:00<00:01, 286.87it/s]Loading weights:  28%|██▊       | 111/393 [00:00<00:01, 195.11it/s]Loading weights:  34%|███▍      | 134/393 [00:00<00:01, 149.49it/s]Loading weights:  50%|████▉     | 195/393 [00:00<00:00, 241.13it/s]Loading weights:  58%|█████▊    | 226/393 [00:01<00:00, 208.21it/s]Loading weights:  89%|████████▉ | 350/393 [00:01<00:00, 424.53it/s]Loading weights: 100%|██████████| 393/393 [00:01<00:00, 303.39it/s]
+C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\huggingface_hub\file_download.py:149: UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support them in C:\Users\Admin\.cache\huggingface\hub. Caching files will still work but in a degraded version that might require more space on your disk. This warning can be disabled by setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to activate developer mode, see this article: https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+C:\Users\Admin\Downloads\한국벤처투자_내부규정_최신개정본\.venv\Lib\site-packages\huggingface_hub\file_download.py:149: UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support them in C:\Users\Admin\.cache\huggingface\hub\models--BAAI--bge-m3. Caching files will still work but in a degraded version that might require more space on your disk. This warning can be disabled by setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to activate developer mode, see this article: https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+문서 4595개 sparse 가중치 계산 (22초)
+후보 목록 준비 완료
+
+[하이브리드(BM25)] 후보 30개 안에 정답 126/156 = 0.808
+  BGE 점수순 Recall k5 0.583(51) k8 0.686(59) k10 0.731(63) k12 0.737(64) k16 0.808(73)
+  Hit@1/3/5/10 0.41/0.74/0.83/0.88 MRR 0.585
+  BGE 16개 → Luna 8개 선택 Recall 0.763 (68)
+  BGE 16개 → Luna 10개 선택 Recall 0.782 (69)
+
+[벡터 + M3 sparse] 후보 30개 안에 정답 122/156 = 0.782
+  BGE 점수순 Recall k5 0.583(52) k8 0.692(59) k10 0.705(60) k12 0.718(62) k16 0.756(65)
+  Hit@1/3/5/10 0.41/0.73/0.82/0.88 MRR 0.582
+  BGE 16개 → Luna 8개 선택 Recall 0.705 (60)
+  BGE 16개 → Luna 10개 선택 Recall 0.750 (65)
+
+[벡터 + BM25 + M3 sparse] 후보 30개 안에 정답 124/156 = 0.795
+  BGE 점수순 Recall k5 0.583(51) k8 0.692(59) k10 0.724(62) k12 0.724(62) k16 0.769(68)
+  Hit@1/3/5/10 0.41/0.73/0.83/0.88 MRR 0.582
+  BGE 16개 → Luna 8개 선택 Recall 0.737 (64)
+  BGE 16개 → Luna 10개 선택 Recall 0.737 (64)
+
+[M3 sparse 단독] 후보 30개 안에 정답 103/156 = 0.660
+  BGE 점수순 Recall k5 0.526(45) k8 0.590(48) k10 0.596(49) k12 0.609(50) k16 0.641(53)
+  Hit@1/3/5/10 0.44/0.66/0.73/0.79 MRR 0.560
+  BGE 16개 → Luna 8개 선택 Recall 0.609 (49)
+  BGE 16개 → Luna 10개 선택 Recall 0.635 (52)

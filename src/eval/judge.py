@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-from config import BASE_DIR, OPENAI_MODEL
+from config import BASE_DIR, JUDGE_MODEL
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from src.answer.pipeline import Assistant
@@ -73,7 +73,7 @@ def main():
 
     store = PgStore()
     assistant = Assistant()
-    judge_model = ChatOpenAI(model=OPENAI_MODEL, temperature=0)
+    judge_model = ChatOpenAI(model=JUDGE_MODEL, temperature=0)
 
     scores, violations = [], 0
     low = []

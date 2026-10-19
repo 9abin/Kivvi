@@ -1,0 +1,13 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 50224.26it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   5%|▍         | 18/393 [00:00<00:02, 154.14it/s]Loading weights:   9%|▊         | 34/393 [00:00<00:02, 137.02it/s]Loading weights:  12%|█▏        | 48/393 [00:00<00:02, 128.57it/s]Loading weights:  16%|█▌        | 61/393 [00:00<00:02, 118.39it/s]Loading weights:  19%|█▉        | 74/393 [00:00<00:02, 119.31it/s]Loading weights:  22%|██▏       | 86/393 [00:00<00:02, 118.95it/s]Loading weights:  25%|██▍       | 98/393 [00:00<00:02, 117.04it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 473.94it/s]
+BGE 상위 16개 조 준비 완료
+BGE 상위  5개 조          Recall 0.583 (전부  51)
+BGE 상위  8개 조          Recall 0.686 (전부  59)
+BGE 상위 10개 조          Recall 0.731 (전부  63)
+Luna가 16개 중  5개 선택 #1  Recall 0.731 (전부  64) | 파싱 실패 1, 개수 모자라 채움 1 | 79초
+Luna가 16개 중  5개 선택 #2  Recall 0.724 (전부  63) | 파싱 실패 0, 개수 모자라 채움 0 | 78초
+Luna가 16개 중  8개 선택 #1  Recall 0.776 (전부  70) | 파싱 실패 0, 개수 모자라 채움 1 | 100초
+Luna가 16개 중  8개 선택 #2  Recall 0.763 (전부  68) | 파싱 실패 0, 개수 모자라 채움 1 | 101초
+Luna가 16개 중 10개 선택 #1  Recall 0.776 (전부  69) | 파싱 실패 0, 개수 모자라 채움 3 | 126초
+Luna가 16개 중 10개 선택 #2  Recall 0.788 (전부  70) | 파싱 실패 1, 개수 모자라 채움 1 | 121초
