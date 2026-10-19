@@ -109,7 +109,7 @@
   const amendConv = () => isEditor() && (conv() ? conv().mode === "amend" : AMEND_NEW);
   function newConv(amend = false) {
     convId = null; AMEND_NEW = amend; $("#chat-title").textContent = amend ? "새 개정 요청" : "새 대화";
-    renderEmpty(); renderConvList(); show("chat"); setBusy(busy); $("#ask-q").focus();
+    renderEmpty(); resetPanel(); renderConvList(); show("chat"); setBusy(busy); $("#ask-q").focus();
   }
 
   // ── 채팅 ─────────────────────────────────────────────
@@ -459,8 +459,17 @@
     if (art.paras.length > 1 && art.highlight != null && art.highlight >= 0) {
       const n = el("p", "hl-note"); n.append(icon("info"), "노란 표시 부분이 답변 · 요청이 가리킨 항입니다."); P.append(n);
     }
-    P.scrollTop = 0; const hl = P.querySelector(".para.hl");   // 머리(규정명)가 보이게 위에서 시작, 강조 항이 화면 밖일 때만 내림
-    if (hl && hl.offsetTop + hl.offsetHeight > P.clientHeight) hl.scrollIntoView({ block: "nearest" });
+    P.scrollTop = 0; const hl = P.querySelector(".para.hl");
+    // 강조 항이 첫 항이 아니면 가운데로 내린다 — 「원문 →」를 눌렀는데 아무것도 안 움직이는 것처럼 보이던 문제 (261019). 첫 항이면 머리(규정명)가 보이게 위에서 시작
+    if (hl && art.highlight > 0) hl.scrollIntoView({ block: "center" });
+  }
+  // 오른쪽 패널 기본 상태: 새 대화 · 역할 전환 때 다른 대화(다른 사람)의 조문이 남지 않게 비운다 (261019)
+  function resetPanel() {
+    CURRENT = null; $("#amend-count").textContent = "";
+    const P = clear($("#panel-src")), ph = el("div", "panel-empty");
+    ph.append(icon("book"), el("b", null, "근거 원문"), el("span", null, "답변의 근거 번호나 근거 조문 카드를 누르면 여기에 원문이 열립니다. 위 검색창으로 조문을 직접 열 수도 있습니다."));
+    P.append(ph);
+    clear($("#panel-amend")).append(el("div", "none", "조문을 열면 개정 정보가 보입니다"));
   }
   async function showFullRegulation() {
     if (!CURRENT?.reg_id) return toast("먼저 조문을 여세요");
@@ -1154,7 +1163,7 @@
     $("#user-role").textContent = ROLE_LABEL_UI[role];
     if (prev !== role) {   // 다른 사람으로 바뀐 것: 그 사람의 대화 기록을 불러오고 열려 있던 대화는 닫는다 (답을 기다리던 대화는 원래 역할의 기록에 저장됨)
       convs = load(); convId = null; AMEND_NEW = false; $("#chat-title").textContent = "새 대화";
-      renderConvList(); renderEmpty();
+      renderConvList(); renderEmpty(); resetPanel();
     }
     if (!conv()) renderEmpty();   // 자주 묻는 질문이 역할마다 다르다 (개정 담당자에게만 개정 요청 예시)
     setBusy(busy);

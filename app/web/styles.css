@@ -529,3 +529,8 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 .wf-step.mine::before { content: "내 단계"; position: absolute; top: 0; left: 0; padding: 2px 10px; border-radius: 0 0 var(--radius-s) 0; background: var(--secondary); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .03em; }
 .wf-step.mine b { color: var(--secondary); }
 .wf-step.mine .chip.accent { background: var(--secondary); color: #fff; }
+
+/* 261019 사용자 요청 ⑦: 오른쪽 패널 기본 상태 (새 대화 · 역할 전환 때) */
+.panel-empty { margin: auto; max-width: 300px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; color: var(--gray-60); font-size: 14px; line-height: 1.6; }
+.panel-empty .ico { width: 32px; height: 32px; color: var(--gray-40); }
+.panel-empty b { color: var(--gray-70); font-size: 15px; }

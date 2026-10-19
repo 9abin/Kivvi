@@ -127,6 +127,22 @@ def standalone(question: str, history: list[dict]) -> str | None:
     return out
 
 
+_HIT = re.compile(r"▶▶ \[찾은 항\] (?:【단서】)?\s*([①-⑳])")   # 단서 문장이면 「▶▶ [찾은 항] 【단서】② …」 (취업규칙 제43조② 「3회에 한정하여」)
+_CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+
+
+def _entry_chunk(e: dict) -> str:
+    """화면이 열 청크 ID. 항으로 찾고 조 전체를 넘기는 구성(config.RETURN_ARTICLE)에서는 근거의 chunk_id가 조 단위(24024_제30조)라
+    항 단위 색인(public.chunks · amend.chunk_detail)에 없어 /api/article이 못 찾았다 (261019 실측, 항이 둘 이상인 조 전부).
+    본문의 「▶▶ [찾은 항] ②」 표시에서 검색이 찾은 항 번호를 읽어 실제 항 청크 ID(24024_제30조_2항)로 바꾼다.
+    표시가 없으면(항이 하나뿐인 조 · 별표 · 외부 법령) 그대로 둔다. 가빈 검색기는 건드리지 않는다."""
+    cid = e.get("chunk_id") or ""
+    m = _HIT.search(e.get("body") or "")
+    if m and cid and not re.search(r"_\d+항$", cid):
+        return f"{cid}_{_CIRCLED.index(m.group(1)) + 1}항"
+    return cid
+
+
 def ask(question: str, history: list[dict] | None = None) -> dict:
     question = (question or "").strip()
     if not question:
@@ -142,8 +158,9 @@ def ask(question: str, history: list[dict] | None = None) -> dict:
     with _lock:
         rewritten = standalone(question, history)
         r = _state["assistant"].ask(rewritten or question)
-    entries = [{"n": i + 1, "chunk": e.get("chunk_id"), "reg": e.get("문서명"), "article": e.get("article"),
-                "state": e.get("조문상태"), "role": e.get("역할"), "text": (e.get("body") or "")[:160]}
+    from src.search.search import strip_marks   # 표시(▶▶ · ▷ · 【단서】)는 답변 모델용이라 화면 미리보기에서는 지운다
+    entries = [{"n": i + 1, "chunk": _entry_chunk(e), "reg": e.get("문서명"), "article": e.get("article"),
+                "state": e.get("조문상태"), "role": e.get("역할"), "text": strip_marks(e.get("body") or "")[:160]}
                for i, e in enumerate(r.get("entries", []))]
     warnings = [w for w in r.get("warnings", []) if not w.startswith(("용어집:", "표 범위 필터:"))]
     return {"question": question, "standalone": rewritten, "followup_of": history[-1]["q"][:40] if rewritten else None, "mode": r["mode"], "answer": r["answer"], "entries": entries, "cited": r.get("cited", []),
