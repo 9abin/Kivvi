@@ -560,3 +560,44 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 /* 대비표: 안 바뀐 부분 표시 · 함께 개정 규정 대비표 (261019) */
 .diff .same { color: var(--gray-50); font-style: italic; }
 .comp .diff { margin-top: 10px; }
+
+/* 승인권자 결재 화면 (261019): 결재 요청 · 확인할 것 · 담당자 판단 배지 · 결재 기록 · 의견 칸 */
+.doc section.brief { border: 2px solid var(--secondary); background: var(--gray-0); }
+.brief-meta { margin: -6px 0 12px; font-size: 14px; color: var(--gray-60); }
+.brief-req { margin: 0 0 10px; padding: 10px 14px; border-left: 3px solid var(--secondary); background: var(--secondary-5); border-radius: 0 var(--radius) var(--radius) 0; display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
+.brief-req small { font-size: 12px; font-weight: 700; color: var(--secondary); letter-spacing: .02em; }
+.brief-note { margin: 0 0 12px; font-size: 14px; color: var(--gray-70); }
+.brief-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 6px 0 16px; }
+.brief-tiles .tile { border: 1px solid var(--gray-20); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brief-tiles .tile small { font-size: 12px; color: var(--gray-60); font-weight: 600; }
+.brief-tiles .tile b { font-size: 18px; color: var(--gray-90); }
+.brief-tiles .tile span { font-size: 12.5px; color: var(--gray-60); overflow-wrap: anywhere; }
+.brief-tiles .tile.neg { border-color: var(--danger); background: var(--danger-5); }
+.brief-tiles .tile.neg b { color: var(--danger); }
+.brief-tiles .tile.pos b { color: var(--success); }
+.brief h3 { font-size: 15px; margin: 4px 0 8px; }
+.brief-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.brief-checks li { display: flex; gap: 8px; align-items: flex-start; font-size: 14.5px; color: var(--gray-70); line-height: 1.55; }
+.brief-checks li .ico { width: 16px; height: 16px; flex: none; margin-top: 3px; color: var(--secondary); }
+.brief-checks li.warn .ico { color: var(--warning); }
+.brief-checks li.neg { color: var(--danger); font-weight: 600; }
+.brief-checks li.neg .ico { color: var(--danger); }
+.verdict { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; font-weight: 700; padding: 6px 10px; border-radius: var(--radius); background: var(--gray-5); color: var(--gray-70); align-self: flex-start; }
+.verdict .ico { width: 15px; height: 15px; }
+.verdict small { font-weight: 400; color: var(--gray-60); }
+.verdict.accept { background: var(--success-5); color: var(--success); }
+.verdict.reject { background: var(--danger-5); color: var(--danger); }
+.verdict.none { background: var(--warning-5); color: var(--warning); }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--gray-20); display: flex; flex-direction: column; gap: 10px; }
+.timeline li { position: relative; }
+.timeline li::before { content: ""; position: absolute; left: -21px; top: 7px; width: 12px; height: 12px; border-radius: 50%; background: var(--gray-0); border: 2px solid var(--secondary); }
+.timeline li.pos::before { border-color: var(--success); background: var(--success); }
+.timeline li.neg::before { border-color: var(--danger); background: var(--danger); }
+.timeline .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 14.5px; }
+.timeline .top small { color: var(--gray-60); }
+.timeline p { margin: 2px 0 0; font-size: 14px; color: var(--gray-70); }
+.reject-note { border-color: var(--danger) !important; background: var(--danger-5) !important; border-left-color: var(--danger) !important; }
+.reject-note b { color: var(--danger) !important; }
+#cs-comment { width: 100%; resize: vertical; min-height: 56px; margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--gray-20); border-radius: var(--radius); font: inherit; font-size: 14px; }
+#cs-comment:focus { outline: 2px solid var(--primary); outline-offset: 0; }
+@media (max-width: 1200px) { .brief-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

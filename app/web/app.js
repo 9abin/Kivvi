@@ -681,7 +681,7 @@
       const ul = el("ul", "qlist"); F.excluded.forEach((x) => ul.append(el("li", null, `${x.where} — 「${x.quote}」 → 「${x.suggest}」`))); d.append(ul); s.append(d);
     }
     if (F.addendum_draft) { const d = el("div", "comp"); d.append(el("b", null, "부칙"), el("p", null, F.addendum_draft)); s.append(d); }
-    doc.prepend(s);
+    const brief = doc.querySelector(".brief"); if (brief) brief.after(s); else doc.prepend(s);   // 승인권자 화면은 결재 요청 바로 아래
   }
   // 개정 절차 안내: 이 개정안이 거칠 내부 절차 (GET /api/procedure — 규정 원문에서 읽음). 판정이 아니라 안내
   async function fillProcedure(C, doc) {
@@ -698,6 +698,10 @@
       li.append(top, el("p", null, x.note), el("small", "basis", `근거: ${x.basis}`)); ol.append(li);
     });
     s.append(ol); doc.append(s);
+    const t = $("#brief-confirm");   // 결재 요청의 「확정 절차」 칸: 확정 단계가 누구인지 (예: 이사회 심의 · 의결)
+    const conf = P.steps.find((x) => x.step.includes("확정"));
+    if (t && conf) { t.querySelector("b").textContent = conf.who; t.querySelector("span").textContent = conf.step.replace(/^확정:\s*/, "") + ` (${conf.status})`; }
+    else if (t) { t.querySelector("b").textContent = "—"; }
   }
   async function fillLawCards(C) {
     const slots = [...document.querySelectorAll("#side .law-slot")];
@@ -710,13 +714,65 @@
       if (card) s.append(lawDetail(card, L.note));
     });
   }
+  // ── 승인권자 결재 화면 (261019) ─────────────────────────
+  // 승인권자는 카드를 결정하지 않는다. 담당자가 무엇을 바꾸고(개정문 · 대비표 · 함께 개정), 카드마다 어떻게 판단했는지,
+  // 확정 절차(이사회 의결 대상인지)를 한눈에 보고 승인 · 반려한다
+  const STATE_WORD = { 초안: "기안", 검토: "검토 요청", 승인: "승인", 공포: "공포", 기각: "반려" };
+  function approvalBrief(C) {
+    const s = el("section", "brief"), H = C.history || [];
+    const first = H[0], sub = [...H].reverse().find((h) => h.state === "검토");
+    s.append(el("h2", null, C.status === "검토" ? "결재 요청" : "결재 요약"));
+    s.append(el("p", "brief-meta", [`기안 ${first?.reviewer || "-"}${first?.at ? " · " + first.at : ""}`, sub ? `제출 ${sub.at}` : "아직 제출 전"].join("  ·  ")));
+    if (first?.comment) { const q = el("blockquote", "brief-req"); q.append(el("small", null, "개정 요청"), el("span", null, first.comment)); s.append(q); }
+    if (sub?.comment) s.append(el("p", "brief-note", `담당자 의견: ${sub.comment}`));
+    const N = C.impacts.length, a = C.impacts.filter((x) => x.state === "accept").length, r = C.impacts.filter((x) => x.state === "reject").length, u = N - a - r;
+    const [b0, b1] = C.breaks || [0, 0];
+    const tiles = el("div", "brief-tiles");
+    const tile = (label, value, sub2, tone, id) => { const t = el("div", "tile " + (tone || "")); if (id) t.id = id; t.append(el("small", null, label), el("b", null, value), el("span", null, sub2)); tiles.append(t); };
+    tile("바뀌는 규정", `${1 + (C.companion?.length || 0)}개`, [C.reg, ...(C.companion || []).map((x) => x.reg)].join(" · "));
+    tile("깨지는 인용", b1 ? `${b1}곳 남음` : "0곳", b0 ? `연쇄 수정 ${b0} → ${b1}` : "깨지는 곳 없음", b1 ? "neg" : "pos");
+    tile("담당자 판단", `수락 ${a} · 기각 ${r}`, u ? `미결정 ${u}건 — 승인 불가` : `카드 ${N}건 모두 결정`, u ? "neg" : "");
+    tile("확정 절차", "확인 중…", "규정 원문의 절차", "", "brief-confirm");
+    s.append(tiles);
+    // 확인할 것: 담당자가 기각한 카드(반영하지 않은 이유) · 수락한 모델 추정 카드(근거가 약함) · 미결정
+    const ul = el("ul", "brief-checks");
+    const add = (tone, text) => { const li = el("li", tone); li.append(icon(tone === "neg" ? "info" : "check-c"), el("span", null, text)); ul.append(li); };
+    if (u) add("neg", `결정하지 않은 카드가 ${u}건 있어 승인할 수 없습니다. 반려해 담당자에게 돌려보내세요.`);
+    C.impacts.filter((x) => x.state === "reject").slice(0, 4).forEach((x) => add("warn", `담당자 기각: ${x.where} — ${x.label}. 반영하지 않아도 되는지 확인`));
+    const weak = C.impacts.filter((x) => x.state === "accept" && x.basis === "모델 추정").length;
+    if (weak) add("warn", `모델 추정 카드 ${weak}건을 수락했습니다. 근거가 약하니 오른쪽 카드에서 원문을 확인하세요.`);
+    const law = C.impacts.filter((x) => x.kind === "law").length;
+    if (law) add("", `법령 대조 ${law}건 — 오른쪽 카드에 관련 법조문과 숫자 대조가 있습니다.`);
+    if (!ul.children.length) add("", "특별히 확인할 항목이 없습니다.");
+    s.append(el("h3", null, "확인할 것"), ul);
+    return s;
+  }
+  function historySection(C) {
+    const s = el("section", "history"); s.append(el("h2", null, "결재 기록"));
+    const ol = el("ol", "timeline");
+    (C.history || []).forEach((h) => {
+      const li = el("li", h.state === "기각" ? "neg" : h.state === "승인" || h.state === "공포" ? "pos" : "");
+      const top = el("div", "top"); top.append(el("b", null, STATE_WORD[h.state] || h.state), el("span", null, h.reviewer), el("small", null, h.at));
+      li.append(top); if (h.comment) li.append(el("p", null, h.comment)); ol.append(li);
+    });
+    s.append(ol); return s;
+  }
+  // 의견 칸: 담당자 제출(선택) · 승인권자 승인 · 반려(반려는 필수). 서버 /api/submit · approve · reject가 comment를 기록한다
+  function commentBox(placeholder) {
+    let ta = $("#cs-comment");
+    if (!ta) { ta = el("textarea"); ta.id = "cs-comment"; ta.rows = 2; ta.maxLength = 300; ta.setAttribute("aria-label", "의견"); $(".review-foot .row2").before(ta); }
+    ta.hidden = !placeholder; ta.placeholder = placeholder || ""; if (!placeholder) ta.value = ""; return ta;
+  }
   function renderActions(C) {
     const row = clear($(".review-foot .row2"));
+    commentBox(isEditor() && C.status === "초안" ? "검토자에게 남길 말 (선택)" : isApprover() && C.status === "검토" ? "승인 · 반려 의견 (반려는 사유를 꼭 적어 주세요)" : "");
     const btn = (cls, label, fn, ic) => { const b = el("button", "btn " + cls); b.type = "button"; if (ic) b.append(icon(ic)); b.append(label); b.addEventListener("click", fn); return b; };
     const link = (label, href) => { const a = el("a", "btn secondary"); a.href = href; a.setAttribute("download", ""); a.append(icon("download"), label); return a; };
-    const act = (path, msg) => async () => {
+    const act = (path, msg, needComment) => async () => {
       if (!LIVE) return toast("서버에 연결되지 않았습니다");
-      try { const r = await api(path, { id: C.id }); toast(msg(r)); await loadChangeset(C.id); await refreshChangesets(); } catch (e) { toast(e.message, 6000); }
+      const comment = ($("#cs-comment")?.value || "").trim();
+      if (needComment && !comment) { $("#cs-comment")?.focus(); return toast("반려 사유를 적어 주세요. 담당자가 이 사유를 보고 고칩니다"); }
+      try { const r = await api(path, { id: C.id, comment }); toast(msg(r)); await loadChangeset(C.id); await refreshChangesets(); } catch (e) { toast(e.message, 6000); }
     };
     if (!isEditor() && !isApprover()) return;
     if (C.status === "초안") {
@@ -725,7 +781,7 @@
       row.append(btn("primary", "검토자에게 제출", act("/api/submit", (r) => `${C.id} 검토 요청함${r.undecided ? ` — 미결정 ${r.undecided}건 포함` : ""}`)));
     } else if (C.status === "검토") {
       if (!isApprover()) { const b = btn("primary", "승인권자의 승인을 기다립니다", () => {}); b.disabled = true; row.append(b); return; }
-      row.append(btn("secondary", "반려", act("/api/reject", () => `${C.id} 반려함`), "x"));
+      row.append(btn("secondary", "반려", act("/api/reject", () => `${C.id} 반려함 — 담당자 화면의 결재 기록에 사유가 보입니다`, true), "x"));
       row.append(btn("primary", "승인 (최종안 확정)", act("/api/approve", (r) => `${C.id} 승인 — 수락 ${r.counts["수락"]}건으로 최종안을 저장했습니다`), "check"));
     } else if (C.status === "승인") {
       row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
@@ -752,6 +808,12 @@
       s.append(sn, stop ? "반려됨" : nm); if (i === at) s.setAttribute("aria-current", "step"); flow.append(s);
     });
     const doc = clear($("#doc"));
+    if (isApprover()) doc.append(approvalBrief(C));   // 승인권자: 담당자가 무엇을 바꾸고 어떻게 판단했는지 먼저 (261019)
+    else if (C.status === "기각") {   // 담당자: 반려 사유를 맨 위에 (결재 기록에만 있으면 지나치기 쉬움)
+      const rj = [...(C.history || [])].reverse().find((h) => h.state === "기각");
+      const n = el("div", "changing reject-note"); n.append(el("b", null, `승인권자가 반려했습니다${rj ? ` · ${rj.reviewer} · ${rj.at}` : ""}`), el("p", null, rj?.comment ? `사유: ${rj.comment}` : "사유가 적혀 있지 않습니다."));
+      doc.append(n);
+    }
     const s1 = el("section"); s1.append(el("h2", null, "개정문"), el("p", "amend-text", C.amendment)); doc.append(s1);
     const s2 = el("section"); s2.append(el("h2", null, "신·구조문 대비표"));
     // 대비표 한 벌 (본 개정 · 함께 개정 규정마다 같은 모양). 「(현행과 같음)」 · 「(생 략)」은 흐리게 그대로 보인다 (261019)
@@ -779,6 +841,7 @@
       const ul = el("ul", "hint"); C.coverage.not_covered.forEach((t) => ul.append(el("li", null, t)));
       s.append(ul); doc.append(s);
     }
+    if (C.history?.length) doc.append(historySection(C));
     fillProcedure(C, doc);
 
     const SD = clear($("#side"));
@@ -788,8 +851,9 @@
     const lockWhy = editable(C) ? "" : (C.status === "초안" || C.status === "검토")
       ? "카드 수락 · 기각은 개정 담당자가 합니다." + (isApprover() ? " 승인권자는 아래에서 승인 · 반려만 합니다." : "")
       : `이 개정안은 「${(CS_LABEL[C.status] || [C.status])[0]}」 상태라 카드 결정이 잠겨 있습니다.`;
-    const hint = el("span", "hint" + (lockWhy ? " lock" : ""));
-    if (lockWhy) hint.append(icon("info"), lockWhy); else hint.append("카드마다 수락 · 기각하세요. 수락한 카드만 최종안에 반영됩니다.");
+    const hint = el("span", "hint" + (lockWhy && !isApprover() ? " lock" : ""));
+    if (isApprover()) hint.append(C.status === "검토" ? "담당자가 카드마다 내린 판단입니다. 확인한 뒤 아래에서 승인하거나 반려하세요." : "담당자가 카드마다 내린 판단입니다.");
+    else if (lockWhy) hint.append(icon("info"), lockWhy); else hint.append("카드마다 수락 · 기각하세요. 수락한 카드만 최종안에 반영됩니다.");
     head.append(el("b", "decide-left"), hint);
     const [b0, b1] = C.breaks || [null, null];
     const br = el("p", "break-line " + (b1 ? "neg" : "pos"));
@@ -800,12 +864,15 @@
                    ["law", "법령 대조", "개정한 조가 인용하는 법령 — 법령과 맞는지 비교할 곳"], ["review", "확인 필요", "같은 제목 · 비슷한 뜻으로 찾은 관련 조문 — 함께 고칠지 판단할 곳"]];
     const kindOf = (x) => (x.kind === "topic" ? "review" : x.kind);
     const fl = el("div", "kind-filter"); fl.setAttribute("role", "group"); fl.setAttribute("aria-label", "카드 종류로 거르기");
+    // 승인권자는 담당자의 판단(수락 · 기각 · 미결정)으로 거르고, 담당자는 카드 종류로 거른다
+    const byDecision = isApprover(), stateOf = (x) => x.state || "none";
     const filt = (k) => {
       fl.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === k)));
-      SD.querySelectorAll(".rows > li").forEach((li) => (li.hidden = k !== "all" && li.dataset.kind !== k));
+      SD.querySelectorAll(".rows > li").forEach((li) => (li.hidden = k !== "all" && (byDecision ? li.dataset.state : li.dataset.kind) !== k));
     };
-    [["all", "전체", "모든 카드"], ...KINDS].forEach(([k, name, desc]) => {
-      const n = k === "all" ? C.impacts.length : C.impacts.filter((x) => kindOf(x) === k).length;
+    const DECISIONS = [["accept", "담당자 수락", "최종안에 반영되는 카드"], ["reject", "담당자 기각", "반영하지 않기로 한 카드 — 이유를 확인할 곳"], ["none", "미결정", "결정하지 않은 카드 (남아 있으면 승인할 수 없음)"]];
+    [["all", "전체", "모든 카드"], ...(byDecision ? DECISIONS : KINDS)].forEach(([k, name, desc]) => {
+      const n = k === "all" ? C.impacts.length : C.impacts.filter((x) => (byDecision ? stateOf(x) : kindOf(x)) === k).length;
       if (!n) return;
       const b = el("button", "kf " + k); b.type = "button"; b.dataset.k = k; b.title = desc; b.setAttribute("aria-pressed", String(k === "all"));
       b.append(name, el("b", null, String(n))); b.addEventListener("click", () => filt(k)); fl.append(b);
@@ -815,7 +882,7 @@
     const TONE = { break: "neg", resolved: "pos", law: "accent", review: "warn", topic: "" };
     const ol = el("ol", "rows");
     C.impacts.forEach((x) => {
-      const li = el("li", "row"), body = el("div", "body"); li.dataset.kind = kindOf(x);
+      const li = el("li", "row"), body = el("div", "body"); li.dataset.kind = kindOf(x); li.dataset.state = stateOf(x);
       // 카드의 조문 이름을 누르면 그 조문 원문을 카드 안에 불러오고, 거기서 「개정 정보」 탭(개정안 작성)으로 이어진다 (261019 사용자 요청)
       const where = el("button", "where"); where.type = "button"; where.title = "원문 보기"; where.append(x.where, icon("chev"));
       const top = el("div", "top"); top.append(el("span", "tag " + (TONE[x.kind] || ""), x.label), where);
@@ -883,6 +950,13 @@
         const cb = el("button", "link-btn cascade", "이 조도 함께 개정 →"); cb.type = "button";
         cb.title = "개정 요청 대화를 열고 이 조를 고치는 요청을 미리 채웁니다. 보내기 전에 문장을 고칠 수 있습니다";
         cb.addEventListener("click", () => cascadeRequest(C, x)); body.append(cb);
+      }
+      if (isApprover()) {   // 승인권자: 버튼 대신 담당자의 판단 (누가 · 언제)
+        const st = stateOf(x), badge = el("div", "verdict " + st);
+        badge.append(icon(st === "accept" ? "check" : st === "reject" ? "x" : "info"),
+          st === "accept" ? "담당자 수락 · 최종안에 반영" : st === "reject" ? "담당자 기각 · 반영 안 함" : "미결정");
+        if (x.by) badge.append(el("small", null, `${x.by}${x.at ? " · " + x.at : ""}`));
+        body.append(badge); li.classList.toggle("rejected", st === "reject"); li.append(body); ol.append(li); return;
       }
       dc.append(acc, rej); body.append(dc); li.append(body); ol.append(li); paint();
     });

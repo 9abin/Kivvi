@@ -291,6 +291,11 @@ def changeset(cid: str) -> dict:
             "coalesce(d.state, '미결정') as state from amend.impact i left join amend.v_decision_state d on d.key = i.review_key "
             "where i.changeset_id = %s order by case i.category when 'breaks' then 0 when 'law_check' then 1 when 'resolved' then 2 else 3 end, "
             "case i.priority when '높음' then 0 when '중간' then 1 else 2 end, i.reg_id, i.article", cid)
+    # 결재 화면용 (261019): 개정안 상태 이력(기안 · 제출 · 승인 · 반려 · 공포, 누가 · 언제 · 의견)과 카드마다 마지막으로 결정한 사람
+    history = q("select state, prev, reviewer, comment, to_char(at at time zone 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') as at "
+                "from amend.decision_log where key = %s order by seq", f"C:{cid}")
+    decided = {r["key"]: r for r in q("select distinct on (key) key, reviewer, to_char(at at time zone 'Asia/Seoul', 'MM-DD HH24:MI') as at "
+                                      "from amend.decision_log where kind = 'impact' and key like %s order by key, seq desc", f"I:{cid}:%")}
     impacts = []
     for r in imp:
         kind, label = IMPACT_LABEL.get(r["category"], ("review", r["category"]))
@@ -298,7 +303,8 @@ def changeset(cid: str) -> dict:
         impacts.append({"key": r["review_key"], "kind": kind, "label": label, "where": f"{titles.get(r['reg_id'], r['reg_id'])} {place}",
                         "quote": r["quote"] or "", "reason": readable(r["reason"] or ""), "priority": r["priority"],
                         "basis": basis_of(r["path"]), "path": r["path"] or "",
-                        "state": {"수락": "accept", "기각": "reject"}.get(r["state"])})
+                        "state": {"수락": "accept", "기각": "reject"}.get(r["state"]),
+                        "by": (decided.get(r["review_key"]) or {}).get("reviewer"), "at": (decided.get(r["review_key"]) or {}).get("at")})
     from web_agent import load_package
     pkg = load_package(cid) or {}
     return {"id": c["id"], "reg": titles.get(c["reg_id"], c["reg_id"]), "title": c["title"], "status": c["status"],
@@ -309,7 +315,7 @@ def changeset(cid: str) -> dict:
                           for x in pkg.get("companion", [])],
             "addendum": pkg.get("addendum_draft") or "", "questions": pkg.get("questions") or [],
             "breaks": [pkg.get("breaks_before"), pkg.get("breaks_after")] if pkg else None,
-            "impacts": impacts, "has_package": bool(pkg), "coverage": pkg.get("coverage")}
+            "impacts": impacts, "has_package": bool(pkg), "coverage": pkg.get("coverage"), "history": history}
 
 
 _EXPLAIN: dict[tuple[str, str], dict] = {}
