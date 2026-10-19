@@ -195,7 +195,9 @@ class Searcher:
         else:
             self.model = SentenceTransformer(EMBED_MODEL, device="cuda")
             self.model.half()
-        self.reranker = CrossEncoder(RERANK_MODEL, device="cuda")
+        # fp16 (2026.10.19): 조합 실험의 기준 구성 R1과 같게 (fp32와 순위 같음, 질문당 0.66 → 0.19초, configs/combo/baseline.toml).
+        # Ollama 임베딩(4B)과 8GB GPU를 나눠 쓰므로 메모리도 절반으로
+        self.reranker = CrossEncoder(RERANK_MODEL, device="cuda", model_kwargs={"dtype": "float16"})
         self.rerank_header = RERANK_HEADER
         self._select_llm = None
         self.synonym_table = synonyms.load() if USE_SYNONYMS else {}
@@ -743,6 +745,7 @@ class Searcher:
             item = self._entry(h, status=h.get("status"))
             item.update({
                 "chunk_id": f"{doc_id}_{base}", "article": base,
+                "hit_chunk": h["chunk_id"],   # 이 조를 올린 항 (화면이 그 항을 강조할 때 씀, 261019)
                 "body": "\n".join(text(r) for r in rows) or h["body"],
                 "score": h.get("score"), "rerank": h.get("rerank"), "llm_rerank": h.get("llm_rerank"),
                 "match": h.get("match", "정확조회"), "siblings": [], "cited": [],

@@ -144,6 +144,12 @@ def find(text: str) -> dict:
 def article(chunk: str) -> dict:
     head = q("select d.reg_id, d.article_id, d.label, d.title, doc.title as reg, doc.revision "
              "from amend.chunk_detail d join public.documents doc on doc.doc_id = d.reg_id where d.chunk_id = %s limit 1", chunk)
+    m = None if head else re.fullmatch(r"(\d+)_(제\d+조(?:의\d+)?)", chunk or "")
+    if m:   # 조 단위 ID(답변이 조 전체를 넘길 때, 「24010_제43조」) → 그 조의 첫 항으로 연다
+        rows = q("select chunk_id from amend.chunk_detail where reg_id = %s and label = %s and chunk_id is not null "
+                 "group by chunk_id, hang order by min(hang) limit 1", m.group(1), m.group(2))
+        if rows:
+            return article(rows[0]["chunk_id"])
     if not head:   # 별표·별지·부칙 청크는 우리 항·호·목 표에 없다 → 청크 하나를 그대로 보여 준다
         one = q("select c.chunk_id, c.doc_id, c.article, c.body, c.status, d.title, d.revision from public.chunks c "
                 "join public.documents d using (doc_id) where c.chunk_id = %s", chunk)

@@ -142,7 +142,8 @@ def ask(question: str, history: list[dict] | None = None) -> dict:
     with _lock:
         rewritten = standalone(question, history)
         r = _state["assistant"].ask(rewritten or question)
-    entries = [{"n": i + 1, "chunk": e.get("chunk_id"), "reg": e.get("문서명"), "article": e.get("article"),
+    # 조 전체를 넘기는 구성(RETURN_ARTICLE)에서 chunk_id는 조 ID(「24010_제43조」)다 → 이 조를 올린 항(hit_chunk)을 열어 그 항을 강조한다
+    entries = [{"n": i + 1, "chunk": e.get("hit_chunk") or e.get("chunk_id"), "reg": e.get("문서명"), "article": e.get("article"),
                 "state": e.get("조문상태"), "role": e.get("역할"), "text": (e.get("body") or "")[:160]}
                for i, e in enumerate(r.get("entries", []))]
     warnings = [w for w in r.get("warnings", []) if not w.startswith(("용어집:", "표 범위 필터:"))]
