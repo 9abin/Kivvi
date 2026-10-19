@@ -229,6 +229,190 @@ def draft(chunk: str, request: str, user: str) -> dict:
     return {"id": cid, "breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
 
 
+# ── 여러 조문 함께 개정 (261019) ─────────────────────────────────────────
+# 요청 하나에 고칠 조문이 여럿 나오면(「육아휴직 분할 3회」 → 인사규정 제30조 · 취업규칙 제43조 …) AI가 서로 어긋나지 않는 개정 방안을
+# 2~3개 내고(plan), 담당자가 고르고 고친 조문별 지시를 묶어 개정안을 만든다(draft_bundle). 같은 규정의 조문들은 개정문 하나로 합치고,
+# 규정마다 개정안 하나 — 묶음 ID(payload.bundle)로 이어 대표 개정안에서 한 번에 제출 · 승인 · 반려한다.
+# AI 방안은 참고다: 법적 판단을 하지 않고, 법령은 반입 스냅샷의 조문을 보여 주며 대조할 점만 적는다 (AGENTS §3).
+PLAN_PROMPT = """너는 회사 내부 규정(내규) 개정을 돕는 보조자다. 개정 요청과 관련 내규 조문, 관련 법령 조문을 보고 개정 방안을 2~3개 제안한다.
+- 방안마다 어느 조문을 어떻게 고칠지 조문별로 한 문장씩 적는다. 같은 값(횟수 · 기간 · 금액 등)이 여러 조문에 있으면 서로 어긋나지 않게 함께 고친다.
+- 고치지 않는 조문은 방안에 넣지 않는다. 조문 번호는 주어진 ref(A1, A2 …)만 쓴다.
+- 법령 조문과 대조해 개정안 값이 법령 기준보다 낮거나 다르면 그 점을 law에 사실로만 적는다. 위법 · 적법 판단은 하지 않는다.
+- 방안끼리는 범위가 달라야 한다 (예: 최소 수정 / 관련 조문까지 맞춤 / 법령 기준에 맞춤).
+JSON만 출력: {"options":[{"title":"짧은 이름","summary":"한두 문장","edits":[{"ref":"A1","how":"이 조문을 어떻게 고칠지 한 문장"}],"law":"법령 대조 메모","caution":"담당자가 확인할 점"}]}"""
+
+
+def _law_context(db, art: dict, request: str) -> list[dict]:
+    """조문과 제목이 같은 법령에서 요청 · 조문과 가장 가까운 항 2개 (반입 스냅샷, web_law.related). 조문 제목만 맞추면 본문이 비거나
+    (남녀고용평등법 제19조는 항이 따로) 다른 조(분할 사용은 제19조의4)가 실제 기준이다"""
+    if db is None or not art.get("title"):
+        return []
+    from web_law import related
+    from regcheck.nl import article_text
+    out, seen = [], set()
+    for law, key, _ in db.same_title(art["title"], limit=2):
+        if law["title"] in seen:
+            continue
+        seen.add(law["title"])
+        for x in related(law, article_text(art), k=2, prefer=key, focus=request):
+            out.append({"law": law["title"], "label": x["article"], "title": x["title"], "text": x["text"][:500]})
+    return out[:3]
+
+
+def plan(request: str, chunks: list[str]) -> dict:
+    """고칠 후보 조문들 → AI 개정 방안. {articles:[{ref, chunk, reg, label, title, text, laws}], options:[...]}"""
+    from regcheck.nl import _post, article_text
+    from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
+    request = (request or "").strip()
+    if len(request) < 4:
+        return {"error": "어떻게 바꿀지 한 문장으로 적어 주세요"}
+    regs, _, _ = corpus()
+    db = LawDB(LAW_DB) if LAW_DB.exists() else None
+    arts, seen = [], set()
+    for ch in chunks[:6]:
+        rid, _, rest = (ch or "").partition("_")
+        label = rest.split("_")[0]
+        a = next((a for a in regs.get(rid, {}).get("articles", []) if a["label"] == label and not a.get("deleted")), None)
+        if not a or (rid, label) in seen:
+            continue
+        seen.add((rid, label))
+        arts.append({"ref": f"A{len(arts) + 1}", "chunk": ch, "reg_id": rid, "reg": regs[rid]["name"], "label": label,
+                     "title": a["title"], "text": article_text(a)[:1200], "laws": _law_context(db, a, request)})
+    if not arts:
+        return {"error": "고칠 조문 후보가 없습니다"}
+    law_seen, law_lines = set(), []
+    for a in arts:
+        for l in a["laws"]:
+            if (l["law"], l["label"]) not in law_seen:
+                law_seen.add((l["law"], l["label"]))
+                law_lines.append(f"「{l['law']}」 {l['label']}({l['title']})\n{l['text']}")
+    user_msg = (f"개정 요청: {request}\n\n관련 내규 조문:\n" + "\n\n".join(f"[{a['ref']}] 「{a['reg']}」 {a['text']}" for a in arts)
+                + "\n\n관련 법령 조문 (반입 스냅샷):\n" + ("\n\n".join(law_lines) or "(없음)"))
+    try:
+        with _lock:
+            raw = _post(DRAFT_MODEL, [{"role": "system", "content": PLAN_PROMPT}, {"role": "user", "content": user_msg}], timeout=180)
+    except Exception as e:
+        return {"error": f"개정 방안 모델 「{DRAFT_MODEL}」에 연결하지 못했습니다 ({type(e).__name__})", "articles": arts, "options": []}
+    m = re.search(r"\{.*\}", raw, re.S)
+    try:
+        opts = json.loads(m.group(0))["options"] if m else []
+    except (json.JSONDecodeError, KeyError, TypeError):
+        opts = []
+    refs = {a["ref"] for a in arts}
+    clean = []
+    for o in opts[:3]:   # 주어진 조문(ref)만, 지시가 빈 것은 버린다
+        edits = [{"ref": e["ref"], "how": str(e.get("how", "")).strip()} for e in o.get("edits", []) if isinstance(e, dict) and e.get("ref") in refs and str(e.get("how", "")).strip()]
+        if edits:
+            clean.append({"title": str(o.get("title", ""))[:40], "summary": str(o.get("summary", ""))[:300], "edits": edits,
+                          "law": str(o.get("law", ""))[:400], "caution": str(o.get("caution", ""))[:300]})
+    if not clean:
+        return {"error": "AI가 개정 방안을 만들지 못했습니다. 조문을 하나 골라 개정하거나 요청을 더 구체적으로 적어 주세요.", "articles": arts, "options": []}
+    return {"request": request, "articles": arts, "options": clean, "model": DRAFT_MODEL}
+
+
+def draft_bundle(request: str, edits: list[dict], user: str) -> dict:
+    """[{chunk, how}] → 규정별 개정안 (같은 규정의 조문들은 개정문 하나로). 첫 규정이 대표, 나머지는 묶음 구성원"""
+    from collections import OrderedDict
+    from regcheck.amend import AmendError, build_changeset
+    from regcheck.nl import draft as nl_draft
+    request = (request or "").strip()
+    edits = [e for e in (edits or []) if isinstance(e, dict) and e.get("chunk") and len(str(e.get("how", "")).strip()) >= 4][:8]
+    if not edits:
+        return {"error": "고칠 조문과 고칠 내용을 하나 이상 적어 주세요"}
+    regs, _, _ = corpus()
+    by_reg: OrderedDict[str, list[dict]] = OrderedDict()
+    for e in edits:
+        by_reg.setdefault(e["chunk"].split("_")[0], []).append(e)
+    if any(r not in regs for r in by_reg):
+        return {"error": "규정을 찾지 못한 조문이 있습니다"}
+    drafts = []   # (reg_id, 합친 개정문, 첫 조문 chunk, 조문 라벨들)
+    for rid, es in by_reg.items():
+        reg, sents = regs[rid], []
+        for e in es:
+            label = e["chunk"].split("_")[1] if "_" in e["chunk"] else ""
+            with _lock:
+                try:
+                    res = nl_draft(regs, f"{reg['name']} {label} {e['how']}", model=DRAFT_MODEL, reg=reg)
+                except Exception as ex:
+                    return {"error": f"개정안 작성 모델에 연결하지 못했습니다 ({type(ex).__name__})"}
+            if not res.get("ok"):
+                return {"error": f"「{reg['name']}」 {label} 개정문을 만들지 못했습니다. 이 조문의 고칠 내용을 더 구체적으로 적어 주세요."}
+            sents += [s for s in res["amendment"].strip().splitlines() if s.strip() and s not in sents]
+        text = "\n".join(sents)
+        try:   # 같은 규정의 문장들을 합쳐도 원문에 함께 적용되는지 (같은 곳을 두 번 고치면 여기서 걸린다)
+            build_changeset(reg, text, "check")
+        except AmendError as ex:
+            return {"error": f"「{reg['name']}」의 조문별 개정문을 하나로 합치지 못했습니다: {ex}"}
+        drafts.append((rid, text, es[0]["chunk"], [e["chunk"].split("_")[1] for e in es]))
+    bid = "B" + datetime.now().strftime("%y%m%d-%H%M%S")
+    made = []
+    for i, (rid, text, chunk, labels) in enumerate(drafts):
+        cid = f"W{bid[1:]}-{i + 1}"
+        ref = {"chunk": chunk, "model": DRAFT_MODEL, "kind": "bundle", "bundle": bid, "bundle_main": f"W{bid[1:]}-1", "bundle_request": request}
+        r = _package_store(cid, regs[rid], text, request, chunk, user, ref, title=f"{' · '.join(dict.fromkeys(labels))} — {request}")
+        if r.get("error"):
+            return {**r, "made": made}
+        made.append({"id": cid, "reg": regs[rid]["name"], **r})
+    return {"id": made[0]["id"], "bundle": bid, "members": made}
+
+
+def _package_store(cid: str, reg: dict, amendment: str, request: str, chunk: str, user: str, ref: dict, title: str) -> dict:
+    """개정문(검증된 것) → 연쇄 수정 · 영향 점검 패키지 → DB 초안. draft()와 같은 점검 설정"""
+    from regcheck.agent import build_package
+    from regcheck.amend import build_changeset
+    from regcheck.lawdb import DEFAULT as LAW_DB, LawDB
+    from regcheck.neighbors import load as load_neighbors
+    regs, rels, edges = corpus()
+    with _lock:
+        cs, _ = build_changeset(reg, amendment, cid, request)
+        model, rr = _models()
+        embed = lambda t: model.encode(t, normalize_embeddings=True)  # noqa: E731
+        hypo = None
+        if HYPOTHESIS:
+            from regcheck.hypothesis import hypotheses
+            from regcheck.nl import _post as _llm
+            rerank = lambda q, ts: rr.predict([(q, t) for t in ts], batch_size=16, show_progress_bar=False).tolist()  # noqa: E731
+            hypo = lambda r, art, new, diff, skip: hypotheses(lambda m: _llm(HYPO_MODEL, m, timeout=90), regs, r, art, new, diff,  # noqa: E731
+                                                              (_vector_obj().vecs, _vector_obj().chunks), embed, rerank, skip)
+        pkg = build_package(cs, regs, rels, edges, lawdb=LawDB(LAW_DB) if LAW_DB.exists() else None, spell_model=SPELL_MODEL,
+                            neighbors=load_neighbors(), dup=(embed, _vector_obj()), hypo=hypo, vector=(model, _vector_obj()))
+    n = _store(cid, reg["reg_id"], title, cs, pkg, chunk, user, request, ref)
+    return {"breaks": [pkg["breaks_before"], pkg["breaks_after"]], "companion": len(pkg["companion"]), "impacts": n}
+
+
+def bundle_ids(cid: str) -> tuple[str | None, str | None, list[str]]:
+    """(묶음 ID, 대표 ID, 구성원 ID들 — 대표 먼저). 묶음이 아니면 (None, None, [])"""
+    with write_conn() as con:
+        row = con.execute("SELECT payload->>'bundle', payload->>'bundle_main' FROM amend.changeset WHERE id = %s", (cid,)).fetchone()
+        if not row or not row[0]:
+            return None, None, []
+        ids = [r[0] for r in con.execute("SELECT id FROM amend.changeset WHERE payload->>'bundle' = %s ORDER BY id", (row[0],)).fetchall()]
+    return row[0], row[1], ids
+
+
+def _bundled(fn):
+    """제출 · 승인 · 반려 · 공포: 묶음이면 대표 개정안에서 구성원 모두에 (구성원 화면에서는 막는다)"""
+    def run(cid: str, user: str, comment: str = "") -> dict:
+        bid, main, ids = bundle_ids(cid)
+        if not bid:
+            return fn(cid, user, comment)
+        if cid != main:
+            return {"error": f"묶음 개정안입니다. 대표 개정안 {main}에서 한 번에 처리하세요"}
+        if fn is approve:   # 승인은 모두 승인할 수 있을 때만 (하나라도 미결정이면 아무것도 바꾸지 않는다)
+            for m in ids:
+                fin = final_package(m)
+                if fin.get("counts", {}).get("미결정"):
+                    return {"error": f"묶음의 {fin['reg_name']} 개정안({m})에 결정하지 않은 카드가 {fin['counts']['미결정']}건 있습니다"}
+        out = None
+        for m in ids:
+            r = fn(m, user, comment)
+            if r.get("error"):
+                return {**r, "error": f"{m}: {r['error']}"}
+            out = out or r
+        return {**out, "bundle": bid, "members": ids}
+    return run
+
+
 def _store(cid: str, reg_id: str, title: str, cs: dict, pkg: dict, chunk: str | None, user: str, request: str, ref: dict) -> int:
     """개정 패키지 파일 + amend.changeset·impact + 「초안」 결정 기록. 영향 수를 돌려준다"""
     from regcheck.amend_db import impact_rows
@@ -241,7 +425,8 @@ def _store(cid: str, reg_id: str, title: str, cs: dict, pkg: dict, chunk: str | 
     found = pkg["law_check"] + pkg["review"] + [{**b, "category": "breaks"} for b in pkg.get("remaining_breaks", []) if isinstance(b, dict)]
     changes = cs.get("changes") or [{"origin": r["origin"]} for r in pkg["rows"] if r.get("origin")]   # v_chunk_open_change가 바뀌는 조를 여기서 찾음
     payload = {"id": cid, "run": cid, "rows": pkg["rows"], "changes": changes, "request": request, "model": ref.get("model"),
-               "kind": ref.get("kind", "draft"), **({"origin": ref["origin"]} if ref.get("origin") else {})}
+               "kind": ref.get("kind", "draft"), **({"origin": ref["origin"]} if ref.get("origin") else {}),
+               **({k: ref[k] for k in ("bundle", "bundle_main", "bundle_request")} if ref.get("bundle") else {})}
     with write_conn() as con, con.cursor() as cur:
         cur.execute("INSERT INTO amend.changeset (id, reg_id, title, amendment, status, origin_chunk, created_by, payload) "
                     "VALUES (%s, %s, %s, %s, '초안', %s, %s, %s)",

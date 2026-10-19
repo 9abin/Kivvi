@@ -307,7 +307,22 @@ def changeset(cid: str) -> dict:
                         "by": (decided.get(r["review_key"]) or {}).get("reviewer"), "at": (decided.get(r["review_key"]) or {}).get("at")})
     from web_agent import load_package
     pkg = load_package(cid) or {}
-    return {"id": c["id"], "reg": titles.get(c["reg_id"], c["reg_id"]), "title": c["title"], "status": c["status"],
+    bundle = None
+    if payload.get("bundle"):   # 여러 조문 함께 개정 (261019): 같은 묶음의 개정안들을 한 문서로 — 규정마다 개정문 · 대비표 · 카드 결정 현황
+        members = []
+        for m in q("select c.id, c.reg_id, c.title, c.status, c.amendment, "
+                   "(select count(*) from amend.impact i left join amend.v_decision_state d on d.key = i.review_key "
+                   " where i.changeset_id = c.id and coalesce(d.state, '미결정') not in ('수락', '기각')) as undecided, "
+                   "(select count(*) from amend.impact i where i.changeset_id = c.id) as n, "
+                   "(select count(*) from amend.impact i join amend.v_decision_state d on d.key = i.review_key where i.changeset_id = c.id and d.state = '수락') as accepted, "
+                   "(select count(*) from amend.impact i join amend.v_decision_state d on d.key = i.review_key where i.changeset_id = c.id and d.state = '기각') as rejected "
+                   "from amend.changeset c where c.payload->>'bundle' = %s order by c.id", payload["bundle"]):
+            mp = load_package(m["id"]) or {}
+            members.append({"id": m["id"], "reg": titles.get(m["reg_id"], m["reg_id"]), "title": m["title"], "status": m["status"],
+                            "amendment": mp.get("amendment_final") or m["amendment"], "impacts": m["n"], "undecided": m["undecided"], "accepted": m["accepted"], "rejected": m["rejected"],
+                            "diff": {"old": segments(mp.get("rows") or [], "old"), "new": segments(mp.get("rows") or [], "new")}})
+        bundle = {"id": payload["bundle"], "main": payload.get("bundle_main"), "request": payload.get("bundle_request", ""), "members": members}
+    return {"id": c["id"], "reg": titles.get(c["reg_id"], c["reg_id"]), "title": c["title"], "status": c["status"], "bundle": bundle,
             "amendment": pkg.get("amendment_final") or c["amendment"],
             "diff": {"old": segments(pkg.get("rows") or payload.get("rows", []), "old"), "new": segments(pkg.get("rows") or payload.get("rows", []), "new")},
             "companion": [{"reg": x["reg_name"], "amendment": x.get("amendment") or "", "manual": len(x.get("manual") or []), "status": x.get("status", ""),
@@ -396,10 +411,13 @@ POSTS = {
     "/api/ask": lambda b: with_open_changes(web_chat.ask(b.get("q", ""), b.get("history") or [])),
     "/api/draft": lambda b: allowed(b, "draft") or web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
     "/api/decide": lambda b: allowed(b, "decide") or web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
-    "/api/submit": lambda b: allowed(b, "submit") or web_agent.submit(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
-    "/api/approve": lambda b: allowed(b, "approve") or web_agent.approve(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
-    "/api/reject": lambda b: allowed(b, "reject") or web_agent.reject_cs(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
-    "/api/publish": lambda b: allowed(b, "publish") or web_agent.publish(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    # 제출 · 승인 · 반려 · 공포: 묶음 개정안이면 대표에서 구성원 모두에 (web_agent._bundled)
+    "/api/submit": lambda b: allowed(b, "submit") or web_agent._bundled(web_agent.submit)(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/approve": lambda b: allowed(b, "approve") or web_agent._bundled(web_agent.approve)(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/reject": lambda b: allowed(b, "reject") or web_agent._bundled(web_agent.reject_cs)(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/publish": lambda b: allowed(b, "publish") or web_agent._bundled(web_agent.publish)(b.get("id", ""), b.get("user", "web"), b.get("comment", "")),
+    "/api/plan": lambda b: allowed(b, "draft") or web_agent.plan(b.get("request", ""), list(b.get("chunks") or [])),
+    "/api/draft_bundle": lambda b: allowed(b, "draft") or web_agent.draft_bundle(b.get("request", ""), list(b.get("edits") or []), b.get("user", "web")),
     "/api/feedback": lambda b: feedback(b),
     "/api/scan/start": lambda b: allowed(b, "scan") or web_watch.start(b.get("law", ""), b.get("user", "web"), bool(b.get("rebase"))),
     "/api/lawname/create": lambda b: allowed(b, "lawname_create") or web_agent.lawname_create(list(b.get("regs") or []), b.get("user", "web")),

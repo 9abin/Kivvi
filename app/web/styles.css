@@ -610,3 +610,32 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 .row.compact .link-btn.more { align-self: flex-start; font-size: 13px; padding: 0; }
 .row.compact .card-details { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; border-top: 1px dashed var(--gray-20); }
 .doc section.brief.pending { border: 1px dashed var(--gray-40); }
+
+/* 여러 조문 함께 개정: AI 개정 방안 · 묶음 개정안 (261019) */
+.plan-start { flex-wrap: wrap; gap: 8px; }
+.plan { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.plan-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.plan-tab { border: 1px solid var(--gray-20); background: var(--gray-0); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 14px; cursor: pointer; color: var(--gray-70); }
+.plan-tab[aria-pressed="true"] { background: var(--secondary); border-color: var(--secondary); color: #fff; font-weight: 700; }
+.plan-body { border: 1px solid var(--gray-20); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--gray-0); }
+.plan-summary { margin: 0; font-size: 15px; color: var(--gray-90); }
+.plan-edits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.plan-edits li { border: 1px solid var(--gray-20); border-radius: var(--radius); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.plan-edits li.on { border-color: var(--secondary); background: var(--secondary-5); }
+.plan-edits li.off { opacity: .7; }
+.plan-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14.5px; cursor: pointer; }
+.plan-head span { color: var(--gray-60); }
+.plan-head .link-btn { margin-left: auto; font-size: 13px; }
+.plan-edits textarea { width: 100%; resize: vertical; font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--gray-20); border-radius: var(--radius-s); background: var(--gray-0); }
+.plan-law summary { font-size: 13px; color: var(--secondary); cursor: pointer; }
+.plan-law p { margin: 4px 0 0; font-size: 13px; color: var(--gray-70); line-height: 1.6; }
+.plan-note { display: flex; flex-direction: column; gap: 2px; font-size: 14px; padding: 8px 10px; border-radius: var(--radius); background: var(--secondary-5); color: var(--gray-70); }
+.plan-note b { font-size: 12.5px; color: var(--secondary); }
+.plan-note.warn { background: var(--warning-5); }
+.plan-note.warn b { color: var(--warning); }
+.plan > .link-btn { align-self: flex-start; font-size: 13px; }
+.doc section.bundle { border: 2px solid var(--secondary); }
+.bundle-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bundle-head .btn { margin-left: auto; }
+.bundle-head small { color: var(--gray-60); }
+.bundle-note { margin: 0 0 6px; color: var(--warning); font-weight: 600; }

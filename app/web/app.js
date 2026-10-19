@@ -248,6 +248,8 @@
     amend: [["요청 분석", 0], ["고칠 조문 찾기", 1, "규정 이름 · 조 번호 · 바꿀 내용으로 위치를 찾고 있습니다"]],
     draft: [["개정문 초안 작성", 0, "모델이 조문을 다시 쓰고 개정문으로 바꿉니다"], ["원문 적용 확인", 10, "개정문이 원문에 그대로 적용되는지 확인합니다"],
             ["인용 · 영향 점검", 18, "이 조를 인용하는 곳과 관련 법령을 대조합니다"]],
+    plan: [["후보 조문 읽기", 0, "후보 조문의 원문을 모읍니다"], ["관련 법령 찾기", 1, "조문과 같은 주제의 법령 조문(반입 스냅샷)을 찾습니다"],
+           ["개정 방안 작성", 3, "조문끼리 어긋나지 않는 방안 2~3개를 만듭니다"]],
   };
   function stepsCard(kind, title) {
     const card = el("div", "steps-card"), b = el("b"); b.append(icon("sparkle"), title);
@@ -378,8 +380,92 @@
     });
     row.append(go, note); return row;
   }
+  // ── 여러 조문 함께 개정 (261019): 후보 조문이 여럿이면 AI가 서로 어긋나지 않는 개정 방안 2~3개를 내고(POST /api/plan),
+  // 담당자가 방안을 고르고 조문별 지시를 고쳐 한 번에 개정안을 만든다(POST /api/draft_bundle). 같은 규정은 개정문 하나, 규정마다 개정안 하나 → 한 문서로 결재
+  function planRow(q, res, wrap) {
+    const row = el("div", "tool-row plan-start"), go = el("button", "btn secondary small"); go.type = "button";
+    go.append(icon("sparkle"), "여러 조문을 함께 고치기 — AI 개정 방안 보기");
+    row.append(go, el("small", "hint", "후보 조문을 함께 읽고 법령과 대조해, 서로 어긋나지 않는 방안을 제안합니다"));
+    go.addEventListener("click", async () => {
+      if (!LIVE) return toast("서버에 연결되지 않았습니다");
+      go.disabled = true; const card = stepsCard("plan", "개정 방안을 만들고 있습니다"); row.after(card);
+      try {
+        const r = await api("/api/plan", { request: q, chunks: res.find.candidates.slice(0, 5).map((x) => x.chunk) });
+        res.plan = { ...r, pick: 0 }; save(convs); wrap.replaceWith(renderMsg(q, res));
+      } catch (e) { toast(e.message, 6000); go.disabled = false; }
+      finally { card.stop(); card.remove(); }
+    });
+    return row;
+  }
+  function planView(q, res, wrap) {
+    const P = res.plan, box = el("div", "plan");
+    const opt = () => P.options[P.pick] || P.options[0];
+    // 방안별로 조문마다 지시를 따로 기억한다 (담당자가 고친 문장은 방안을 바꿔도 남음)
+    P.edits = P.edits || P.options.map((o) => Object.fromEntries(P.articles.map((a) => { const e = o.edits.find((x) => x.ref === a.ref); return [a.ref, { on: !!e, how: e?.how || "" }]; })));
+    box.append(el("p", "hint", `후보 조문 ${P.articles.length}개를 함께 읽고 관련 법령과 대조한 방안입니다. 방안을 고르고, 조문별로 고칠 내용을 다듬은 뒤 개정안을 만드세요.`));
+    const tabs = el("div", "plan-tabs"), body = el("div", "plan-body");
+    P.options.forEach((o, i) => {
+      const t = el("button", "plan-tab", `${"①②③"[i]} ${o.title}`); t.type = "button"; t.setAttribute("aria-pressed", String(i === P.pick));
+      t.addEventListener("click", () => { P.pick = i; save(convs); wrap.replaceWith(renderMsg(q, res)); }); tabs.append(t);
+    });
+    const O = opt(), E = P.edits[P.pick];
+    body.append(el("p", "plan-summary", O.summary));
+    const list = el("ol", "plan-edits");
+    P.articles.forEach((a) => {
+      const st = E[a.ref], li = el("li", st.on ? "on" : "off");
+      const head = el("label", "plan-head"), cb = el("input"); cb.type = "checkbox"; cb.checked = st.on;
+      head.append(cb, el("b", null, `${a.reg} ${a.label}`), el("span", null, a.title ? `(${a.title})` : ""));
+      const src = el("button", "link-btn", "원문"); src.type = "button";
+      src.addEventListener("click", (ev) => { ev.preventDefault(); loadArticle(a.chunk); selectTab("src"); openPanel(); }); head.append(src);
+      const ta = el("textarea"); ta.rows = 2; ta.value = st.how; ta.placeholder = "이 조문을 어떻게 고칠지 (고치지 않으면 체크를 끄세요)"; ta.disabled = !st.on;
+      cb.addEventListener("change", () => { st.on = cb.checked; ta.disabled = !cb.checked; li.className = cb.checked ? "on" : "off"; save(convs); count(); });
+      ta.addEventListener("input", () => { st.how = ta.value; save(convs); });
+      li.append(head, ta);
+      if (a.laws?.length) {
+        const lw = el("details", "plan-law"); lw.append(el("summary", null, `관련 법령 ${a.laws.map((l) => `${l.law.replace(/^(.{10}).+$/, "$1…")} ${l.label}`).join(" · ")}`));
+        a.laws.forEach((l) => lw.append(el("p", null, `「${l.law}」 ${l.label}${l.title ? `(${l.title})` : ""} ${l.text}`))); li.append(lw);
+      }
+      list.append(li);
+    });
+    body.append(list);
+    if (O.law) { const n = el("div", "plan-note"); n.append(el("b", null, "법령 대조"), el("span", null, O.law)); body.append(n); }
+    if (O.caution) { const n = el("div", "plan-note warn"); n.append(el("b", null, "확인할 점"), el("span", null, O.caution)); body.append(n); }
+    const row = el("div", "tool-row"), go = el("button", "btn primary small"); go.type = "button";
+    const note = el("small", "hint");
+    const count = () => {
+      const on = P.articles.filter((a) => E[a.ref].on), regs = new Set(on.map((a) => a.reg));
+      go.replaceChildren(icon("edit"), on.length ? `이 방안으로 개정안 만들기 — 규정 ${regs.size}개 · 조문 ${on.length}개` : "고칠 조문을 하나 이상 고르세요");
+      go.disabled = !on.length; note.textContent = regs.size > 1 ? "규정마다 개정안 하나, 같은 규정의 조문은 개정문 하나로 합칩니다. 결재는 한 번에 합니다." : "";
+    };
+    count();
+    go.addEventListener("click", async () => {
+      if (!LIVE) return toast("서버에 연결되지 않았습니다");
+      const edits = P.articles.filter((a) => E[a.ref].on).map((a) => ({ chunk: a.chunk, how: E[a.ref].how.trim() }));
+      if (edits.some((e) => e.how.length < 4)) return toast("체크한 조문마다 고칠 내용을 적어 주세요");
+      go.disabled = true; const card = stepsCard("draft", `개정안을 만들고 있습니다 (조문 ${edits.length}개)`); row.after(card);
+      try {
+        const r = await api("/api/draft_bundle", { request: q, edits });
+        const m0 = r.members[0];
+        res.draft = { id: r.id, bundle: r.bundle, members: r.members, breaks: m0.breaks, companion: m0.companion, impacts: r.members.reduce((s, m) => s + m.impacts, 0), chunk: edits[0].chunk };
+        save(convs); wrap.replaceWith(renderMsg(q, res)); await refreshChangesets();
+      } catch (e) { toast(e.message, 8000); go.disabled = false; }
+      finally { card.stop(); card.remove(); }
+    });
+    row.append(go, note); body.append(row);
+    const back = el("button", "link-btn", "방안 없이 조문 하나만 고르기"); back.type = "button";
+    back.addEventListener("click", () => { delete res.plan; save(convs); wrap.replaceWith(renderMsg(q, res)); });
+    box.append(tabs, body, back);
+    return box;
+  }
   function draftDone(d) {
     const box = el("div", "tool-done"), ul = el("ul");
+    if (d.members?.length > 1) {   // 묶음: 규정마다 개정안
+      box.append(el("b", null, `개정안 ${d.members.length}건을 한 묶음으로 만들었습니다`));
+      d.members.forEach((m) => ul.append(el("li", null, `${m.reg} — ${m.id} · 깨지는 인용 ${m.breaks?.[0] ?? 0} → ${m.breaks?.[1] ?? 0} · 확인할 영향 ${m.impacts}건`)));
+      ul.append(el("li", null, `대표 ${d.id}에서 규정별 대비표를 함께 보고, 한 번에 제출 · 결재합니다`));
+      const go = el("button", "btn secondary small staff-only"); go.type = "button"; go.dataset.view = "review"; go.dataset.cs = d.id;
+      go.append("묶음 개정안 검토 열기", icon("arrow")); box.append(ul, go); return box;
+    }
     box.append(el("b", null, `개정안 ${d.id} 초안을 만들었습니다`));
     ul.append(el("li", null, `깨지는 인용 ${d.breaks?.[0] ?? 0} → ${d.breaks?.[1] ?? 0} (다른 규정의 인용까지 연쇄 수정)`),
               el("li", null, `함께 개정할 규정 ${d.companion ?? 0}개 · 확인할 영향 ${d.impacts ?? 0}건`));
@@ -408,7 +494,11 @@
       a.append(t);
     } else a.append(el("div", "warnline", "고칠 조문을 찾지 못했습니다. 규정 이름과 조 번호를 함께 적어 주세요."));
     if (done) a.append(draftDone(res.draft));
-    else if (!res.error && !f.error && (f.chunk || f.candidates?.length)) a.append(draftRow(q, res, sel, wrap));
+    else if (res.plan) a.append(planView(q, res, wrap));
+    else if (!res.error && !f.error && (f.chunk || f.candidates?.length)) {
+      a.append(draftRow(q, res, sel, wrap));
+      if (f.candidates?.length > 1) a.append(planRow(q, res, wrap));
+    }
     const foot = el("div", "a-foot"), alt = el("button", "link-btn", "질문이었나요? 질문으로 답 받기"); alt.type = "button";
     alt.addEventListener("click", () => send(q, true));
     foot.append("개정문은 참고 문안입니다. 담당자가 카드마다 수락 · 기각합니다.", alt); a.append(foot);
@@ -727,11 +817,16 @@
     s.append(el("p", "brief-meta", [`기안 ${first?.reviewer || "-"}${first?.at ? " · " + first.at : ""}`, sub ? `제출 ${sub.at}` : "아직 제출 전"].join("  ·  ")));
     if (first?.comment) { const q = el("blockquote", "brief-req"); q.append(el("small", null, "개정 요청"), el("span", null, first.comment)); s.append(q); }
     if (sub?.comment) s.append(el("p", "brief-note", `담당자 의견: ${sub.comment}`));
-    const N = C.impacts.length, a = C.impacts.filter((x) => x.state === "accept").length, r = C.impacts.filter((x) => x.state === "reject").length, u = N - a - r;
+    let N = C.impacts.length, a = C.impacts.filter((x) => x.state === "accept").length, r = C.impacts.filter((x) => x.state === "reject").length;
+    if (C.bundle?.members?.length > 1) {   // 묶음: 규정 모두의 카드
+      N = C.bundle.members.reduce((s, m) => s + m.impacts, 0); a = C.bundle.members.reduce((s, m) => s + m.accepted, 0); r = C.bundle.members.reduce((s, m) => s + m.rejected, 0);
+    }
+    const u = N - a - r;
     const [b0, b1] = C.breaks || [0, 0];
     const tiles = el("div", "brief-tiles");
     const tile = (label, value, sub2, tone, id) => { const t = el("div", "tile " + (tone || "")); if (id) t.id = id; t.append(el("small", null, label), el("b", null, value), el("span", null, sub2)); tiles.append(t); };
-    tile("바뀌는 규정", `${1 + (C.companion?.length || 0)}개`, [C.reg, ...(C.companion || []).map((x) => x.reg)].join(" · "));
+    const bundleRegs = C.bundle?.members?.length > 1 ? C.bundle.members.map((m) => m.reg) : [C.reg];
+    tile("바뀌는 규정", `${bundleRegs.length + (C.companion?.length || 0)}개`, [...bundleRegs, ...(C.companion || []).map((x) => x.reg)].join(" · "));
     tile("깨지는 인용", b1 ? `${b1}곳 남음` : "0곳", b0 ? `연쇄 수정 ${b0} → ${b1}` : "깨지는 곳 없음", b1 ? "neg" : "pos");
     tile("담당자 판단", `수락 ${a} · 기각 ${r}`, u ? (draft ? `미결정 ${u}건 — 담당자가 결정 중` : `미결정 ${u}건 — 승인 불가`) : `카드 ${N}건 모두 결정`, u && !draft ? "neg" : "");
     tile("확정 절차", "확인 중…", "규정 원문의 절차", "", "brief-confirm");
@@ -768,6 +863,7 @@
   }
   function renderActions(C) {
     const row = clear($(".review-foot .row2"));
+    document.querySelectorAll(".bundle-note").forEach((n) => n.remove());
     commentBox(isEditor() && C.status === "초안" ? "검토자에게 남길 말 (선택)" : isApprover() && C.status === "검토" ? "승인 · 반려 의견 (반려는 사유를 꼭 적어 주세요)" : "");
     const btn = (cls, label, fn, ic) => { const b = el("button", "btn " + cls); b.type = "button"; if (ic) b.append(icon(ic)); b.append(label); b.addEventListener("click", fn); return b; };
     const link = (label, href) => { const a = el("a", "btn secondary"); a.href = href; a.setAttribute("download", ""); a.append(icon("download"), label); return a; };
@@ -778,14 +874,23 @@
       try { const r = await api(path, { id: C.id, comment }); toast(msg(r)); await loadChangeset(C.id); await refreshChangesets(); } catch (e) { toast(e.message, 6000); }
     };
     if (!isEditor() && !isApprover()) return;
+    const B = C.bundle?.members?.length > 1 ? C.bundle : null;
+    if (B && C.id !== B.main && ["초안", "검토", "승인"].includes(C.status)) {   // 묶음 구성원: 대표에서 한 번에 처리
+      const b = btn("primary", `대표 개정안 ${B.main}에서 한 번에 처리`, () => {}); b.dataset.view = "review"; b.dataset.cs = B.main; b.append(icon("arrow")); row.append(b); return;
+    }
+    const nB = B ? ` (규정 ${B.members.length}개 한 번에)` : "";
+    if (B) {   // 묶음 대표: 버튼 이름에 묶음 수를 붙인다
+      const undecided = B.members.reduce((s, m) => s + (m.undecided || 0), 0);
+      if (C.status === "초안" && undecided) row.before(el("p", "hint bundle-note", `묶음 전체 미결정 카드 ${undecided}건 — 규정마다 결정한 뒤 제출하세요`));
+    }
     if (C.status === "초안") {
       if (!isEditor()) { const b = btn("primary", "담당자가 제출해야 합니다", () => {}); b.disabled = true; row.append(b); return; }
       if (C.has_package) row.append(link("패키지 내려받기", `/api/package?id=${encodeURIComponent(C.id)}`));
-      row.append(btn("primary", "검토자에게 제출", act("/api/submit", (r) => `${C.id} 검토 요청함${r.undecided ? ` — 미결정 ${r.undecided}건 포함` : ""}`)));
+      row.append(btn("primary", "검토자에게 제출" + nB, act("/api/submit", (r) => `${C.id} 검토 요청함${r.undecided ? ` — 미결정 ${r.undecided}건 포함` : ""}`)));
     } else if (C.status === "검토") {
       if (!isApprover()) { const b = btn("primary", "승인권자의 승인을 기다립니다", () => {}); b.disabled = true; row.append(b); return; }
-      row.append(btn("secondary", "반려", act("/api/reject", () => `${C.id} 반려함 — 담당자 화면의 결재 기록에 사유가 보입니다`, true), "x"));
-      row.append(btn("primary", "승인 (최종안 확정)", act("/api/approve", (r) => `${C.id} 승인 — 수락 ${r.counts["수락"]}건으로 최종안을 저장했습니다`), "check"));
+      row.append(btn("secondary", "반려" + (B ? " (묶음 전체)" : ""), act("/api/reject", () => `${C.id} 반려함 — 담당자 화면의 결재 기록에 사유가 보입니다`, true), "x"));
+      row.append(btn("primary", "승인 (최종안 확정)" + nB, act("/api/approve", (r) => r.members ? `묶음 ${r.members.length}건(${r.members.join(", ")})을 승인하고 규정마다 최종안을 저장했습니다` : `${C.id} 승인 — 수락 ${r.counts["수락"]}건으로 최종안을 저장했습니다`), "check"));
     } else if (C.status === "승인") {
       row.append(link("최종안 내려받기", `/api/package?id=${encodeURIComponent(C.id)}&final=1`));
       if (isEditor()) row.append(btn("primary", "공포 처리 (등록·공지)", act("/api/publish", (r) => `${C.id} 공포 처리함` + ((r.follow_up && r.follow_up.made.length) ? ` — 함께 개정 초안 ${r.follow_up.made.length}건을 만들었습니다 (${r.follow_up.made.map((m) => m.reg).join(", ")})` : ""))));
@@ -823,6 +928,23 @@
     const side = (title, parts) => { const d = el("div"); d.append(el("span", "head", title)); parts.forEach((p) => d.append(typeof p === "string" ? p : p.del != null ? el("del", null, p.del) : p.ins != null ? el("ins", null, p.ins) : el("span", "same", p.same))); return d; };
     const diffTable = (D) => { const g = el("div", "diff"); g.append(side("현행", D.old), side("개정안", D.new)); return g; };
     s2.append(diffTable(C.diff)); doc.append(s2);
+    const B = C.bundle?.members?.length > 1 ? C.bundle : null;
+    if (B) {   // 여러 조문 함께 개정 (261019): 한 요청에서 나온 규정별 개정안을 한 문서로. 제출 · 결재는 대표 개정안에서 한 번에
+      s1.querySelector("h2").textContent = `개정문 — ${C.reg}`;
+      const s = el("section", "bundle"); s.append(el("h2", null, `함께 묶인 개정안 — 규정 ${B.members.length}개를 한 문서로 결재`));
+      s.append(el("p", "hint", `요청: ${B.request || C.title} · 대표 ${B.main}에서 한 번에 제출 · 승인 · 반려합니다. 카드 결정은 규정마다 합니다.`));
+      B.members.filter((m) => m.id !== C.id).forEach((m) => {
+        const d = el("div", "comp"), head = el("div", "bundle-head");
+        const [ml, mt] = CS_LABEL[m.status] || [m.status, ""];
+        head.append(el("b", null, m.reg), el("span", "chip " + mt, ml), el("small", null, m.impacts ? `카드 ${m.impacts - m.undecided}/${m.impacts} 결정` : "카드 없음"));
+        const go = el("button", "btn secondary small"); go.type = "button"; go.dataset.view = "review"; go.dataset.cs = m.id;
+        go.append(isEditor() && m.undecided ? "이 규정 카드 결정하기" : "이 규정 열기", icon("arrow")); head.append(go);
+        d.append(head, el("p", "amend-text", m.amendment));
+        if (m.diff?.new?.length) d.append(diffTable(m.diff));
+        s.append(d);
+      });
+      doc.append(s);
+    }
     if (C.companion?.length) {
       const s = el("section"); s.append(el("h2", null, `함께 개정할 규정 ${C.companion.length}`));
       C.companion.forEach((x) => {
