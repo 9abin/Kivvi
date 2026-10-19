@@ -33,7 +33,7 @@ def _ask_openai(text: str, model: str) -> list[dict]:
     from openai import OpenAI
 
     from .db import load_env
-    client = OpenAI(api_key=load_env().get("OPENAI_API_KEY"), timeout=120)
+    client = OpenAI(api_key=load_env().get("OPENAI_API_KEY", "").strip('"'), timeout=120)
     msgs = [{"role": "user", "content": PROMPT.format(text=text)}]
     try:
         r = client.chat.completions.create(model=model, messages=msgs, response_format={"type": "json_object"}, temperature=0)
@@ -64,6 +64,8 @@ def _ask(text: str, model: str, timeout: int = 300) -> list[dict]:
 def _ask_uncached(text: str, model: str, timeout: int = 300) -> list[dict]:
     if model.startswith("openai:"):
         return _ask_openai(text, model.split(":", 1)[1])
+    if model.startswith("gpt-"):   # 웹 시연 기본 (app/web_agent.SPELL_MODEL, 261019). nl._post와 같은 이름 규칙
+        return _ask_openai(text, model)
     body = {"model": model, "stream": False, "think": False, "format": "json",
             "messages": [{"role": "user", "content": PROMPT.format(text=text)}],
             "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 400}}   # 출력 상한: 30B가 끝없이 쓰다 시간 초과된 적 있음

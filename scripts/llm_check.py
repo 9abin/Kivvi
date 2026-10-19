@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from semantic_check import article_text, load_regs  # noqa: E402
 
-OLLAMA = "http://localhost:11434/api/chat"
+OLLAMA = "http://127.0.0.1:11434/api/chat"
 # 1주차 검토의 수정안 (최종_문제목록 F2, 검토결과 C2·C5·C12)
 EXPECTED = {"C2": "제36조", "C5": "제14조", "F2a": "제6조", "F2b": "제6조", "C12": "제7장"}
 

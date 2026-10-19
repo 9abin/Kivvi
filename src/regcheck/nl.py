@@ -13,7 +13,7 @@ import urllib.request
 
 from .amend import AmendError, build_changeset, marker
 
-OLLAMA = "http://localhost:11434/api/chat"
+OLLAMA = "http://127.0.0.1:11434/api/chat"
 MAX_TRIES = 3
 
 RULES = """너는 한국 공공기관 내규를 고치는 보조자다. 설명·인사말 없이 아래 (A) 또는 (B) 중 하나만 출력한다.
@@ -42,10 +42,10 @@ RULES = """너는 한국 공공기관 내규를 고치는 보조자다. 설명·
 
 
 def _post(model: str, messages: list[dict], timeout: int = 180) -> str:
-    if model.startswith("gpt-"):   # 외부 모델 비교용 (평가 전용: 공개 규정 문장만 보냄). 운영 기본은 로컬 모델
+    if model.startswith("gpt-"):   # API 모델 (공개 규정 문장만 보냄). 웹 시연 기본 (app/web_agent.DRAFT_MODEL, 261018), 폐쇄망은 로컬 모델
         from openai import OpenAI
         from .db import load_env
-        r = OpenAI(api_key=load_env().get("OPENAI_API_KEY"), timeout=timeout).chat.completions.create(
+        r = OpenAI(api_key=load_env().get("OPENAI_API_KEY", "").strip('"'), timeout=max(timeout, 120)).chat.completions.create(
             model=model, messages=messages, reasoning_effort="low", max_completion_tokens=3000)
         return r.choices[0].message.content or ""
     body = {"model": model, "messages": messages, "stream": False, "think": False,
@@ -226,6 +226,17 @@ def intent_issues(request: str, cs: dict, reg: dict, cands: list[dict]) -> list[
             new_text = "".join(t for ln in (new_title or [])[:1] for t, _ in ln)
             if old_titles.get(c["old_label"]) and old_titles[c["old_label"]] not in new_text and old_titles[c["old_label"]] not in request:
                 issues.append(f"기존 {c['old_label']}({old_titles[c['old_label']]}) 전체를 다른 내용으로 바꿨다. 새 조문이면 신설, 고치는 것이면 그 조만 문구 바꾸기")
+            # 제목은 그대로 두고 본문만 엉뚱한 문장으로 바꾼 경우 (「제4조(민원통제)의 원문을 제공하여 주시기 바랍니다.」를 적용 성공으로 통과시킴, 리포트 57 후속)
+            old_art = next((a for a in reg["articles"] if a["label"] == c["old_label"]), None)
+            new_lines = [ln for r in cs["rows"] if r.get("origin") == c["origin"] for ln in (r.get("new") or [])[1:]]
+            new_body = "".join(t for ln in new_lines for t, _ in ln)
+            kept = "현행과같음" in re.sub(r"\s", "", new_body)   # 대비표 행은 안 바뀐 부분을 「(현행과 같음)」으로 접는다
+            if old_art and old_art["items"] and not kept and not re.search(r"전부\s*개정|전면|통째로\s*(?:바꿔|새로)|다시\s*써", request):
+                old_body = "".join(it["norm"] for it in old_art["items"])
+                grams = lambda s: {s[i:i + 2] for i in range(len(s) - 1)}  # noqa: E731
+                o, n = grams(re.sub(r"\s", "", old_body)), grams(re.sub(r"\s", "", new_body))
+                if o and len(o & n) / len(o) < 0.3:
+                    issues.append(f"{c['old_label']} 본문을 원문과 거의 겹치지 않는 문장으로 바꿨다. 원문은 위에 주었다. 요청한 부분만 고치는 문장(「… 중 \"A\"를 \"B\"로 한다」)으로 써라")
     wanted = {a["label"] for a in cands[:1]}
     extra = [c["old_label"] for c in cs["changes"] if c["origin"] and c["old_label"] not in wanted
              and any(op["op"] not in ("renumber",) for op in c["ops"]) and c["old_label"] not in request]
@@ -243,7 +254,65 @@ def find_regulation(regs: dict[str, dict], request: str) -> dict | None:
             i = flat.find(n.replace(" ", ""))
             if i >= 0:
                 hits.append((i, -len(n), r))
-    return sorted(hits, key=lambda x: (x[0], x[1]))[0][2] if hits else None
+    if hits:
+        return sorted(hits, key=lambda x: (x[0], x[1]))[0][2]
+    fz = similar_regulations(regs, request)
+    if fz:
+        gap = fz[0][0] - (fz[1][0] if len(fz) > 1 else 0.0)
+        if (fz[0][0] >= FUZZY_MIN and gap >= FUZZY_MARGIN) or (fz[0][0] >= FUZZY_MIN_WIDE and gap >= FUZZY_MARGIN_WIDE):
+            return fz[0][1]
+    return None
+
+
+# 규정 이름을 대충 쓴 요청 (「법인카드 지침」 → 법인카드 사용지침). 자연어 평가 D 말투 실패 12/30이 모두 이름을 못 찾은 것 (리포트 51, 56)
+FUZZY_MIN = 0.6       # 이름 글자쌍 겹침(Dice) 하한
+FUZZY_MARGIN = 0.1    # 2위와의 간격. 못 미치면 고르지 않고 후보만 보인다 (「보안지침」처럼 여러 규정에 걸친 이름)
+FUZZY_MIN_WIDE, FUZZY_MARGIN_WIDE = 0.45, 0.2   # 점수가 조금 낮아도 2위와 크게 벌어지면 고른다 (「벤처투자 이해충돌 지침」 0.50 대 0.25)
+_KIND = r"(?:규정|지침|규칙|정관|세칙|요령)"
+
+
+def _norm_name(s: str) -> str:
+    s = re.sub(r"\s|[·/ㆍ・\-_,()「」『』\"'‘’“”]", "", s)
+    for w in ("한국벤처투자", "벤처투자", "및", "에관한", "을위한", "를위한"):
+        s = s.replace(w, "")
+    return s
+
+
+def similar_regulations(regs: dict[str, dict], request: str, k: int = 3) -> list[tuple[float, dict]]:
+    """요청 속 「…지침/규정」 부분과 이름이 비슷한 규정 상위 k개 [(점수, 규정)]. 그런 말이 없으면 []."""
+    m = re.search(rf"([^\s.,!?。]{{0,4}}(?:\s*[^\s.,!?。「」『』\"'‘’“”]{{1,12}}){{0,4}}?\s*{_KIND})", request)
+    if not m:
+        return []
+    span = _norm_name(m.group(1))
+
+    def grams(s):
+        return {s[i:i + 2] for i in range(len(s) - 1)}
+
+    q = grams(span)
+    if len(q) < 2:
+        return []
+    out = []
+    for r in regs.values():
+        g = grams(_norm_name(r["name"]))
+        if g:
+            out.append((2 * len(q & g) / (len(q) + len(g)), r))
+    return sorted(out, key=lambda x: -x[0])[:k]
+
+
+def _same_reg(text: str, reg: dict) -> bool:
+    """조 번호 바로 앞의 규정 이름이 이 규정인가. 띄어쓰기 · 「·」 · 약칭이 달라도(「민원처리지침」 · 「임금피크 운영지침」) 같은 규정으로 본다.
+    정확한 이름만 보던 때는 이름을 대충 쓴 요청의 조 번호를 「다른 규정의 조」로 빼서, 모델이 그 조 원문을 못 받았다 (리포트 57 후속)."""
+    n = _norm_name(reg["name"])
+    # 조 번호 바로 앞의 「…규정/지침」 한 덩어리만 본다 (「인사규정 제30조에서 급여규정 제21조」의 제21조는 급여규정)
+    m = re.search(rf"([가-힣A-Za-z0-9·ㆍ/\s]{{1,25}}?{_KIND})\s*$", text)
+    if not m:
+        return False
+    span = _norm_name(re.split(r"[에서의은는을를이가와과,]\s", m.group(1))[-1])
+    if n in span or n.removeprefix("한국벤처투자") in span or (span and span in n and len(span) >= 4):
+        return True
+    g = lambda s: {s[i:i + 2] for i in range(len(s) - 1)}  # noqa: E731
+    q, r = g(span), g(n)
+    return bool(q and r) and 2 * len(q & r) / (len(q) + len(r)) >= FUZZY_MIN_WIDE
 
 
 def candidates(reg: dict, request: str, k: int = 3) -> list[dict]:
@@ -255,7 +324,7 @@ def candidates(reg: dict, request: str, k: int = 3) -> list[dict]:
     named = set()
     for m in re.finditer(r"제\s*(\d+)\s*조(?:\s*의\s*(\d+))?", request):
         before = request[max(0, m.start() - 8): m.start()]
-        if re.search(r"(규정|지침|규칙|정관)\s*$", before) and reg["name"] not in before:
+        if re.search(r"(규정|지침|규칙|정관)\s*$", before) and not _same_reg(request[max(0, m.start() - 30): m.start()], reg):
             continue   # 다른 규정의 조 (예: 「급여규정 제21조」)
         named.add(f"제{m.group(1)}조" + (f"의{m.group(2)}" if m.group(2) else ""))
     scored = []

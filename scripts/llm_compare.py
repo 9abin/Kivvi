@@ -25,7 +25,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ["LANGSMITH_TRACING"] = "false"
 
-OLLAMA = "http://localhost:11434/api/chat"
+OLLAMA = "http://127.0.0.1:11434/api/chat"
 THINK = re.compile(r"<think>.*?</think>", re.S)
 
 

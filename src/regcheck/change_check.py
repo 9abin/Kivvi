@@ -308,7 +308,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
         for r in rels:
             if not deleted and r["src_article"] == o and r["target_type"] == "law":
                 add(_item("law_check", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="나가는 인용", src=r["src"],
-                          target=r["target"], reason="바뀐 조가 인용하는 법령 — 개정안이 법령과 맞는지 대조 (법률 DB 연결 후)",
+                          target=r["target"], reason="바뀐 조가 인용하는 법령 — 개정안이 법령과 맞는지 대조",
                           handling="판단 가능", priority="중간"))
         if deleted:
             add({"category": "undeterminable", "reg_id": rid, "reg_name": reg["name"], "unit": "본문", "article": c["old_label"],
