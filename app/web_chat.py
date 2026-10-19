@@ -123,6 +123,18 @@ def standalone(question: str, history: list[dict]) -> str | None:
     return out
 
 
+# 줄임말 → 규정 용어 (뜻이 하나로 정해지는 것만). 검색 · 리랭크 · 답변 모두 원래 질문을 쓰므로, 줄임말이면 리랭커가 규정 조문과 잇지 못한다:
+# Q022 「법카 영수증을 잃어버렸는데」는 법인카드 사용지침 제12조①(카드매출전표 첨부)이 후보 30 중 24위까지 왔다가 리랭크에서 빠졌고,
+# 「법인카드 …」로 물으면 최종 10 안 6위 (261019 실측). 가빈 동의어 사전(USE_SYNONYMS)은 「동기 → 이해충돌」 같은 연상까지 붙여 꺼 두었으므로
+# 거기서 1:1 줄임말만 골라 질문 자체를 바꾼다. 화면에는 원래 질문을 보인다
+ABBREV = {"법카": "법인카드", "법인 카드": "법인카드", "산재": "산업재해"}   # 「비번」은 비번일(교대 근무)과 겹쳐 뺌
+_ABBREV_RE = re.compile("|".join(map(re.escape, ABBREV)))
+
+
+def expand_abbrev(q: str) -> str:
+    return _ABBREV_RE.sub(lambda m: ABBREV[m.group(0)], q)
+
+
 _HIT = re.compile(r"▶▶ \[찾은 항\] (?:【단서】)?\s*([①-⑳])")   # 단서 문장이면 「▶▶ [찾은 항] 【단서】② …」 (취업규칙 제43조② 「3회에 한정하여」)
 _CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 
@@ -153,7 +165,7 @@ def ask(question: str, history: list[dict] | None = None) -> dict:
     history = [h for h in (history or []) if isinstance(h, dict)][-3:]
     with _lock:
         rewritten = standalone(question, history)
-        r = _state["assistant"].ask(rewritten or question)
+        r = _state["assistant"].ask(expand_abbrev(rewritten or question))
     from src.search.search import strip_marks   # 표시(▶▶ · ▷ · 【단서】)는 답변 모델용이라 화면 미리보기에서는 지운다
     # 조 전체를 넘기는 구성(RETURN_ARTICLE)에서 chunk_id는 조 ID(「24010_제43조」)다 → 검색이 실어 준 찾은 항(hit_chunk)을 먼저 쓰고,
     # 없으면 본문의 「▶▶ [찾은 항] ②」 표시에서 읽는다(_entry_chunk). 둘 다 그 항을 열어 강조한다
