@@ -601,3 +601,12 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 #cs-comment { width: 100%; resize: vertical; min-height: 56px; margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--gray-20); border-radius: var(--radius); font: inherit; font-size: 14px; }
 #cs-comment:focus { outline: 2px solid var(--primary); outline-offset: 0; }
 @media (max-width: 1200px) { .brief-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 결재 화면 카드: 판단별 묶음 · 한 줄 카드 · 제출 전 (261019) */
+.rows > li.group-head { list-style: none; font-size: 12.5px; font-weight: 700; color: var(--secondary); background: var(--secondary-5); border-radius: var(--radius-s); padding: 6px 10px; margin-top: 6px; }
+.rows > li.group-head:first-child { margin-top: 0; }
+.row.compact { padding: 12px 14px; }
+.row.compact .body { gap: 6px; }
+.row.compact .link-btn.more { align-self: flex-start; font-size: 13px; padding: 0; }
+.row.compact .card-details { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; border-top: 1px dashed var(--gray-20); }
+.doc section.brief.pending { border: 1px dashed var(--gray-40); }

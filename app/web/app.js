@@ -721,7 +721,9 @@
   function approvalBrief(C) {
     const s = el("section", "brief"), H = C.history || [];
     const first = H[0], sub = [...H].reverse().find((h) => h.state === "검토");
-    s.append(el("h2", null, C.status === "검토" ? "결재 요청" : "결재 요약"));
+    const draft = C.status === "초안";   // 제출 전: 결재할 것이 없다 — 진행 상황만 보인다
+    s.append(el("h2", null, C.status === "검토" ? "결재 요청" : draft ? "제출 전 개정안" : "결재 요약"));
+    if (draft) s.classList.add("pending");
     s.append(el("p", "brief-meta", [`기안 ${first?.reviewer || "-"}${first?.at ? " · " + first.at : ""}`, sub ? `제출 ${sub.at}` : "아직 제출 전"].join("  ·  ")));
     if (first?.comment) { const q = el("blockquote", "brief-req"); q.append(el("small", null, "개정 요청"), el("span", null, first.comment)); s.append(q); }
     if (sub?.comment) s.append(el("p", "brief-note", `담당자 의견: ${sub.comment}`));
@@ -731,13 +733,14 @@
     const tile = (label, value, sub2, tone, id) => { const t = el("div", "tile " + (tone || "")); if (id) t.id = id; t.append(el("small", null, label), el("b", null, value), el("span", null, sub2)); tiles.append(t); };
     tile("바뀌는 규정", `${1 + (C.companion?.length || 0)}개`, [C.reg, ...(C.companion || []).map((x) => x.reg)].join(" · "));
     tile("깨지는 인용", b1 ? `${b1}곳 남음` : "0곳", b0 ? `연쇄 수정 ${b0} → ${b1}` : "깨지는 곳 없음", b1 ? "neg" : "pos");
-    tile("담당자 판단", `수락 ${a} · 기각 ${r}`, u ? `미결정 ${u}건 — 승인 불가` : `카드 ${N}건 모두 결정`, u ? "neg" : "");
+    tile("담당자 판단", `수락 ${a} · 기각 ${r}`, u ? (draft ? `미결정 ${u}건 — 담당자가 결정 중` : `미결정 ${u}건 — 승인 불가`) : `카드 ${N}건 모두 결정`, u && !draft ? "neg" : "");
     tile("확정 절차", "확인 중…", "규정 원문의 절차", "", "brief-confirm");
     s.append(tiles);
     // 확인할 것: 담당자가 기각한 카드(반영하지 않은 이유) · 수락한 모델 추정 카드(근거가 약함) · 미결정
     const ul = el("ul", "brief-checks");
     const add = (tone, text) => { const li = el("li", tone); li.append(icon(tone === "neg" ? "info" : "check-c"), el("span", null, text)); ul.append(li); };
-    if (u) add("neg", `결정하지 않은 카드가 ${u}건 있어 승인할 수 없습니다. 반려해 담당자에게 돌려보내세요.`);
+    if (draft) add("", "아직 제출 전입니다. 담당자가 카드를 결정하고 제출하면 이 화면에서 승인 · 반려할 수 있습니다.");
+    else if (u) add("neg", `결정하지 않은 카드가 ${u}건 있어 승인할 수 없습니다. 반려해 담당자에게 돌려보내세요.`);
     C.impacts.filter((x) => x.state === "reject").slice(0, 4).forEach((x) => add("warn", `담당자 기각: ${x.where} — ${x.label}. 반영하지 않아도 되는지 확인`));
     const weak = C.impacts.filter((x) => x.state === "accept" && x.basis === "모델 추정").length;
     if (weak) add("warn", `모델 추정 카드 ${weak}건을 수락했습니다. 근거가 약하니 오른쪽 카드에서 원문을 확인하세요.`);
@@ -951,15 +954,30 @@
         cb.title = "개정 요청 대화를 열고 이 조를 고치는 요청을 미리 채웁니다. 보내기 전에 문장을 고칠 수 있습니다";
         cb.addEventListener("click", () => cascadeRequest(C, x)); body.append(cb);
       }
-      if (isApprover()) {   // 승인권자: 버튼 대신 담당자의 판단 (누가 · 언제)
+      if (isApprover()) {   // 승인권자: 버튼 대신 담당자의 판단 (누가 · 언제). 카드는 한 줄로 접고 「자세히」로 펼친다 (261019)
         const st = stateOf(x), badge = el("div", "verdict " + st);
         badge.append(icon(st === "accept" ? "check" : st === "reject" ? "x" : "info"),
           st === "accept" ? "담당자 수락 · 최종안에 반영" : st === "reject" ? "담당자 기각 · 반영 안 함" : "미결정");
         if (x.by) badge.append(el("small", null, `${x.by}${x.at ? " · " + x.at : ""}`));
-        body.append(badge); li.classList.toggle("rejected", st === "reject"); li.append(body); ol.append(li); return;
+        const details = el("div", "card-details"); details.hidden = true;
+        [...body.children].filter((n) => n !== top).forEach((n) => details.append(n));
+        const more = el("button", "link-btn more", "자세히 ▾"); more.type = "button";
+        more.addEventListener("click", () => { details.hidden = !details.hidden; more.textContent = details.hidden ? "자세히 ▾" : "접기 ▴"; });
+        where.addEventListener("click", () => { if (details.hidden) more.click(); });   // 조문 이름을 눌러 원문을 펼치면 자세히도 같이 연다
+        body.append(badge, more, details); li.classList.add("compact"); li.classList.toggle("rejected", st === "reject");
+        li.dataset.order = String({ none: 0, reject: 1, accept: 2 }[st]); li.append(body); ol.append(li); return;
       }
       dc.append(acc, rej); body.append(dc); li.append(body); ol.append(li); paint();
     });
+    if (isApprover()) {   // 결재 화면: 담당자 판단별로 묶는다 — 먼저 볼 것(미결정 · 기각)을 위로
+      const GROUP = ["미결정 — 담당자가 아직 정하지 않음", "담당자 기각 — 최종안에 반영 안 함", "담당자 수락 — 최종안에 반영"];
+      const items = [...ol.children].sort((a, b) => a.dataset.order - b.dataset.order);
+      clear(ol); let cur = null;
+      items.forEach((li) => {
+        if (li.dataset.order !== cur) { cur = li.dataset.order; const h = el("li", "group-head", GROUP[+cur]); h.dataset.state = li.dataset.state; ol.append(h); }
+        ol.append(li);
+      });
+    }
     SD.append(ol);
     fillLawCards(C);
     renderActions(C);
@@ -971,7 +989,8 @@
     const N = CS.impacts.length, na = CS.impacts.filter((x) => x.state === "accept").length, nr = CS.impacts.filter((x) => x.state === "reject").length;
     $("#tally").textContent = `수락 ${na} / 기각 ${nr} / 남음 ${N - na - nr}${LIVE ? (editable(CS) ? " · 결정은 바로 저장됩니다" : " · 결정 잠김") : " · 예시 (저장 안 됨)"}`;
     const left = $("#side .decide-left");
-    if (left) left.textContent = !N ? "결정할 카드가 없습니다" : N - na - nr ? `결정할 카드 ${N}건 중 ${N - na - nr}건 남음` : `카드 ${N}건을 모두 결정했습니다`;
+    if (left) left.textContent = isApprover() ? `담당자 판단 · 수락 ${na} · 기각 ${nr}` + (N - na - nr ? ` · 미결정 ${N - na - nr}` : "")
+      : !N ? "결정할 카드가 없습니다" : N - na - nr ? `결정할 카드 ${N}건 중 ${N - na - nr}건 남음` : `카드 ${N}건을 모두 결정했습니다`;
     $("#p-acc").style.width = N ? (na / N) * 100 + "%" : "0"; $("#p-rej").style.width = N ? (nr / N) * 100 + "%" : "0";
   }
 

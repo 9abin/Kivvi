@@ -304,9 +304,12 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                      "para": 0, "quote": f"{law['title']} 제{no}조" + (f"의{br}" if br else ""), "context": u.get("조문내용", "")[:400],
                      "path": "같은 제목 법령", "target": law["title"], "priority": "중간", "handling": "판단 가능", "law": law["title"],
                      "reason": f"바뀐 조와 제목이 같은 법령 조문 「{law['title']}」 제{no}조{'의' + br if br else ''}({u.get('조문제목')}) — 개정안이 법정 기준과 맞는지 대조"})
-        # 법령 대조 ①: 바뀐 조가 인용하는 법령 (삭제된 조는 대조할 문안이 없음)
+        # 법령 대조 ①: 바뀐 조가 인용하는 법령 (삭제된 조는 대조할 문안이 없음).
+        # 261019: 바뀐 항 · 호가 인용하는 법령만 — 조 전체를 보면 취업규칙 제6조 8호의 법령명만 고쳐도 같은 조 다른 호의 형법 제303조 등
+        # 법령 7개가 모두 카드가 됐다. 바뀐 항 · 호를 모르면(조 전체를 새로 씀) 지금처럼 조 전체
+        changed_paths = {f"{o}-" + "-".join(map(str, d["path"])) for d in _changed_items(old_art, new_art)} if new_art else set()
         for r in rels:
-            if not deleted and r["src_article"] == o and r["target_type"] == "law":
+            if not deleted and r["src_article"] == o and r["target_type"] == "law" and (not changed_paths or r["src"] in changed_paths):
                 add(_item("law_check", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="나가는 인용", src=r["src"],
                           target=r["target"], reason="바뀐 조가 인용하는 법령 — 개정안이 법령과 맞는지 대조",
                           handling="판단 가능", priority="중간"))
