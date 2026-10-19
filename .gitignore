@@ -62,3 +62,4 @@ review_data.json
 # 조합 실험 결과 (src/combo): 문서 벡터와 결과 파일은 각자 PC에서 만들고 올리지 않는다
 eval/combo/
 eval/combo_smoke/
+eval/combo_final/

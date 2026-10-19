@@ -321,7 +321,7 @@ def explain_card(cid: str, key: str) -> dict:
     try:
         text = explain(pkg.get("amendment_final") or r["amendment"], where, r["quote"] or "", readable(r["reason"] or ""), basis_of(r["path"]), HYPO_MODEL)
     except OSError:
-        return {"error": "설명 모델에 연결하지 못했습니다. " + ("API 키와 네트워크를 확인해 주세요" if HYPO_MODEL.startswith("gpt-") else "Ollama가 켜져 있는지 확인해 주세요")}
+        return {"error": "설명 모델에 연결하지 못했습니다. " + ("API 키와 네트워크를 확인해 주세요" if HYPO_MODEL.startswith(("gpt-", "solar-")) else "Ollama가 켜져 있는지 확인해 주세요")}
     out = {"text": text, "note": "모델 요약 — 판정이 아닙니다. 담당자가 원문을 보고 판단하세요" if text else "설명을 만들지 못했습니다(검증 실패). 위 이유 문구를 참고하세요"}
     _EXPLAIN[(cid, key)] = out
     return out

@@ -201,7 +201,7 @@ def draft(chunk: str, request: str, user: str) -> dict:
         try:
             res = nl_draft(regs, full_request, model=DRAFT_MODEL, reg=reg)
         except Exception as e:   # 로컬 모델(Ollama)이 꺼졌거나 모델 이름이 없을 때, API 키·네트워크 오류 (urllib의 URLError·HTTPError는 OSError)
-            where = "API 키(.env OPENAI_API_KEY)와 네트워크" if DRAFT_MODEL.startswith("gpt-") else "Ollama가 켜져 있는지, 모델이 설치돼 있는지"
+            where = "API 키(.env OPENAI_API_KEY · UPSTAGE_API_KEY)와 네트워크" if DRAFT_MODEL.startswith(("gpt-", "solar-")) else "Ollama가 켜져 있는지, 모델이 설치돼 있는지"
             return {"error": f"개정안 작성 모델 「{DRAFT_MODEL}」에 연결하지 못했습니다. {where}를 확인해 주세요 ({type(e).__name__})"}
         if not res.get("ok"):
             if not res.get("tries") and res.get("error"):   # LLM 전에 걸러진 경우는 그 안내를 그대로

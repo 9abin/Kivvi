@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import urllib.request
 
@@ -41,13 +42,32 @@ RULES = """너는 한국 공공기관 내규를 고치는 보조자다. 설명·
 제7조(홍보팀) 홍보팀을 둔다."""
 
 
+API_PREFIXES = ("gpt-", "solar-")   # 이 이름으로 시작하면 API 모델 (보내는 것: 공개 규정 문장과 요청 · 질문뿐)
+
+
+def is_api_model(model: str) -> bool:
+    return model.startswith(API_PREFIXES)
+
+
+def api_chat(model: str, messages: list[dict], timeout: int = 180, max_tokens: int = 3000) -> str:
+    """API 모델 호출. gpt-… = OpenAI(.env OPENAI_API_KEY), solar-… = 업스테이지(.env UPSTAGE_API_KEY, OpenAI 호환 API, 261019)."""
+    from openai import OpenAI
+    from .db import load_env
+    env = load_env()
+    if model.startswith("solar-"):
+        c = OpenAI(api_key=env.get("UPSTAGE_API_KEY", "").strip('"'), base_url="https://api.upstage.ai/v1", timeout=max(timeout, 120))
+        eff = os.environ.get("SOLAR_REASONING", "")   # 「high」면 추론 모드 (Pro 계열). luna를 reasoning low로 쓰는 것과 맞춰 비교할 때
+        r = c.chat.completions.create(model=model, messages=messages, temperature=0, max_tokens=max_tokens + (8000 if eff else 0),
+                                      **({"reasoning_effort": eff} if eff else {}))
+    else:
+        c = OpenAI(api_key=env.get("OPENAI_API_KEY", "").strip('"'), timeout=max(timeout, 120))
+        r = c.chat.completions.create(model=model, messages=messages, reasoning_effort="low", max_completion_tokens=max_tokens)
+    return re.sub(r"<think>.*?</think>", "", r.choices[0].message.content or "", flags=re.S)
+
+
 def _post(model: str, messages: list[dict], timeout: int = 180) -> str:
-    if model.startswith("gpt-"):   # API 모델 (공개 규정 문장만 보냄). 웹 시연 기본 (app/web_agent.DRAFT_MODEL, 261018), 폐쇄망은 로컬 모델
-        from openai import OpenAI
-        from .db import load_env
-        r = OpenAI(api_key=load_env().get("OPENAI_API_KEY", "").strip('"'), timeout=max(timeout, 120)).chat.completions.create(
-            model=model, messages=messages, reasoning_effort="low", max_completion_tokens=3000)
-        return r.choices[0].message.content or ""
+    if is_api_model(model):   # API 모델. 웹 시연 기본 gpt-5.6-luna (app/web_agent.DRAFT_MODEL, 261018), 솔라 비교(261019), 폐쇄망은 로컬 모델
+        return api_chat(model, messages, timeout)
     body = {"model": model, "messages": messages, "stream": False, "think": False,
             "options": {"temperature": 0, "num_ctx": 8192}}
     req = urllib.request.Request(OLLAMA, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})

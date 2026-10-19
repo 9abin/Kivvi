@@ -26,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OLLAMA = "http://127.0.0.1:11434/api/chat"
 MODEL = os.environ.get("CHAT_MODEL", "gpt-5.6-luna")   # 261018 API로 바꿈 (로컬 9B는 근거를 받고도 틀리는 답이 많음, 리포트 53). 로컬: CHAT_MODEL=qwen3.5:9b
-LOCAL_FAST = not MODEL.startswith("gpt-") and os.environ.get("CHAT_FULL_CHECKS", "") == ""
+LOCAL_FAST = not MODEL.startswith(("gpt-", "solar-")) and os.environ.get("CHAT_FULL_CHECKS", "") == ""
 THINK = re.compile(r"<think>.*?</think>", re.S)
 
 _lock = threading.Lock()
@@ -34,14 +34,10 @@ _state: dict = {"assistant": None, "error": None, "loading": False}
 
 
 def _ollama_ask(self, system: str, user: str) -> str:
-    if MODEL.startswith("gpt-"):   # API 모델 (261018 기본: gpt-5.6-luna). 보내는 것: 질문과 공개 규정(ALIO) 조문. 폐쇄망 운영은 CHAT_MODEL=로컬 모델
-        from openai import OpenAI
+    if MODEL.startswith(("gpt-", "solar-")):   # API 모델 (261018 기본 gpt-5.6-luna, 솔라는 solar-…). 보내는 것: 질문과 공개 규정(ALIO) 조문. 폐쇄망 운영은 CHAT_MODEL=로컬 모델
         sys.path.insert(0, str(ROOT / "src"))
-        from regcheck.db import load_env
-        r = OpenAI(api_key=load_env().get("OPENAI_API_KEY", "").strip('"'), timeout=180).chat.completions.create(
-            model=MODEL, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            reasoning_effort="low", max_completion_tokens=4000)
-        return THINK.sub("", r.choices[0].message.content or "").strip()
+        from regcheck.nl import api_chat
+        return THINK.sub("", api_chat(MODEL, [{"role": "system", "content": system}, {"role": "user", "content": user}], 180, 4000)).strip()
     body ={"model": MODEL, "stream": False, "think": False, "options": {"temperature": 0, "num_ctx": 16384},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     req = urllib.request.Request(OLLAMA, json.dumps(body).encode("utf-8"), {"Content-Type": "application/json"})

@@ -1,0 +1,41 @@
+# 261019 운영 최종 설정과 같은 검색 (리포트 59): Qwen3-Embedding-4B · bge 리랭커 fp16 · 바꿔 쓰기 끔 · 선택 끔 · 근거 10
+# 답변 모델 비교용 (리포트 60): 검색은 한 번만 돌리고 --stage answer에서 llm.answer · llm.verify만 바꾼다. 채점은 luna로 고정
+name = "final_qwen4b_bge_S0"
+
+[data]
+questions = "eval/answer_eval_100_tiered_v2.jsonl"
+out_dir = "eval/combo_final"
+
+[rewrite]
+source = "file"
+file = "eval/rewrite_none.json"
+label = "norewrite"
+
+[embedding]
+kind = "ollama"
+model = "qwen3-embedding:4b-q8_0"
+base_url = "http://127.0.0.1:11434"
+instruction = "@config"
+batch_size = 16
+
+[reranker]
+kind = "cross"
+model = "BAAI/bge-reranker-v2-m3"
+fp16 = true
+
+[llm.default]
+model = "gpt-5.6-luna"
+timeout = 300
+
+[select]
+enabled = false
+pool = 16
+ks = [8, 10]
+
+[judge]
+model = "gpt-5.6-luna"
+
+[eval]
+rerank_ks = [5, 8, 10, 16]
+final_ks = [8, 10]
+answer_k = 10
