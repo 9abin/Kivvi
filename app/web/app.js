@@ -13,6 +13,7 @@
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const clear = (n) => { while (n.firstChild) n.firstChild.remove(); return n; };
+  const SHOW_COVERAGE = false;   // 검토 화면의 「AI가 확인하지 못하는 것」 칸 (261019 사용자 요청으로 숨김. 데이터는 /api/changeset의 coverage에 그대로)
   let LIVE = false, CURRENT = null, CS = null, ROLE_NOW = "editor", CS_ALL = [];   // CS_ALL: 개정안 목록 (개정 업무 화면의 할 일)
   const isEditor = () => ROLE_NOW === "editor";
   const isApprover = () => ROLE_NOW === "approver";
@@ -746,7 +747,7 @@
       const ol = el("ol", "qlist"); C.questions.forEach((x) => ol.append(el("li", null, `${x.where} — ${x.question}`))); s.append(ol); doc.append(s);
     }
     // 깨지는 인용(연쇄 수정 전 → 후)은 오른쪽 요약 맨 위에 한 줄로 보인다
-    if (C.coverage?.not_covered?.length) {   // 구조상 확인하지 못하는 유형 (판단은 사람이 이 범위를 알고 한다). 찾은 경로별 개수는 개발용이라 뺌 (261019)
+    if (SHOW_COVERAGE && C.coverage?.not_covered?.length) {   // 구조상 확인하지 못하는 유형. 261019 사용자 요청으로 화면에서는 숨김 (SHOW_COVERAGE)
       const s = el("section", "coverage"); s.append(el("h2", null, "AI가 확인하지 못하는 것"));
       const ul = el("ul", "hint"); C.coverage.not_covered.forEach((t) => ul.append(el("li", null, t)));
       s.append(ul); doc.append(s);
@@ -788,12 +789,40 @@
     const ol = el("ol", "rows");
     C.impacts.forEach((x) => {
       const li = el("li", "row"), body = el("div", "body"); li.dataset.kind = kindOf(x);
-      const top = el("div", "top"); top.append(el("span", "tag " + (TONE[x.kind] || ""), x.label), el("span", "where", x.where));
+      // 카드의 조문 이름을 누르면 그 조문 원문을 카드 안에 불러오고, 거기서 「개정 정보」 탭(개정안 작성)으로 이어진다 (261019 사용자 요청)
+      const where = el("button", "where"); where.type = "button"; where.title = "원문 보기"; where.append(x.where, icon("chev"));
+      const top = el("div", "top"); top.append(el("span", "tag " + (TONE[x.kind] || ""), x.label), where);
       // 근거 종류: 문서 명시(원문 인용) / 낱말 일치(같은 제목·용어) / 모델 추정(의미 유사·오타) — 모델 추정은 담당자 판단이 더 필요
       if (x.basis) { const b = el("span", "basis" + (x.basis === "모델 추정" ? " model" : ""), x.basis); b.title = x.path ? `발견 경로: ${x.path}` : ""; top.append(b); }
       body.append(top);
       if (x.quote) body.append(el("q", null, x.quote));
       body.append(el("div", "why", x.reason));
+      const artBox = el("div", "card-art"); artBox.hidden = true; body.append(artBox);
+      where.addEventListener("click", async () => {
+        if (!artBox.hidden) { artBox.hidden = true; where.classList.remove("open"); return; }
+        artBox.hidden = false; where.classList.add("open");
+        if (artBox.dataset.loaded) return;
+        clear(artBox).append(el("span", "hint", "원문을 불러오는 중…"));
+        if (!LIVE) return clear(artBox).append(el("span", "hint", "서버에 연결되지 않아 원문을 열 수 없습니다"));
+        try {
+          const f = await api(`/api/find?q=${encodeURIComponent(x.where)}`);
+          const chunk = f.chunk || f.candidates?.[0]?.chunk;
+          if (!chunk) throw new Error("조문을 찾지 못했습니다");
+          const [art] = await fetchArticle(chunk);
+          clear(artBox).append(el("b", null, `${art.reg} ${art.label}`));
+          art.paras.forEach((p, i) => artBox.append(el("p", "para" + (i === art.highlight ? " hl" : "") + (p.status === "삭제" ? " del" : ""), p.text)));
+          const acts = el("div", "card-art-acts");
+          const open = el("button", "btn tertiary small"); open.type = "button"; open.append(icon("book"), "근거 원문 패널에서 보기");
+          open.addEventListener("click", () => { show("chat"); openPanel(); loadArticle(chunk); selectTab("src"); });
+          acts.append(open);
+          if (isEditor()) {   // 수정창: 개정 정보 탭의 「개정안 작성」 폼이 이 조에 묶여 열린다
+            const edit = el("button", "btn secondary small"); edit.type = "button"; edit.append(icon("edit"), "이 조 개정안 작성");
+            edit.addEventListener("click", async () => { show("chat"); openPanel(); await loadArticle(chunk); selectTab("amend"); $("#panel-amend textarea")?.focus(); });
+            acts.append(edit);
+          }
+          artBox.append(acts); artBox.dataset.loaded = "1";
+        } catch (e) { clear(artBox).append(el("span", "hint", `원문을 열지 못했습니다 — ${e.message}`)); }
+      });
       if (LIVE && x.key) {   // 설명 보기: 로컬 모델이 두 조문을 근거로 2~3문장으로 풀어 줌 (요약·해석, 판정 아님)
         const ex = el("div", "explain"), eb = el("button", "link", "왜 확인해야 하나? (모델 요약)"); eb.type = "button";
         eb.addEventListener("click", async () => {

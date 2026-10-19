@@ -540,3 +540,14 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 .decide-head .hint.lock .ico { width: 14px; height: 14px; flex: none; }
 .decide button[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .decide button[aria-disabled="true"]:hover { background: var(--gray-0); }
+
+/* 261019 사용자 요청 ⑨: 영향 카드의 조문 이름을 누르면 원문이 카드 안에 열리고, 개정 정보(수정창)로 이어진다 */
+.row button.where { background: none; border: 0; padding: 0; color: var(--secondary); cursor: pointer; text-align: left; display: inline-flex; align-items: center; gap: 2px; font: inherit; font-weight: 700; font-size: 16px; }
+.row button.where:hover { text-decoration: underline; text-underline-offset: 3px; }
+.row button.where .ico { width: 14px; height: 14px; transition: transform .15s; }
+.row button.where.open .ico { transform: rotate(90deg); }
+.card-art { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--gray-5); display: flex; flex-direction: column; gap: 6px; }
+.card-art b { font-size: 14px; color: var(--gray-90); }
+.card-art .para { margin: 0; font-size: 14px; line-height: 1.7; }
+.card-art .para.hl { padding: 6px 8px 6px calc(1.4em + 8px); }
+.card-art-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
