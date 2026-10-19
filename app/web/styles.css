@@ -534,3 +534,9 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 .panel-empty { margin: auto; max-width: 300px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; color: var(--gray-60); font-size: 14px; line-height: 1.6; }
 .panel-empty .ico { width: 32px; height: 32px; color: var(--gray-40); }
 .panel-empty b { color: var(--gray-70); font-size: 15px; }
+
+/* 261019 사용자 요청 ⑧: 카드 결정이 잠겼을 때 이유를 보이고 버튼은 잠금 모양으로 (누르면 안내) */
+.decide-head .hint.lock { display: inline-flex; align-items: center; gap: 6px; color: var(--warning); font-weight: 600; }
+.decide-head .hint.lock .ico { width: 14px; height: 14px; flex: none; }
+.decide button[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.decide button[aria-disabled="true"]:hover { background: var(--gray-0); }

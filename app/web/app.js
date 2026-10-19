@@ -756,7 +756,13 @@
     const SD = clear($("#side"));
     // 요약: 담당자의 일(카드 결정)을 맨 위에 → 깨지는 인용 한 줄 → 종류별 거르기 (0인 종류는 뺌, 이름에 마우스를 올리면 뜻)
     const head = el("div", "decide-head");
-    head.append(el("b", "decide-left"), el("span", "hint", editable(C) ? "카드마다 수락 · 기각하세요. 수락한 카드만 최종안에 반영됩니다." : "수락한 카드만 최종안에 반영됩니다."));
+    // 결정이 잠긴 이유를 보인다 (261019: 승인권자·반려된 개정안에서 수락을 눌러도 아무 반응이 없어 보였음)
+    const lockWhy = editable(C) ? "" : (C.status === "초안" || C.status === "검토")
+      ? "카드 수락 · 기각은 개정 담당자가 합니다." + (isApprover() ? " 승인권자는 아래에서 승인 · 반려만 합니다." : "")
+      : `이 개정안은 「${(CS_LABEL[C.status] || [C.status])[0]}」 상태라 카드 결정이 잠겨 있습니다.`;
+    const hint = el("span", "hint" + (lockWhy ? " lock" : ""));
+    if (lockWhy) hint.append(icon("info"), lockWhy); else hint.append("카드마다 수락 · 기각하세요. 수락한 카드만 최종안에 반영됩니다.");
+    head.append(el("b", "decide-left"), hint);
     const [b0, b1] = C.breaks || [null, null];
     const br = el("p", "break-line " + (b1 ? "neg" : "pos"));
     br.append(icon(b1 ? "info" : "check-c"), b1 ? `깨지는 인용 ${b1}곳이 남아 있습니다 — 깨짐 카드를 확인하세요`
@@ -806,9 +812,9 @@
         acc.setAttribute("aria-pressed", String(x.state === "accept")); rej.setAttribute("aria-pressed", String(x.state === "reject"));
         li.classList.toggle("rejected", x.state === "reject"); tally();
       };
-      if (!editable(C)) { acc.disabled = rej.disabled = true; acc.title = rej.title = isEditor() ? "승인·공포·반려된 개정안은 결정을 바꿀 수 없습니다" : "카드 수락·기각은 개정 담당자가 합니다"; }
+      if (!editable(C)) { acc.setAttribute("aria-disabled", "true"); rej.setAttribute("aria-disabled", "true"); acc.title = rej.title = lockWhy; }   // 비활성 대신 잠금 표시: 누르면 이유를 알린다
       const decide = async (d) => {
-        if (!editable(C)) return;
+        if (!editable(C)) return toast(lockWhy);
         const next = x.state === d ? "clear" : d, prev = x.state;
         x.state = next === "clear" ? null : next; paint();
         if (!LIVE || !x.key) return;
@@ -826,7 +832,7 @@
   function tally() {
     if (!CS) return;
     const N = CS.impacts.length, na = CS.impacts.filter((x) => x.state === "accept").length, nr = CS.impacts.filter((x) => x.state === "reject").length;
-    $("#tally").textContent = `수락 ${na} / 기각 ${nr} / 남음 ${N - na - nr}${LIVE ? " · 결정은 바로 저장됩니다" : " · 예시 (저장 안 됨)"}`;
+    $("#tally").textContent = `수락 ${na} / 기각 ${nr} / 남음 ${N - na - nr}${LIVE ? (editable(CS) ? " · 결정은 바로 저장됩니다" : " · 결정 잠김") : " · 예시 (저장 안 됨)"}`;
     const left = $("#side .decide-left");
     if (left) left.textContent = !N ? "결정할 카드가 없습니다" : N - na - nr ? `결정할 카드 ${N}건 중 ${N - na - nr}건 남음` : `카드 ${N}건을 모두 결정했습니다`;
     $("#p-acc").style.width = N ? (na / N) * 100 + "%" : "0"; $("#p-rej").style.width = N ? (nr / N) * 100 + "%" : "0";
