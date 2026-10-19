@@ -177,6 +177,16 @@
       if (/^[-•·]\s+/.test(s)) { if (!ul) { ul = el("ul"); body.append(ul); } const li = el("li"); inline(s.replace(/^[-•·]\s+/, ""), entries, li); ul.append(li); return; }
       ul = null; const p = el("p"); inline(s, entries, p); body.append(p);
     });
+    // 세부 불릿은 기본 접는다 (261019 사용자 요청): 결론만 보이고 「세부 N개 보기」로 펼친다. 「세부」 머리(h4)가 있으면 함께 접는다
+    const lists = [...body.querySelectorAll("ul")], n = lists.reduce((s, u) => s + u.children.length, 0);
+    if (n) {
+      const fold = el("div", "fold"); fold.hidden = true;
+      lists.forEach((u) => { const h = u.previousElementSibling; if (h && h.tagName === "H4") fold.append(h); fold.append(u); });
+      const tg = el("button", "link fold-toggle"); tg.type = "button"; tg.setAttribute("aria-expanded", "false");
+      const paint = () => { tg.textContent = fold.hidden ? `세부 ${n}개 보기 ▾` : "세부 접기 ▴"; tg.setAttribute("aria-expanded", String(!fold.hidden)); };
+      tg.addEventListener("click", () => { fold.hidden = !fold.hidden; paint(); }); paint();
+      body.append(tg, fold);
+    }
     return body;
   }
   // 근거 카드 · [n]을 한 번 누르면 바로 오른쪽 패널에 연다: 접혀 있으면 펼치고, 열린 카드를 표시하고, 패널을 잠깐 반짝여 바뀐 것을 보인다
@@ -186,7 +196,7 @@
     if (!isOpenable(e.chunk)) return toast(`${e.reg || "외부 법령"} ${e.article || ""} — 법령 원문은 내부규정 패널에 열 수 없습니다`);
     openPanel(); selectTab("src");
     document.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === e.chunk));
-    if (await loadArticle(e.chunk)) {
+    if (await loadArticle(e.chunk, e)) {
       const P = $("#panel-src"); P.classList.remove("flash"); void P.offsetWidth; P.classList.add("flash");
       const r = $("#src-panel").getBoundingClientRect();
       if (r.top > innerHeight || r.bottom < 0) $("#src-panel").scrollIntoView({ behavior: "smooth", block: "start" });   // 좁은 화면: 패널이 아래에 있음
@@ -415,9 +425,9 @@
     c.msgs.push({ q, res }); c.at = Date.now(); save(convs); renderConvList();
     setBusy(null);
     if (convId !== cid) { toast(`「${c.title}」 대화에 답이 도착했습니다`); return; }
-    const first = tool ? (res.find?.chunk || res.find?.candidates?.[0]?.chunk)
-      : leadEntry(res)?.chunk;
-    if (first) { loadArticle(first); selectTab("src"); openPanel(); done.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === first)); }
+    const lead = tool ? null : leadEntry(res);
+    const first = tool ? (res.find?.chunk || res.find?.candidates?.[0]?.chunk) : lead?.chunk;
+    if (first) { loadArticle(first, lead); selectTab("src"); openPanel(); done.querySelectorAll(".cite[data-chunk]").forEach((b) => b.classList.toggle("open", b.dataset.chunk === first)); }
     t.scrollTop = t.scrollHeight; $("#ask-q").focus();
   }
   $("#composer").addEventListener("submit", (e) => { e.preventDefault(); if (busy) busy.abort(); else send(); });
@@ -800,14 +810,25 @@
 
   // ── 데이터 불러오기 ──────────────────────────────────
   let artSeq = 0;   // 빠르게 여러 번 누르면 늦게 온 앞 응답이 뒤 응답을 덮지 않게, 마지막 요청만 그린다
-  async function loadArticle(chunk) {
+  async function loadArticle(chunk, hint) {
     if (!LIVE || !isOpenable(chunk)) return false;
     const my = ++artSeq;
     try {
       const [art, m] = await Promise.all([api(`/api/article?chunk=${encodeURIComponent(chunk)}`), api(`/api/amend?chunk=${encodeURIComponent(chunk)}`)]);
       if (my !== artSeq) return false;
       renderArticle(art); renderAmend(m); return true;
-    } catch (e) { toast(e.message); return false; }
+    } catch (e) {
+      // 답변 근거는 조 단위 ID(24024_제30조)로 오는데 색인은 항 단위(24024_제30조_2항)라 서버가 못 찾는다 (261019 실측).
+      // 근거의 규정명·조(·▶▶ 표시에서 읽은 항)로 /api/find를 불러 실제 항 청크 ID를 받아 다시 연다. 가빈 검색기·서버는 그대로 둔다
+      if (hint && hint.reg && hint.article && /청크를 찾지 못했습니다/.test(e.message)) {
+        const hit = /▶▶ \[찾은 항\] ([①-⑳])/.exec(hint.text || ""), para = hit ? "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳".indexOf(hit[1]) + 1 : 0;
+        try {
+          const f = await api(`/api/find?q=${encodeURIComponent(`${hint.reg} ${hint.article}${para ? ` 제${para}항` : ""}`)}`);
+          if (f.chunk && f.chunk !== chunk) return loadArticle(f.chunk);
+        } catch { /* 되찾기도 실패하면 아래 원래 오류를 보인다 */ }
+      }
+      toast(e.message); return false;
+    }
   }
   async function loadChangeset(id) {
     if (!LIVE) return;
