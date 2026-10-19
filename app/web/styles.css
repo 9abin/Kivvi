@@ -556,3 +556,7 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 .card-art .para { margin: 0; font-size: 14px; line-height: 1.7; }
 .card-art .para.hl { padding: 6px 8px 6px calc(1.4em + 8px); }
 .card-art-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+/* 대비표: 안 바뀐 부분 표시 · 함께 개정 규정 대비표 (261019) */
+.diff .same { color: var(--gray-50); font-style: italic; }
+.comp .diff { margin-top: 10px; }

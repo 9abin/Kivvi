@@ -754,12 +754,18 @@
     const doc = clear($("#doc"));
     const s1 = el("section"); s1.append(el("h2", null, "개정문"), el("p", "amend-text", C.amendment)); doc.append(s1);
     const s2 = el("section"); s2.append(el("h2", null, "신·구조문 대비표"));
-    const diff = el("div", "diff");
-    const side = (title, parts) => { const d = el("div"); d.append(el("span", "head", title)); parts.forEach((p) => d.append(typeof p === "string" ? p : p.del != null ? el("del", null, p.del) : el("ins", null, p.ins))); return d; };
-    diff.append(side("현행", C.diff.old), side("개정안", C.diff.new)); s2.append(diff); doc.append(s2);
+    // 대비표 한 벌 (본 개정 · 함께 개정 규정마다 같은 모양). 「(현행과 같음)」 · 「(생 략)」은 흐리게 그대로 보인다 (261019)
+    const side = (title, parts) => { const d = el("div"); d.append(el("span", "head", title)); parts.forEach((p) => d.append(typeof p === "string" ? p : p.del != null ? el("del", null, p.del) : p.ins != null ? el("ins", null, p.ins) : el("span", "same", p.same))); return d; };
+    const diffTable = (D) => { const g = el("div", "diff"); g.append(side("현행", D.old), side("개정안", D.new)); return g; };
+    s2.append(diffTable(C.diff)); doc.append(s2);
     if (C.companion?.length) {
       const s = el("section"); s.append(el("h2", null, `함께 개정할 규정 ${C.companion.length}`));
-      C.companion.forEach((x) => { const d = el("div", "comp"); d.append(el("b", null, x.reg)); if (x.amendment) d.append(el("p", null, x.amendment)); if (x.manual) d.append(el("p", "hint", `수작업 확인 ${x.manual}건`)); s.append(d); });
+      C.companion.forEach((x) => {
+        const d = el("div", "comp"); d.append(el("b", null, x.reg)); if (x.amendment) d.append(el("p", "amend-text", x.amendment));
+        if (x.diff?.new?.length) d.append(diffTable(x.diff));   // 함께 개정 규정도 신 · 구 대비표 (적용기로 검증한 줄)
+        else if (x.status && x.status !== "ok") d.append(el("p", "hint", x.status));
+        if (x.manual) d.append(el("p", "hint", `별표 · 별지 · 부칙 안 수작업 확인 ${x.manual}건`)); s.append(d);
+      });
       doc.append(s);
     }
     if (C.addendum) { const s = el("section"); s.append(el("h2", null, "부칙 초안"), el("p", "amend-text", C.addendum)); doc.append(s); }

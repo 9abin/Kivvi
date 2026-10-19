@@ -252,12 +252,16 @@ def changesets() -> list[dict]:
 
 
 def segments(rows: list, side: str) -> list:
-    """payload rows[].old/new: [[[글, 바뀜?], ...] 줄] → 화면 조각 [str | {del}/{ins}] (생략 줄은 뺌)"""
+    """payload rows[].old/new: [[[글, 바뀜?], ...] 줄] → 화면 조각 [str | {del}/{ins}/{same}].
+    「(생 략)」 · 「(현행과 같음)」 줄도 {same}으로 넘긴다 (개정 대비표 관례대로 안 바뀐 부분이 있음을 보임, 261019 — 예전엔 뺐음)"""
     out = []
     for r in rows:
         for line in r.get(side) or []:
             text = "".join(t for t, _ in line)
             if text.strip() in ("(생 략)", "(현행과 같음)"):
+                if out:
+                    out.append("\n")
+                out.append({"same": text.strip()})
                 continue
             if out:
                 out.append("\n")
@@ -300,7 +304,9 @@ def changeset(cid: str) -> dict:
     return {"id": c["id"], "reg": titles.get(c["reg_id"], c["reg_id"]), "title": c["title"], "status": c["status"],
             "amendment": pkg.get("amendment_final") or c["amendment"],
             "diff": {"old": segments(pkg.get("rows") or payload.get("rows", []), "old"), "new": segments(pkg.get("rows") or payload.get("rows", []), "new")},
-            "companion": [{"reg": x["reg_name"], "amendment": x.get("amendment") or "", "manual": len(x.get("manual") or [])} for x in pkg.get("companion", [])],
+            "companion": [{"reg": x["reg_name"], "amendment": x.get("amendment") or "", "manual": len(x.get("manual") or []), "status": x.get("status", ""),
+                           "diff": {"old": segments(x.get("rows") or [], "old"), "new": segments(x.get("rows") or [], "new")}}   # 함께 개정 규정의 대비표 (261019)
+                          for x in pkg.get("companion", [])],
             "addendum": pkg.get("addendum_draft") or "", "questions": pkg.get("questions") or [],
             "breaks": [pkg.get("breaks_before"), pkg.get("breaks_after")] if pkg else None,
             "impacts": impacts, "has_package": bool(pkg), "coverage": pkg.get("coverage")}
