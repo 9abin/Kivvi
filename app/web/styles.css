@@ -494,3 +494,8 @@ a.interp-title { color: var(--primary-hover); text-decoration: underline; text-u
 .kf:hover { border-color: var(--primary); }
 .kf[aria-pressed="true"] { background: var(--secondary); border-color: var(--secondary); color: var(--gray-0); }
 .kf[aria-pressed="true"] b { color: var(--gray-0); }
+
+/* 영향 카드 → 함께 개정 요청 (261019) */
+.row .link-btn.cascade { align-self: flex-start; font-size: 14px; }
+.cascade-note { width: 100%; max-width: 760px; text-align: left; margin-bottom: 8px; }
+.cascade-note .back { margin: 6px 0 0; }

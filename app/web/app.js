@@ -94,10 +94,22 @@
   }
   // amend: 개정 업무 화면의 「개정 요청 쓰기」로 연 대화. 이 대화의 메시지는 말투와 상관없이 개정 도구로 보낸다 (conv.mode = "amend")
   let AMEND_NEW = false;
+  // 함께 개정 요청: 개정안 검토의 영향 카드에서 「이 조도 함께 개정」으로 연 대화 → {id, reg, where} (원 개정안과 고칠 조)
+  // 내용으로 맞물린 다른 조(같은 제목 · 의미 유사 · 정의 용어 …)는 AI가 문안을 정하지 않는다. 담당자가 미리 채운 요청을 고쳐 보낸다 (261019)
+  let AMEND_ORIGIN = null;
   const amendConv = () => isEditor() && (conv() ? conv().mode === "amend" : AMEND_NEW);
-  function newConv(amend = false) {
-    convId = null; AMEND_NEW = amend; $("#chat-title").textContent = amend ? "새 개정 요청" : "새 대화";
+  function newConv(amend = false, origin = null) {
+    convId = null; AMEND_NEW = amend; AMEND_ORIGIN = amend ? origin : null;
+    $("#chat-title").textContent = origin ? "함께 개정 요청" : amend ? "새 개정 요청" : "새 대화";
     renderEmpty(); renderConvList(); show("chat"); setBusy(busy); $("#ask-q").focus();
+  }
+  // 원 개정안의 요청 문장에서 규정 이름 · 조 번호를 뺀 내용만 (고칠 조를 찾을 때 원 개정안의 규정 · 조로 잘못 찾지 않게)
+  const plainRequest = (C) => C.title.replace(/\s*\([^)]*\)\s*$/, "").replace(/^\S+\s+—\s+/, "")
+    .replace(/\S*(규정|지침|규칙|강령|세칙)(?=\s)/g, "").replace(/제\s*\d+\s*조(?:의\s*\d+)?(?:\s*제?\s*\d+\s*항)?/g, "").replace(/\s+/g, " ").trim();
+  function cascadeRequest(C, x) {
+    newConv(true, { id: C.id, reg: C.reg, where: x.where });
+    const head = `${x.where}도 함께 맞춰줘 — 원 개정안 ${C.id}: `, ta = $("#ask-q");
+    ta.value = head + plainRequest(C); autosize(); ta.focus(); ta.setSelectionRange(head.length, ta.value.length);
   }
 
   // ── 채팅 ─────────────────────────────────────────────
@@ -112,6 +124,14 @@
   function renderAmendEmpty() {
     const t = clear($("#thread")), box = el("div", "empty-chat amend-start");
     const hero = el("span", "amend-hero"); hero.append(icon("tool"));
+    const o = AMEND_ORIGIN || (conv()?.origin ? { id: conv().origin, reg: "", where: "" } : null);
+    if (o) {   // 영향 카드에서 이어진 요청: 무엇에 맞추는지 · 판단은 담당자
+      const n = el("div", "changing cascade-note"), back = el("button", "back", `${o.id} 열기 →`);
+      back.type = "button"; back.dataset.view = "review"; back.dataset.cs = o.id;
+      n.append(el("b", null, `개정안 ${o.id}의 영향 카드에서 이어진 요청입니다`),
+        el("p", null, `${o.where ? `「${o.where}」을(를) ` : ""}어떻게 맞출지 입력칸의 문장을 확인 · 고친 뒤 보내세요. 바꿀지 말지는 담당자가 정합니다.`), back);
+      box.append(n);
+    }
     box.append(hero, el("h2", null, "어떤 조문을 어떻게 바꿀까요?"),
       el("span", null, "규정 이름 · 조 번호 · 바꿀 내용을 한 문장으로 적어 주세요. 이 대화의 요청은 모두 개정 도구로 갑니다."));
     const ol = el("ol", "amend-steps");
@@ -393,8 +413,9 @@
     const tool = !forceAsk && (amendConv() || wantsAmend(q));
     if (text == null) { $("#ask-q").value = ""; autosize(); }
     if (!conv()) {
-      convId = "c" + Date.now(); convs.unshift({ id: convId, title: q.slice(0, 40), at: Date.now(), msgs: [], tool, mode: amendConv() ? "amend" : "ask" });
-      AMEND_NEW = false; $("#chat-title").textContent = q.slice(0, 40);
+      convId = "c" + Date.now(); convs.unshift({ id: convId, title: q.slice(0, 40), at: Date.now(), msgs: [], tool, mode: amendConv() ? "amend" : "ask",
+                                                 ...(AMEND_ORIGIN ? { origin: AMEND_ORIGIN.id } : {}) });
+      AMEND_NEW = false; AMEND_ORIGIN = null; $("#chat-title").textContent = q.slice(0, 40);
     }
     const cid = convId, c = conv();
     // 멀티턴: 이 대화의 앞 질문(답이 난 것) 3개를 함께 보낸다 → 서버가 이어 묻는 질문을 독립 질문으로 바꿔 검색 (web_chat.standalone)
@@ -781,6 +802,13 @@
         try { await api("/api/decide", { id: C.id, key: x.key, state: next }); } catch (e) { x.state = prev; paint(); toast(e.message); }
       };
       acc.addEventListener("click", () => decide("accept")); rej.addEventListener("click", () => decide("reject"));
+      // 내용으로 맞물린 조는 AI가 문안을 정하지 않는다 → 담당자가 이어서 개정 요청 (깨짐 · 법령 · 구조 밖 안내 · 이미 고친 인용은 제외)
+      if (editable(C) && LIVE && ["review", "resolved", "topic"].includes(x.kind) && x.basis !== "규칙 안내"
+          && !String(x.path || "").startsWith("연쇄 수정") && /제\d+조/.test(x.where)) {
+        const cb = el("button", "link-btn cascade", "이 조도 함께 개정 →"); cb.type = "button";
+        cb.title = "개정 요청 대화를 열고 이 조를 고치는 요청을 미리 채웁니다. 보내기 전에 문장을 고칠 수 있습니다";
+        cb.addEventListener("click", () => cascadeRequest(C, x)); body.append(cb);
+      }
       dc.append(acc, rej); body.append(dc); li.append(body); ol.append(li); paint();
     });
     SD.append(ol);
