@@ -24,6 +24,7 @@ DUP_MIN = 0.78   # 신설 조문 ↔ 같은 내규 기존 조문 유사도 (0.78
 DUP_HIGH = 0.82
 MAX_BIGRAM = 5       # 글자 연쇄 오타 카드는 개정안당 최대 5장
 MAX_CHAIN = 8        # 연쇄(2단계) 카드는 최대 8장 (허브 조 삭제 시 폭주 방지)
+MAX_INFER = 6        # 규칙 추론 카드는 개정안당 최대 6장
 MAX_MODEL = 6        # 한 개정안에서 모델 추정 카드(오타 제외)는 최대 6장
 NEIGHBOR_GAP = 0.03   # 의미 이웃: 다음 이웃보다 이만큼 높아야 「낮음」, 아니면 「참고」 (리포트 48)
 DUP_GAP = 0.04    # 1위가 2위보다 이만큼 높아야 「중간」 (진짜 중복 0.06, 연속 신설 조문 중앙 0.03 — 리포트 48)
@@ -115,12 +116,13 @@ def _strict(phrase: str) -> str:
 
 def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: list[dict] | None = None,
           new_reg: dict | None = None, registry_factory=None, vector=None, k: int = 5, lawdb=None, spell_model: str | None = None,
-          neighbors: dict | None = None, dup=None, hypo=None) -> list[dict]:
+          neighbors: dict | None = None, dup=None, hypo=None, inferred: list[dict] | None = None) -> list[dict]:
     """cs: out/changes/{id}/changeset.json, regs: 원문 파싱 결과(규정ID → 레코드), rels: 관련 조항 표.
     new_reg/registry_factory를 주면 바뀐 조의 인용을 다시 해석한다. vector=(model, Index)면 의미 유사 후보를 더한다.
     hypo(reg, old_art, new_art, diff_text, skip) → 가설 카드 목록 (regcheck.hypothesis, 로컬 LLM — 보조 기능)을 주면 바뀐 조마다 「함께 확인할 주제」 가설을 더한다.
     dup=(embed 함수, Index)를 주면 신설 조문이 같은 내규의 기존 조문과 겹치는지 확인한다 (261015 시연 리허설: 이미 있는 제11조와 같은 내용을 신설).
-    neighbors(regcheck.neighbors.load)를 주면 미리 계산한 의미 이웃(다른 규정의 같은 주제로 보이는 조)을 낮은 우선순위로 더한다."""
+    neighbors(regcheck.neighbors.load)를 주면 미리 계산한 의미 이웃(다른 규정의 같은 주제로 보이는 조)을 낮은 우선순위로 더한다.
+    inferred(regcheck.ruleset.infer 결과, out/rules/inferred.jsonl)를 주면 바뀐 조와 규칙 추론 엣지로 이어진 반대쪽 조를 「규칙 추론」 카드로 더한다."""
     rid = cs["reg_id"]
     reg = regs[rid]
     out: list[dict] = []
@@ -206,6 +208,21 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
                 add(_item("review", locate(r["src"]), regs, quote=r["evidence"], context=r["context"], path="문서 인용", src=r["src"],
                           target=f"{reg['name']} {changed[o]['old_label']}",
                           reason=f"「{reg['name']}」에 문서 단위로 맡긴 조항이고 문맥에 「{t}」가 있음", handling="판단 가능", priority="중간"))
+
+    # 2b) 규칙 추론 엣지(regcheck.ruleset): 바뀐 조와 「의심」 엣지로 이어진 반대쪽 조. 엣지 자체가 후보라서 우선순위는 규칙이 정한 값 그대로
+    n_inf = 0
+    for e in inferred or []:
+        if n_inf >= MAX_INFER:
+            break
+        for mine, other, other_is_src in ((e["src_article"], e["target"], False), (e["target"], e["src_article"], True)):
+            if mine not in content_changed or other in changed or e["target_type"] != "article" or (e.get("directed") and not other_is_src):
+                continue
+            src = e["src"] if other_is_src else other + "-0-0-0"
+            add(_item("review", locate(src), regs, quote=e["evidence"], context=(e["context"] if other_is_src else e.get("target_context", "")),
+                      path=f"규칙 추론({e['kind']})", src=src, target=f"{reg['name']} {changed[mine]['old_label']}",
+                      reason=f"{e['note']} (규칙 {e['rule_id']}, 상태 의심)", handling="판단 가능", priority=e.get("priority", "낮음")))
+            n_inf += 1
+            break
 
     # 3) 같은 제목 + 값 비교, 4) 의미 유사
     new_arts = {a.get("_origin") or a["id"]: a for a in (new_reg or {}).get("articles", [])}
@@ -477,7 +494,7 @@ def check(cs: dict, regs: dict[str, dict], rels: list[dict], baseline_edges: lis
     return out
 
 
-PATH_FAMILY = [("인용", ("인용받음", "문서 인용", "재검사", "연쇄 수정", "연쇄(2단계)")), ("같은 제목", ("같은 제목",)), ("정의 용어", ("정의 용어",)),
+PATH_FAMILY = [("인용", ("인용받음", "문서 인용", "재검사", "연쇄 수정", "연쇄(2단계)")), ("같은 제목", ("같은 제목",)), ("정의 용어", ("정의 용어",)), ("규칙 추론", ("규칙 추론",)),
                ("의미 유사", ("의미",)), ("가설", ("가설",)), ("법령", ("나가는 인용", "같은 제목 법령")), ("오타", ("오타",)), ("구조 밖 체크리스트", ("구조 밖",))]
 NOT_COVERED = [
     "인용·정의 용어·같은 제목으로 이어지지 않는 맥락상 영향 (예: 제도·절차가 바뀌어 다른 규정의 절차도 바뀌어야 하는 경우)",
@@ -534,6 +551,8 @@ def basis_of(path: str) -> str:
         return "낱말 일치"
     if p.startswith("구조 밖"):
         return "규칙 안내"
+    if p.startswith("규칙 추론"):
+        return "규칙 추론"
     return "문서 명시"
 
 
@@ -606,7 +625,7 @@ def score(found: list[dict], expected: dict) -> dict:
 
 
 def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], vector=None, k: int = 5, lawdb=None,
-        spell_model: str | None = None, neighbors: dict | None = None, dup=None, hypo=None) -> list[dict]:
+        spell_model: str | None = None, neighbors: dict | None = None, dup=None, hypo=None, inferred: list[dict] | None = None) -> list[dict]:
     """changeset 하나 점검 (개정안 사본을 다시 만들어 재검사까지). scripts/check_change.py와 검토 화면이 같이 쓴다."""
     from .amend import apply, parse_amendment
     from .citations import Registry
@@ -617,4 +636,4 @@ def run(cs: dict, regs: dict[str, dict], rels: list[dict], edges: list[dict], ve
         return Registry([nr if r["reg_id"] == nr["reg_id"] else r for r in regs.values()])
 
     return check(cs, regs, rels, baseline_edges=edges, new_reg=new_reg, registry_factory=factory, vector=vector, k=k, lawdb=lawdb,
-                 spell_model=spell_model, neighbors=neighbors, dup=dup, hypo=hypo)
+                 spell_model=spell_model, neighbors=neighbors, dup=dup, hypo=hypo, inferred=inferred)
