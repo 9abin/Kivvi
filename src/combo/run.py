@@ -39,7 +39,7 @@ def run_one(path, args):
     cands = r.stage_cands(rew)
     if last == "cands":
         return
-    rr = r.stage_rerank(cands)
+    rr = r.stage_rerank(cands, rew)
     if last == "rerank":
         return
     sel = r.stage_select(cands, rr) if r.S else None

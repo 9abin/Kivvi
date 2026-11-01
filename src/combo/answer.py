@@ -5,7 +5,9 @@ import time
 import config as app_config
 from src.answer.generate import Generator
 from src.answer.pipeline import Assistant
+from src.combo import graph_expand
 from src.combo import metrics as M
+from src.combo.graph_answer import graph_entries
 from src.combo.models import LLM, strip_think
 from src.eval import judge_answers
 
@@ -66,6 +68,10 @@ def stage_answer(run, cands, rr, sel):
     judge_llm = LLM(judge_spec)
     asst = ComboAssistant(s, RoleGenerators(ComboGenerator(ans_llm), ComboGenerator(ver_llm)), None)
     byq = {g["id"]: g for g in run.gold}
+    gcfg = cfg.get("graph") or {}
+    near_k = gcfg.get("near_k", 3)
+    gx = graph_expand.Expander(graph_expand.load_edges(gcfg.get("uri", graph_expand.DEFAULT_URI)), run.indexed_nodes,
+                               gcfg.get("policy", {})) if gcfg.get("enabled") else None
     recs = []
     for n, g in enumerate(run.gold, 1):
         arts = run.ranked_of(s, g, cands, rr)
@@ -75,7 +81,8 @@ def stage_answer(run, cands, rr, sel):
             pick = [byid[cid] for cid in sel["items"][g["id"]][str(k)]["chosen"] if cid in byid]
         else:
             pick = arts[:k]
-        asst._results_fn = lambda q, kk, pick=pick, exact=exact: s._as_articles(exact + pick, kk, True)
+        order = M.first_seen([M.node_key(h["doc_id"], h["article"]) for h in exact] + [run.node_of[h["chunk_id"]] for h in pick])
+        asst._results_fn = lambda q, kk, pick=pick, exact=exact, order=order: with_graph(s, gx, s._as_articles(exact + pick, kk, True), order, near_k)
         first = []
         ans_llm.take_tokens(), ver_llm.take_tokens()
         t0 = time.perf_counter()
@@ -127,6 +134,16 @@ def stage_answer(run, cands, rr, sel):
     save_json(path, out)
     print(f"답변 결과 저장: {path}\n  판정 {labels}, 요지 충족률 {agg['core_point_fill']}", flush=True)
     return out
+
+
+def with_graph(searcher, gx, results, order, near_k):
+    """검색 결과(인용 포함)에서 그래프로 더할 조를 찾아 첫 결과의 related에 붙인다. gx가 없으면 그대로."""
+    if gx is None or not results:
+        return results
+    got = {M.node_key(it["doc_id"], it["article"]) for it in results} | {M.node_key(c["doc_id"], c["article"]) for it in results for c in it.get("cited", [])}
+    added = gx.expand(got, set(order[:near_k]))
+    results[0]["related"] = list(results[0].get("related") or []) + graph_entries(searcher, added)
+    return results
 
 
 def _pct(vals, p):
