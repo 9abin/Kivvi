@@ -88,6 +88,13 @@ def vector_backend():
     return load_model(index.model_name), index
 
 
+@st.cache_resource
+def impact_context():
+    """영향 후보 탭용 그래프 · 문구 색인. out/kg가 없으면 None (scripts/build_kg.py)."""
+    from regcheck.impact_view import load_context
+    return load_context(ROOT, load_static()[0])
+
+
 regs, found, rels, edges = load_static()
 log = ReviewLog()
 names = {k: v["name"] for k, v in regs.items()}
@@ -277,7 +284,7 @@ elif page == "개정안 검토":
     cs = changes[cur_id]
     with st.expander(f"개정문 ({len(cs['sentences'])}문장)"):
         st.code(cs["amendment"], language=None)
-    tab1, tab2 = st.tabs([f"신·구조문대비표 ({len(cs['rows'])})", "영향 (변경안 점검)"])
+    tab1, tab2, tab3 = st.tabs([f"신·구조문대비표 ({len(cs['rows'])})", "영향 (변경안 점검)", "영향 후보 (그래프 · 근거 카드)"])
     with tab1:
         st.caption("행마다 수락·거절합니다. 밑줄 = 바뀐 부분. 일괄 수락은 없습니다.")
         for i, r in enumerate(cs["rows"]):
@@ -332,6 +339,58 @@ elif page == "개정안 검토":
                             st.markdown(unit_html(x.get("src", ""), x.get("quote", ""), x["context"]), unsafe_allow_html=True)
                         decision_form(k, "impact", {"change": cur_id, "category": c, "reg_id": x["reg_id"],
                                                     "article": x.get("article"), "quote": x.get("quote")}, reviewer, f"if_{k}")
+
+    with tab3:
+        st.caption("후보를 확정하거나 충돌을 판정하지 않습니다. 단계는 경로별로 잰 정밀도로 나눈 것이고, 결정은 담당자가 합니다. 라벨 기준 평가는 탐색적 결과입니다(리포트 78).")
+        ctx = impact_context()
+        if ctx is None:
+            st.info("그래프가 없습니다: uv run python scripts/build_kg.py")
+        else:
+            use_rag = st.checkbox("의미 유사 후보도 찾기 (모델 로드, 처음 10~20초)", value=False, key=f"rag_{cur_id}")
+            from regcheck.impact_view import make_rag, run as impact_run
+            rag = None
+            if use_rag:
+                model, index = vector_backend()
+                rag = make_rag(model, index)
+            res = impact_run(ctx, regs, cs["reg_id"], cs["amendment"], cur_id, rag=rag)
+            if res["error"]:
+                st.warning(f"개정문을 분석하지 못했습니다: {res['error']}")
+            else:
+                cq = res["cq"]
+                view = res["view"]
+                st.markdown(f"**수정 종류** {cq.kind} · {cq.evidence}")
+                show_all = st.checkbox(f"전체 후보 보기 (소음이 많은 경로 후보 {view['hidden']}개 포함)", value=False, key=f"all_{cur_id}")
+                if show_all:
+                    from regcheck.evidence import card as make_card
+                    cards = [make_card(c, cq, ctx.nodes, ctx.unit_text) for c in view["all"]]
+                else:
+                    cards = res["cards"]
+                st.caption(f"후보 {len(cards)}개 (기본 화면: 의미 검색 30 + 쓸모 있는 경로의 그래프 후보 20까지). 숨긴 후보 {0 if show_all else view['hidden']}개.")
+                for tier in ("확정급", "확인 권장", "참고"):
+                    group = [c for c in cards if c["tier"] == tier]
+                    if not group:
+                        continue
+                    st.markdown(f"##### {tier} ({len(group)})")
+                    for c in group:
+                        art = ctx.nodes.get(c["id"], {})
+                        x = {"category": "graph:" + tier, "reg_id": art.get("reg", ""), "unit": None, "article": art.get("label", c["id"]), "para": None, "quote": c["quote"] or c["id"]}
+                        k = key_impact(cur_id, x)
+                        state = log.state(k, "impact")
+                        with st.expander(f"[{state}] {names.get(art.get('reg', ''), '')} {c['target']} · {' / '.join(c['reasons'][:2])}"):
+                            if c["quote"]:
+                                st.markdown(f"**근거 문장** 「{c['quote']}」")
+                            else:
+                                st.markdown("**근거 문장** 없음 (규칙으로 뽑지 못함. 직접 확인)")
+                            if c["replacement"]:
+                                st.markdown(f"**참고 수정안** 「{c['replacement']['before']}」 → 「{c['replacement']['after']}」")
+                            st.markdown("**경로** " + ", ".join(c["paths"]))
+                            if c["needs_check"]:
+                                st.caption("확인 필요: 확정급이 아니거나 근거 문장이 없습니다.")
+                            a = article_of(art.get("reg", ""), art.get("label", ""))
+                            if a:
+                                st.markdown(art_html(a, 0, c["quote"] or ""), unsafe_allow_html=True)
+                            decision_form(k, "impact", {"change": cur_id, "category": x["category"], "reg_id": x["reg_id"], "article": x["article"], "quote": c["quote"]},
+                                          reviewer, f"gf_{k}")
 
 
 # ---------------------------------------------------------------- 검토 현황

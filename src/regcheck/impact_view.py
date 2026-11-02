@@ -1,0 +1,100 @@
+"""검토 화면용 영향 후보: 개정문 -> 변경 분석 -> 후보 수집 -> 기본 화면 / 전체 후보 -> 근거 카드 (리포트 74 · 78).
+
+  ctx = load_context(root, regs)                 # out/kg가 없으면 None
+  res = run(ctx, regs, reg_id, amendment, cid, rag=None)
+  res["cq"], res["view"]["default" | "all" | "hidden"], res["cards"], res["error"]
+
+화면(app/review_app.py)이 부르는 얇은 층이다. 후보를 확정하거나 충돌을 판정하지 않는다. 결정은 사람이 한다.
+의미 검색(rag)은 선택: 없으면 그래프 · 문구 후보만 나온다. 부칙 · 별표 · 서식의 임베딩은 쓰지 않는다(본문 조 청크만).
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+from .amend import apply, parse_amendment
+from .change_query import _art_text, analyze
+from .collect import collect
+from .evidence import card
+from .kg import KG
+from .review_list import split_view
+
+
+@dataclass
+class ImpactContext:
+    nodes: dict
+    kg: KG
+    unit_text: dict[str, str]
+    ntext: dict[str, str]
+
+    @classmethod
+    def from_parts(cls, regs: dict, nodes: dict, edge_rows: list[dict]) -> "ImpactContext":
+        unit_text: dict[str, str] = {}
+        for r in regs.values():
+            for x in r["articles"]:
+                if not x.get("deleted"):
+                    unit_text[x["id"]] = x["norm"]
+            for ad in r.get("addenda") or []:
+                for x in ad.get("articles") or []:
+                    unit_text[x["id"]] = x["norm"]
+            for ap in r.get("appendices") or []:
+                unit_text[ap["id"]] = (ap.get("title") or "") + "\n" + (ap.get("text") or "")
+        ntext = {k: re.sub(r"\s+", "", v) for k, v in unit_text.items()}
+        return cls(nodes, KG(nodes, edge_rows), unit_text, ntext)
+
+    def find(self, term: str) -> list[str]:
+        t = re.sub(r"\s+", "", term)
+        return [k for k, v in self.ntext.items() if t in v]
+
+
+def _jl(p: Path) -> list[dict]:
+    return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+
+def load_context(root: Path, regs: dict) -> ImpactContext | None:
+    nodes_p, edges_p = root / "out" / "kg" / "nodes.jsonl", root / "out" / "kg" / "edges.jsonl"
+    if not (nodes_p.exists() and edges_p.exists()):
+        return None
+    nodes = {r["id"]: {k: v for k, v in r.items() if k != "id"} for r in _jl(nodes_p)}
+    return ImpactContext.from_parts(regs, nodes, _jl(edges_p))
+
+
+def make_rag(model, index) -> Callable[[str, int], list[str]]:
+    """본문 조 청크 임베딩(regcheck.vectors.Index)으로 의미 검색. 조 단위로 중복을 없앤다."""
+    def rag(q: str, k: int) -> list[str]:
+        qvec = model.encode([q[:1200]], normalize_embeddings=True)[0]
+        seen, out = set(), []
+        for _, chunk in index.search(qvec, None, k=max(k * 4, 40)):
+            a = chunk["article_id"]
+            if a not in seen:
+                seen.add(a)
+                out.append(a)
+            if len(out) >= k:
+                break
+        return out
+    return rag
+
+
+def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, rag: Callable[[str, int], list[str]] | None = None,
+        rag_k: int = 30, graph_n: int = 20) -> dict:
+    cq = analyze(regs[reg_id], amendment, cid)
+    if cq.kind == "분석 실패":
+        return {"cq": cq, "view": {"default": [], "all": [], "hidden": 0}, "cards": [], "error": cq.error or "개정문을 읽지 못함"}
+    start = cq.starts[0] if cq.starts else None
+    old_a = next((x for x in regs[reg_id]["articles"] if x["id"] == start), None)
+    new_reg = apply(regs[reg_id], parse_amendment(amendment))[0]
+    new_a = next((x for x in new_reg["articles"] if old_a and x["label"] == old_a["label"]), old_a)
+    texts = {"title": (old_a or {}).get("title") or "", "old": _art_text(old_a)[:600] if old_a else "", "new": _art_text(new_a)[:600] if new_a else "", "amend": amendment}
+    exclude = set() if cq.kind == "번호 이동" else set(cq.starts)
+
+    def rag_fn(q: str, k: int) -> list[str]:
+        return [a for a in (rag(q, k + len(exclude)) if rag else []) if a not in exclude][:k]
+
+    cands = collect(ctx.kg, cq, ctx.find, rag_fn, texts, rag_k=rag_k)
+    view = split_view(cands, rag_k=rag_k, graph_n=graph_n)
+    cards = [card(c, cq, ctx.nodes, ctx.unit_text) for c in view["default"]]
+    return {"cq": cq, "view": view, "cards": cards, "error": ""}
