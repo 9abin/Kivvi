@@ -65,3 +65,15 @@ def test_search_terms_skip_common_words():
     q = analyze(reg(), '제3조제1호 중 "신원 확인 및 검증을 하는 것"을 "신원 확인 및 검증과 지속적 거래 모니터링을 하는 것"으로 한다.', "T")
     terms = dict(q.search_terms(lambda t: 100 if t == "고객확인" else 3))
     assert "고객확인" not in terms and "고객확인의무" in terms
+
+
+def test_sub_item_of_definition_is_definition_change():
+    text = TEXT + "\n제7조(용어의 정의) 이 지침에서 사용하는 용어의 뜻은 다음과 같다.\n1. \"임기제 직원\"은 다음 각 호에 해당하는 사람을 말한다.\n가. 프로젝트 업무\n나. 9개월 이상 2년 이내 기간 동안 수행되는 업무"
+    r = {"reg_id": "9", "name": "시험규정", **to_records("9", parse(text.splitlines()))}
+    q = analyze(r, '제7조제1호나목 중 "9개월 이상 2년 이내 기간"을 "6개월 이상 3년 이내 기간"으로 한다.', "T")
+    assert q.kind == "정의 변경" and q.terms == ["임기제 직원"]
+
+
+def test_body_decides_is_delegation():
+    q = analyze(reg(), '제5조 중 "사장이 정한다"를 "사장이 정하고 이사회에 보고한다"로 한다.', "T")
+    assert q.kind == "위임·법령 변경"

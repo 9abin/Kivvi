@@ -23,7 +23,7 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 from exp_query_text_dev import BM25  # noqa: E402
 from regcheck.amend import apply, parse_amendment  # noqa: E402
-from regcheck.change_query import _art_text, analyze  # noqa: E402
+from regcheck.change_query import _art_text, analyze, analyze_law  # noqa: E402
 from regcheck.collect import collect  # noqa: E402
 from regcheck.impact_eval import Truth  # noqa: E402
 from regcheck.kg import KG  # noqa: E402
@@ -89,7 +89,14 @@ def build(splits):
         if c["분할"] not in splits.split(","):
             continue
         rid = T.by_name.get(s["규정"]); st = T.start_of(s)
-        if not rid or not st:
+        if not rid:   # 법령 개정(규정 밖)
+            cq = analyze_law(i, s["규정"], s["개정문"], nodes)
+            tx = {"title": s["규정"], "old": "", "new": "", "amend": s["개정문"]}
+            cands = collect(kg, cq, find, lambda q, k: rag(q, k, set()), tx)
+            truth = {T.resolve(e) for e in fin[i]["영향"]} - {None}
+            (pos_rows if truth else neg_rows).append({"id": i, "kind": cq.kind, "truth": truth, "cands": cands, "cq": cq, "tx": tx})
+            continue
+        if not st:
             continue
         cq = analyze(regs[rid], s["개정문"], i)
         new_reg = apply(regs[rid], parse_amendment(s["개정문"]))[0] if cq.kind != "분석 실패" else regs[rid]
@@ -98,7 +105,7 @@ def build(splits):
         item_old = next((it["norm"] for it in old_a["items"] if s.get("항") and it["path"][0] == s["항"]), None)
         item_new = next((it.get("norm") or it.get("text") for it in new_a["items"] if s.get("항") and it["path"][0] == s["항"]), None)
         tx = {"title": old_a.get("title") or "", "old": (item_old or _art_text(old_a))[:600], "new": (item_new or _art_text(new_a))[:600], "amend": s["개정문"]}
-        ex = set(cq.starts or [st])
+        ex = set() if cq.kind == "번호 이동" else set(cq.starts or [st])   # 번호 이동은 이동 범위의 조도 후보가 될 수 있다
         cands = collect(kg, cq, find, lambda q, k: rag(q, k, ex), tx)
         truth = {T.resolve(e) for e in fin[i]["영향"]} - {None}
         (pos_rows if truth else neg_rows).append({"id": i, "kind": cq.kind, "truth": truth, "cands": cands, "cq": cq, "tx": tx})

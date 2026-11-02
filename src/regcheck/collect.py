@@ -19,8 +19,8 @@ from .change_query import ChangeQuery
 from .kg import KG
 
 # 경로 -> 단계 (개발 + 봉인 12문항에서 잰 후보 정밀도: 인용받음 97%, 용어 사용 88%, 제목 언급 39%, 제목 줄기 14%, 조직 이름 3%)
-TIER_STRONG = {"CITES_in", "STALE_CITE", "USES_TERM", "CITES_REG:제목어"}
-TIER_REVIEW = {"CO_CITE", "CITE_MENTION", "CO_MENTION", "MENTIONS_TITLE", "SAME_TITLE:값다름", "SAME_TITLE", "TERM_CORE", "PHRASE", "VALUE_DIFF", "DEF_DIFF"}
+TIER_STRONG = {"CITES_in", "STALE_CITE", "CITES_internal", "CITES_REG:제목어"}   # 번호 · 이름으로 직접 인용한 경우만 (용어 사용은 의미 판단이 필요해 확인 권장)
+TIER_REVIEW = {"USES_TERM", "CO_CITE", "CITE_MENTION", "CO_MENTION", "MENTIONS_TITLE", "SAME_TITLE:값다름", "SAME_TITLE", "TERM_CORE", "PHRASE", "VALUE_DIFF", "DEF_DIFF"}
 # 탐색 중 전이 규칙: 수정 종류별로 허용하는 2단계 조합 (관계 · 방향, 관계 · 방향, 점수, 경로 이름). out = 따라감, in = 거슬러감.
 # 개발 분할에서 잰 2단계 조합 정밀도로 고른 것만 둔다 (번호 이동 CITES>CITES< 83%, 위임 · 법령 MENTIONS_TITLE>MENTIONS_TITLE< 26%).
 TRANSITIVE = {
@@ -58,7 +58,9 @@ def collect(kg: KG, cq: ChangeQuery, find: Callable[[str], list[str]], rag: Call
     cand: dict[str, Candidate] = {}
 
     def add(node: str, score: float, path: str) -> None:
-        if node in cq.starts or node not in kg.nodes or kg.nodes[node].get("deleted"):
+        # 번호 이동에서는 이동 범위의 조도 신설 조문과 같은 사항을 다룰 수 있어 의미 검색 · 문구 경로는 허용한다
+        in_range_ok = path == "CITES_internal" or (cq.kind == "번호 이동" and path in ("RAG", "RAG_NEW", "PHRASE"))
+        if (node in cq.starts and not in_range_ok) or node not in kg.nodes or kg.nodes[node].get("deleted"):
             return
         c = cand.setdefault(node, Candidate(node, 0.0))
         c.score = max(c.score, score)
@@ -81,6 +83,12 @@ def collect(kg: KG, cq: ChangeQuery, find: Callable[[str], list[str]], rag: Call
     for n, c in res["reg_level"].items():
         if not n.startswith("REG:"):
             add(n, c["score"], "CITES_REG")
+    # 1a) 번호 이동: 이동하는 조가 이동하는 다른 조를 번호로 인용하면 그 인용 번호가 바뀐다 (이동 범위 안의 조도 후보)
+    if kind == "번호 이동":
+        moved = set(starts)
+        for st in starts:
+            if any(x["dst"] in moved and x["dst"] != st for x in kg.out.get(("CITES", st), [])):
+                add(st, 1.0, "CITES_internal")
     # 1b) 전이 규칙: 수정 종류에 허용된 2단계 조합만
     for r1, d1, r2, d2, sc, name in TRANSITIVE.get(kind, []):
         for st in starts:
@@ -118,6 +126,10 @@ def collect(kg: KG, cq: ChangeQuery, find: Callable[[str], list[str]], rag: Call
         q = f"{t['title']}\n{t['old']}"
     for r, n in enumerate(rag(q, rag_k)):
         add(n, 0.2 - 0.001 * r, "RAG")
+    # 번호 이동은 신설 조문의 본문으로도 찾는다 (같은 사항을 따로 정한 조 · 겹치는 조)
+    if kind == "번호 이동" and cq.new_articles:
+        for r, n in enumerate(rag(t["amend"], rag_k)):
+            add(n, 0.19 - 0.001 * r, "RAG_NEW")
     for c in cand.values():
         c.tier = _tier(c.paths)
     return sorted(cand.values(), key=lambda c: (TIER_ORDER[c.tier], -len({p.split(":")[0] for p in c.paths}), -c.score))
