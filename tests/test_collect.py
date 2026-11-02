@@ -63,3 +63,17 @@ class CollectTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeletedTermTest(unittest.TestCase):
+    def test_rare_word_of_deleted_article_finds_other_articles(self):
+        from regcheck.collect import _keywords
+        self.assertIn("마일리지", _keywords("회사는 마일리지를 적립하고 관리한다"))
+        nodes, rows = build(REGS, EDGES)
+        kg = KG(nodes, rows)
+        cq = ChangeQuery(id="T", reg_id="A", kind="삭제", starts=["A:3"], removed=["적립"])
+        texts = {"title": "적립", "old": "회사는 마일리지를 적립한다", "new": "", "amend": "제3조를 삭제한다."}
+        hit = collect(kg, cq, lambda w: ["B:3"] if w == "마일리지" else [], lambda q, k: [], texts)
+        self.assertEqual({c.id: c.paths for c in hit}["B:3"], ["DELETED_TERM"])
+        many = collect(kg, cq, lambda w: [f"X:{i}" for i in range(30)] if w == "마일리지" else [], lambda q, k: [], texts)
+        self.assertNotIn("DELETED_TERM", [p for c in many for p in c.paths])

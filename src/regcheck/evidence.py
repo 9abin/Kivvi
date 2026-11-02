@@ -18,6 +18,7 @@ from .collect import Candidate
 
 REASON = {
     "CITES_in": "고쳐지는 조를 번호로 인용함",
+    "CITES_internal": "함께 번호가 바뀌는 다른 조를 번호로 인용함",
     "STALE_CITE": "옛 번호를 그대로 인용하고 있을 수 있음",
     "USES_TERM": "정의가 바뀌는 용어를 씀",
     "TERM_CORE": "정의가 바뀌는 용어의 핵심 부분이 나옴",
@@ -28,7 +29,7 @@ REASON = {
     "CO_MENTION": "고쳐지는 조와 같은 조 제목을 언급함",
     "RAG": "의미가 비슷함 (자동 검색)",
 }
-CITE_PATHS = ("CITES_in", "STALE_CITE", "CO_CITE")
+CITE_PATHS = ("CITES_in", "STALE_CITE", "CO_CITE", "CITES_internal")
 TERM_PATHS = ("USES_TERM", "TERM_CORE")
 
 
@@ -56,7 +57,7 @@ def _verified(quote: str | None, text: str) -> str | None:
 
 def _quote(c: Candidate, cq: ChangeQuery, nodes: dict, text: str) -> tuple[str | None, str]:
     sents = _sentences(text)
-    labels = [nodes[s]["label"] for s in cq.starts if s in nodes]
+    labels = [nodes[s]["label"] for s in cq.starts if s in nodes and s != c.id]   # 후보 자신은 뺀다(이동 범위 안의 조는 다른 이동 조를 인용)
     if any(p in CITE_PATHS for p in c.paths):
         q = _first(sents, lambda s: any(_label_re(lb).search(s) for lb in labels))
         if q:

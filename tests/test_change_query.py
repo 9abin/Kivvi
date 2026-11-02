@@ -77,3 +77,12 @@ def test_sub_item_of_definition_is_definition_change():
 def test_body_decides_is_delegation():
     q = analyze(reg(), '제5조 중 "사장이 정한다"를 "사장이 정하고 이사회에 보고한다"로 한다.', "T")
     assert q.kind == "위임·법령 변경"
+
+
+def test_item_reference_when_numbered_list_is_parsed_as_paragraphs():
+    r = reg()
+    a = next(x for x in r["articles"] if x["label"] == "제3조")
+    for n, it in enumerate(a["items"]):   # 항 구분 없이 1. 2. 만 있는 조: 호가 항 자리([n,0,0])로 읽힌 모양
+        it["path"] = [n, 0, 0]
+    q = analyze(r, '제3조제1호 중 "신원 확인 및 검증을 하는 것"을 "신원 확인 및 검증과 지속적 거래 모니터링을 하는 것"으로 한다.', "T")
+    assert q.kind != "분석 실패", q.error

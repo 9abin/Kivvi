@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -29,6 +30,7 @@ TRANSITIVE = {
 }
 HUB_MAX = 60
 TIER_ORDER = {"확정급": 0, "확인 권장": 1, "참고": 2}   # 단계 먼저, 같은 단계 안에서 점수순
+DELETED_DF_MAX = 12         # 삭제된 조 본문의 핵심어가 나오는 조가 이보다 적을 때만
 PHRASE_DF_MAX = 25        # 여러 낱말로 된 새 말
 PHRASE_ONE_DF_MAX = 8     # 낱말 하나(담당자 · 연락처 같은 일반어)는 더 엄격하게
 CORE_DF_MAX = 40
@@ -40,6 +42,22 @@ class Candidate:
     score: float
     paths: list[str] = field(default_factory=list)
     tier: str = "참고"
+
+
+_PARTICLE = ("에서", "으로", "이다", "한다", "하는", "하여", "하고", "된다", "되는", "은", "는", "이", "가", "을", "를", "의", "에", "로", "와", "과", "도", "만")
+
+
+def _keywords(text: str) -> list[str]:
+    """삭제된 조 본문에서 핵심어 후보: 3자 이상 한글 낱말에서 끝 조사를 떼어 4자 이상인 것 (흔한 말은 호출한 쪽에서 문서 빈도로 거른다)."""
+    out: list[str] = []
+    for w in re.findall(r"[가-힣]{3,}", text or ""):
+        for p in _PARTICLE:
+            if w.endswith(p) and len(w) - len(p) >= 3:
+                w = w[: -len(p)]
+                break
+        if len(w) >= 3 and w not in out:
+            out.append(w)
+    return out
 
 
 def _tier(paths: list[str]) -> str:
@@ -114,6 +132,13 @@ def collect(kg: KG, cq: ChangeQuery, find: Callable[[str], list[str]], rag: Call
             if 0 < len(hits) <= (PHRASE_DF_MAX if " " in ph else PHRASE_ONE_DF_MAX):
                 for n in hits:
                     add(n, 0.5 + 0.1 * (" " in ph), "PHRASE")
+    # 3b) 삭제: 지워진 조 본문의 핵심어(희귀한 낱말)가 나오는 조
+    if kind == "삭제":
+        for w in _keywords(texts.get("old", "")):
+            hits = find(w)
+            if 0 < len(hits) <= DELETED_DF_MAX:
+                for n in hits:
+                    add(n, 0.45, "DELETED_TERM")
     # 4) 의미 검색 질의: 수정 종류별
     t = texts
     if kind == "삭제":

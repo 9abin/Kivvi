@@ -64,3 +64,14 @@ class EvidenceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InternalCitationTest(unittest.TestCase):
+    def test_moved_article_citing_another_moved_article_gets_quote_and_replacement(self):
+        nodes = {"A": {"name": "직제규정"}, "A:4": {"label": "제4조", "title": "가", "reg": "A"}, "A:5": {"label": "제5조", "title": "나", "reg": "A"}}
+        q = ChangeQuery(id="T", reg_id="A", kind="번호 이동", starts=["A:4", "A:5"], renumber={"A:4": "제5조", "A:5": "제6조"})
+        texts = {"A:5": "제5조(나) 이 조는 제4조에 따른다."}
+        c = card(Candidate("A:5", 1.0, ["CITES_internal"], "확정급"), q, nodes, texts)
+        self.assertEqual(c["quote"], "제5조(나) 이 조는 제4조에 따른다.")
+        self.assertEqual(c["replacement"]["after"], "제5조(나) 이 조는 제5조에 따른다.")
+        self.assertFalse(c["needs_check"])
