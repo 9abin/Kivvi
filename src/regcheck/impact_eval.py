@@ -49,7 +49,7 @@ class Truth:
                     if q in norm(self.sup_text.get(sid, "")):
                         return sid
             return nid if nid in self.nodes else None
-        if re.match(r"별(표|지)\d*$|별지제", c):  # 번호 없는 별표(규정에 별표가 하나뿐인 경우)도 푼다
+        if re.match(r"별(표|지)\d*$|별지제|별지서식", c):  # 번호 없는 별표(규정에 별표가 하나뿐인 경우)도 푼다
             nid = f"{rid}:{c}"
             return nid if nid in self.nodes else None
         return None
