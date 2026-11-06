@@ -72,3 +72,4 @@ eval/impact_label_kit*/규정/
 !/eval/four_domain/hyujik-user-original.db
 /eval/four_domain/.cache/
 /eval/four_domain/runs/
+/eval/four_domain/single_change/runs/

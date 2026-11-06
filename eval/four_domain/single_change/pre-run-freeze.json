@@ -1,0 +1,12 @@
+{
+  "inputs.jsonl": "b55213f6bdd6698f550f0f5810c0fe3680dad84944b16db101a5cb1e97978be2",
+  "gold.jsonl": "59767d9c2ffeb7fcb294b98b0b0b580ff00baf4f55b7c691aa0c176cc359e947",
+  "base_corpus.jsonl": "a7489c394895ed3099ec64c9cb251a2350f13010783803203144e766b8e1a8bb",
+  "score_results.py": "0fbc4bdc54a481f90f7e666b5f703cdd8ca21df26eaeec962c05ce3a1d2a5385",
+  "authoring/families.jsonl": "d56929e56fd0949ec40d1ad3ac347d01ad4920e5f2c9cbf677e910a71ba24357",
+  "authoring/scenarios.jsonl": "0a782d6fa6639117b1b2bd131d413f6f71c112a203ae1aec08e8eb225d2e6554",
+  "../domain_ontology.reviewed.db": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+  "../validated_graph.py": "6114e8844deb61a68e8b750016f49734816e3ee48dbe18827a432ae184e253f9",
+  "../run_evaluation.py": "dbf03d3993485e7abc371714fe1184a88738c782280c2127c865e7bf8784300a",
+  "../run_state_compare.py": "535ea7a4947411ed88640a1304f28400d3551e4a31d47a7119c0a6a826d10381"
+}
