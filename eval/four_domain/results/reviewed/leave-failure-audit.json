@@ -1,0 +1,106 @@
+[
+  {
+    "id": "Q029",
+    "topic": "가족돌봄휴직 1회 최소기간",
+    "type": "resolved",
+    "search": {
+      "before": {
+        "wanted": [
+          "24024:31"
+        ],
+        "hit": 1,
+        "total": 1
+      },
+      "after": {
+        "wanted": [
+          "24024:31"
+        ],
+        "hit": 1,
+        "total": 1
+      }
+    },
+    "full_expected_source_evidence_visible": true,
+    "expected": {
+      "new": [],
+      "resolved": [
+        "family_minimum"
+      ]
+    },
+    "predicted": {
+      "new": [],
+      "resolved": []
+    },
+    "values": [
+      {
+        "state": "before",
+        "left": [
+          "15"
+        ],
+        "right": [
+          "30"
+        ]
+      },
+      {
+        "state": "after",
+        "left": [
+          "15"
+        ],
+        "right": [
+          "15"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "Q038",
+    "topic": "육아휴직 총기간",
+    "type": "resolved",
+    "search": {
+      "before": {
+        "wanted": [
+          "24024:30"
+        ],
+        "hit": 1,
+        "total": 1
+      },
+      "after": {
+        "wanted": [
+          "24024:30"
+        ],
+        "hit": 1,
+        "total": 1
+      }
+    },
+    "full_expected_source_evidence_visible": true,
+    "expected": {
+      "new": [],
+      "resolved": [
+        "childcare_duration"
+      ]
+    },
+    "predicted": {
+      "new": [],
+      "resolved": []
+    },
+    "values": [
+      {
+        "state": "before",
+        "left": [
+          "4"
+        ],
+        "right": [
+          "3"
+        ]
+      },
+      {
+        "state": "after",
+        "left": [
+          "4"
+        ],
+        "right": [
+          "4"
+        ]
+      }
+    ]
+  }
+]

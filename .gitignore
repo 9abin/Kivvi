@@ -49,3 +49,9 @@ review_data.json
 # 조합 실험 결과 (src/combo): 문서 벡터와 결과 파일은 각자 PC에서 만들고 올리지 않는다
 eval/combo/
 eval/combo_smoke/
+
+# Explicitly shared ontology snapshots and local experiment runtime files.
+!/eval/four_domain/domain_ontology.reviewed.db
+!/eval/four_domain/hyujik-user-original.db
+/eval/four_domain/.cache/
+/eval/four_domain/runs/

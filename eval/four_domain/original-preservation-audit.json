@@ -1,0 +1,20 @@
+{
+  "original_sha256": "e7d1c80787900ddb790925bccc1e4f37cfe6cbc8ae5cfa371182933310b95384",
+  "source_copy_sha256": "e7d1c80787900ddb790925bccc1e4f37cfe6cbc8ae5cfa371182933310b95384",
+  "original_edges": 151,
+  "rule_leave_edges": 93,
+  "same_item_concept": 84,
+  "same_relation_and_attrs_literal": 1,
+  "missing_original_edges": 67,
+  "changed_relation_or_attrs_literal": 83,
+  "original_counts": {
+    "concept": 6,
+    "concept_attr": 38,
+    "concept_primary": 7,
+    "edge_item_concept": 151,
+    "edge_attr": 148,
+    "edge_head": 38,
+    "change_log": 46
+  },
+  "note": "Attribute vocabularies differ: literal attr differences are not automatically semantic errors. Original graph was not preserved in old evaluation."
+}

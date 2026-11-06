@@ -1,0 +1,6 @@
+# Preserve snapshot bytes and their hashes across Windows/Linux checkouts.
+* -text whitespace=cr-at-eol
+**/* -text whitespace=cr-at-eol
+# Source extracts intentionally preserve original whitespace.
+sources/text/** -whitespace
+source-evidence/** -whitespace

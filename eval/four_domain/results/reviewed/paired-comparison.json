@@ -1,0 +1,1156 @@
+{
+  "vs_rag": {
+    "wins": [
+      "Q016",
+      "Q019",
+      "Q020",
+      "Q021",
+      "Q033",
+      "Q041",
+      "Q046",
+      "Q069",
+      "Q070",
+      "Q084",
+      "Q094",
+      "Q104",
+      "Q115"
+    ],
+    "losses": [
+      "Q038",
+      "Q114"
+    ],
+    "cases": [
+      {
+        "id": "Q016",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "채용방법 근거와 채용지침 / 출산전후휴가 차액 보전기간 / 경조휴가표 참조 / 육아휴직 계속근로 자격",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:30",
+              "24024:16"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "23970:30",
+              "24024:16"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:30",
+              "24024:16"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "23970:30",
+              "24024:16"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q019",
+        "scope": "single",
+        "scenario_type": "new",
+        "topic": "일반 연차 기본일수와 근로계약서",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 0,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 0,
+            "total": 2
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q020",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "수습기간과 근로계약서 / 월급여 지급일과 근로·연봉계약서 / 경조휴가표 참조 / 육아휴직 총기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:별표1",
+              "24024:30"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "23970:별표1",
+              "24024:30"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:별표1",
+              "24024:30"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "23970:별표1",
+              "24024:30"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q021",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "정년 근거 조문 이동 / 출산전후휴가 차액 보전기간 / 연차휴가와 사용촉진 인용 / 육아휴직 총기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:30",
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 1,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "23970:30",
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 1,
+            "total": 3
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:30",
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 2,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "23970:30",
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 2,
+            "total": 3
+          }
+        },
+        "current_missing_counterpart": true
+      },
+      {
+        "id": "Q033",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "수습기간과 근로계약서 / 업무 외 질병 휴직 기본급 지급률 / 일반 출산전후휴가 총일수 / 가족돌봄휴직 1회 최소기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 0,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 0,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q038",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "육아휴직 총기간",
+        "before_correct": true,
+        "after_correct": false,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q041",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "일반 연차 기본일수와 근로계약서",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:21"
+            ],
+            "hit": 0,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:21"
+            ],
+            "hit": 0,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:21"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:21"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q046",
+        "scope": "single",
+        "scenario_type": "new",
+        "topic": "수습기간과 근로계약서",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 0,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 0,
+            "total": 2
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q069",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "채용방법 근거와 채용지침 / 업무 외 질병 휴직 기본급 지급률 / 경조휴가표 참조 / 육아휴직 계속근로 자격",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:별표1",
+              "24024:16",
+              "24024:28"
+            ],
+            "hit": 2,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "23970:별표1",
+              "24024:16",
+              "24024:28"
+            ],
+            "hit": 2,
+            "total": 3
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:별표1",
+              "24024:16",
+              "24024:28"
+            ],
+            "hit": 3,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "23970:별표1",
+              "24024:16",
+              "24024:28"
+            ],
+            "hit": 3,
+            "total": 3
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q070",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "월급여 지급일과 근로·연봉계약서",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24047:10"
+            ],
+            "hit": 0,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24047:10"
+            ],
+            "hit": 0,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24047:10"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24047:10"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q084",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "출산 후 최소 휴가기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q094",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "정년 근거 조문 이동 / 해외유학 청원휴직 기본급 / 연차휴가와 사용촉진 인용 / 가족돌봄휴직 1회 최소기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 2,
+            "total": 4
+          },
+          "after": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 2,
+            "total": 4
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 3,
+            "total": 4
+          },
+          "after": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 3,
+            "total": 4
+          }
+        },
+        "current_missing_counterpart": true
+      },
+      {
+        "id": "Q104",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "업무 외 질병 휴직 기본급 지급률",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:28"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q114",
+        "scope": "composite",
+        "scenario_type": "new",
+        "topic": "승진 근거 조문 이동 / 월급여 지급일과 근로·연봉계약서 / 일반 출산전후휴가 총일수 / 육아휴직 자녀 연령",
+        "before_correct": true,
+        "after_correct": false,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24010:39",
+              "24010:43",
+              "48440:1"
+            ],
+            "hit": 3,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "24010:39",
+              "24010:43",
+              "48440:1"
+            ],
+            "hit": 3,
+            "total": 3
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24010:39",
+              "24010:43",
+              "48440:1"
+            ],
+            "hit": 2,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "24010:39",
+              "24010:43",
+              "48440:1"
+            ],
+            "hit": 2,
+            "total": 3
+          }
+        },
+        "current_missing_counterpart": true
+      },
+      {
+        "id": "Q115",
+        "scope": "single",
+        "scenario_type": "new",
+        "topic": "월급여 지급일과 근로·연봉계약서",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 0,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 0,
+            "total": 3
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 3,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 3,
+            "total": 3
+          }
+        },
+        "current_missing_counterpart": false
+      }
+    ]
+  },
+  "vs_old_prototype": {
+    "wins": [
+      "Q040",
+      "Q080",
+      "Q084",
+      "Q094",
+      "Q102",
+      "Q115"
+    ],
+    "losses": [
+      "Q029",
+      "Q038",
+      "Q045",
+      "Q111"
+    ],
+    "cases": [
+      {
+        "id": "Q029",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "가족돌봄휴직 1회 최소기간",
+        "before_correct": true,
+        "after_correct": false,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24024:31"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:31"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24024:31"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:31"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q038",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "육아휴직 총기간",
+        "before_correct": true,
+        "after_correct": false,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24024:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q040",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "수습기간과 근로계약서",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24010:10"
+            ],
+            "hit": 0,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24010:10"
+            ],
+            "hit": 0,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24010:10"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "24010:10"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q045",
+        "scope": "composite",
+        "scenario_type": "new",
+        "topic": "승진 근거 조문 이동 / 해외유학 청원휴직 기본급 / 일반 연차 기본일수와 근로계약서 / 가족돌봄휴직 연간 상한",
+        "before_correct": true,
+        "after_correct": false,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "48440:1"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "48440:1"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "48440:1"
+            ],
+            "hit": 0,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "48440:1"
+            ],
+            "hit": 0,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": true
+      },
+      {
+        "id": "Q080",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "정년 근거 조문 이동 / 출산전후휴가 차액 보전기간 / 연차휴가와 사용촉진 인용 / 육아휴직 계속근로 자격",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 1,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 1,
+            "total": 2
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 1,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "24024:30",
+              "24024:38"
+            ],
+            "hit": 1,
+            "total": 2
+          }
+        },
+        "current_missing_counterpart": true
+      },
+      {
+        "id": "Q084",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "출산 후 최소 휴가기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q094",
+        "scope": "composite",
+        "scenario_type": "resolved",
+        "topic": "정년 근거 조문 이동 / 해외유학 청원휴직 기본급 / 연차휴가와 사용촉진 인용 / 가족돌봄휴직 1회 최소기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 2,
+            "total": 4
+          },
+          "after": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 2,
+            "total": 4
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 3,
+            "total": 4
+          },
+          "after": {
+            "wanted": [
+              "23970:21",
+              "24024:29",
+              "24024:31",
+              "24024:38"
+            ],
+            "hit": 3,
+            "total": 4
+          }
+        },
+        "current_missing_counterpart": true
+      },
+      {
+        "id": "Q102",
+        "scope": "composite",
+        "scenario_type": "new",
+        "topic": "수습기간과 근로계약서 / 월급여 지급일과 근로·연봉계약서 / 경조휴가표 참조 / 육아휴직 총기간",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:26",
+              "24010:43"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "23970:26",
+              "24010:43"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:26",
+              "24010:43"
+            ],
+            "hit": 2,
+            "total": 2
+          },
+          "after": {
+            "wanted": [
+              "23970:26",
+              "24010:43"
+            ],
+            "hit": 2,
+            "total": 2
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q111",
+        "scope": "single",
+        "scenario_type": "resolved",
+        "topic": "출산전후휴가 차액 보전기간",
+        "before_correct": true,
+        "after_correct": false,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          },
+          "after": {
+            "wanted": [
+              "23970:30"
+            ],
+            "hit": 1,
+            "total": 1
+          }
+        },
+        "current_missing_counterpart": false
+      },
+      {
+        "id": "Q115",
+        "scope": "single",
+        "scenario_type": "new",
+        "topic": "월급여 지급일과 근로·연봉계약서",
+        "before_correct": false,
+        "after_correct": true,
+        "before_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 2,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 2,
+            "total": 3
+          }
+        },
+        "after_search": {
+          "before": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 3,
+            "total": 3
+          },
+          "after": {
+            "wanted": [
+              "24010:별지제1호서식",
+              "24010:별지제2호서식",
+              "25336:별지제2호서식"
+            ],
+            "hit": 3,
+            "total": 3
+          }
+        },
+        "current_missing_counterpart": false
+      }
+    ]
+  }
+}
