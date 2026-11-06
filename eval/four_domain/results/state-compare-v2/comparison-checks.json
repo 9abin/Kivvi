@@ -1,0 +1,71 @@
+{
+  "records": 360,
+  "cases_per_method": 120,
+  "same_retrieval_sha256": "6a41e632beb75d9a158face8f0c78ef5aa76496ed71d3da7494a19ada84b80b9",
+  "unchanged_scorer_sha256": "0fbc4bdc54a481f90f7e666b5f703cdd8ca21df26eaeec962c05ce3a1d2a5385",
+  "same_model_all_methods": true,
+  "same_prompt_all_methods": true,
+  "development_set_reuse": true,
+  "changes": {
+    "rag": {
+      "baseline_correct": 77,
+      "revised_correct": 83,
+      "gained_case_ids": [
+        "Q016",
+        "Q020",
+        "Q029",
+        "Q062",
+        "Q084",
+        "Q104",
+        "Q111"
+      ],
+      "lost_case_ids": [
+        "Q080"
+      ],
+      "pending_case_ids": []
+    },
+    "pr_graph_rag": {
+      "baseline_correct": 80,
+      "revised_correct": 78,
+      "gained_case_ids": [
+        "Q019",
+        "Q027",
+        "Q035",
+        "Q072",
+        "Q098",
+        "Q102"
+      ],
+      "lost_case_ids": [
+        "Q006",
+        "Q009",
+        "Q016",
+        "Q045",
+        "Q063",
+        "Q079",
+        "Q118",
+        "Q120"
+      ],
+      "pending_case_ids": [
+        "Q009",
+        "Q067",
+        "Q079"
+      ]
+    },
+    "domain_graph_rag": {
+      "baseline_correct": 88,
+      "revised_correct": 93,
+      "gained_case_ids": [
+        "Q029",
+        "Q038",
+        "Q057",
+        "Q062",
+        "Q081",
+        "Q111"
+      ],
+      "lost_case_ids": [
+        "Q080"
+      ],
+      "pending_case_ids": []
+    }
+  }
+}

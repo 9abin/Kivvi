@@ -1,8 +1,9 @@
 {
+  "scope": "Original results/reviewed snapshot replay; see results/state-compare-v2/reproduction-checks.json for fresh inference validation",
   "offline_replay_exact_summary_match": true,
   "dataset_cases_verified": 120,
   "tests_passed": 17,
-  "intended_package_files_scanned": 400,
+  "intended_package_files_scanned": 416,
   "secret_scan": "passed",
   "fresh_model_api_run": false
 }
