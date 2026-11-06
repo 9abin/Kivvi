@@ -1,0 +1,8 @@
+{
+  "calls": 1,
+  "usage": {
+    "input_tokens": 15557,
+    "output_tokens": 1016,
+    "total_tokens": 16573
+  }
+}

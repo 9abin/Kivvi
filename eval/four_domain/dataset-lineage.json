@@ -1,4 +1,5 @@
 {
+  "scope": "Original results/reviewed snapshot only; fresh prompt-variant inference is recorded in results/state-compare-v2/config.json",
   "upstream_commit": "99c8e7c2f6eb5b67223a3eeb5b79201b1b310ca1",
   "data_matches_recorded_run": {
     "inputs.jsonl": true,

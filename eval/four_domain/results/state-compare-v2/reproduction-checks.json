@@ -1,0 +1,10 @@
+{
+  "offline_replay_exact_summary_match": true,
+  "complete_responses": 360,
+  "methods": 3,
+  "cases_per_method": 120,
+  "runner_hash_matches_pre_run_config": true,
+  "secret_scan": "passed",
+  "tests_passed": 17,
+  "development_set_reuse": true
+}

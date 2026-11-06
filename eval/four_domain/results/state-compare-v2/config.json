@@ -1,0 +1,28 @@
+{
+  "prompt_version": "four-domain-explicit-state-compare-v2",
+  "prompt_sha256": "09f7ccab200e4a9345b140abe4e30dd3b5ae0f49df60e76c6ca207e89130cd8d",
+  "runner_sha256": "535ea7a4947411ed88640a1304f28400d3551e4a31d47a7119c0a6a826d10381",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "low",
+  "methods": [
+    "rag",
+    "pr_graph_rag",
+    "domain_graph_rag"
+  ],
+  "k": 10,
+  "retrieval_sha256": "6a41e632beb75d9a158face8f0c78ef5aa76496ed71d3da7494a19ada84b80b9",
+  "baseline_retrieval_gzip_sha256": "33f6446ba022ec079b8d9609382c33ed9c4f680238e75f9c5719f3b8f4488f1a",
+  "frozen_inputs": {
+    "inputs.jsonl": "1240d7f119ab94a8e8999affecfce8da49bb56892690bf8417f27ed8d48fea39",
+    "gold.jsonl": "f0d01d81c1097916ddb7d2f111c9894ede9bee935b35531ad125e744fa56fc21",
+    "base_corpus.jsonl": "a7489c394895ed3099ec64c9cb251a2350f13010783803203144e766b8e1a8bb",
+    "score_results.py": "0fbc4bdc54a481f90f7e666b5f703cdd8ca21df26eaeec962c05ce3a1d2a5385",
+    "validated_graph.py": "6114e8844deb61a68e8b750016f49734816e3ee48dbe18827a432ae184e253f9",
+    "domain_ontology.reviewed.db": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+    "hyujik-user-original.db": "e7d1c80787900ddb790925bccc1e4f37cfe6cbc8ae5cfa371182933310b95384",
+    "questions.md": "ba23bebc2aca73d73c97a567855993f965b9d94ef1fe2ecad3b8ba7a24ac582e"
+  },
+  "development_set_reuse": true,
+  "new_held_out_evaluation": false,
+  "selection_policy": "One prespecified revision; apply to all three methods and all selected cases; no case-wise fallback or best-output selection."
+}
