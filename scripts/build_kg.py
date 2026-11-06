@@ -23,10 +23,29 @@ def load():
     return regs, edges, inferred
 
 
+def load_law_db():
+    """법률 DB(data/law_rag.sqlite3)의 법령 제목과 조 제목. 법령 이름 정규화와 법령 조 노드에 쓴다. 없으면 빈 값 (DB는 읽기만 한다)."""
+    import re
+    import sqlite3
+    p = ROOT / "data" / "law_rag.sqlite3"
+    if not p.exists():
+        return [], {}
+    con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+    titles = {r[0]: r[1] for r in con.execute("select id, api_title from documents") if r[1]}
+    arts = {}
+    for did, path in con.execute("select document_id, path from chunks"):
+        m = re.match(r"(\d+)(?:의(\d+))?\s+(.+)", path or "")
+        if m and did in titles:
+            arts[(titles[did], f"제{m.group(1)}조" + (f"의{m.group(2)}" if m.group(2) else ""))] = m.group(3)
+    con.close()
+    return sorted(set(titles.values())), arts
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     regs, edges, inferred = load()
-    nodes, rows = kg.build(regs, edges, inferred)
+    law_titles, law_art_titles = load_law_db()
+    nodes, rows = kg.build(regs, edges, inferred, law_titles=law_titles, law_article_titles=law_art_titles)
     out = ROOT / "out" / "kg"
     out.mkdir(parents=True, exist_ok=True)
     with (out / "nodes.jsonl").open("w", encoding="utf-8") as f:

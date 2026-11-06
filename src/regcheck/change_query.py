@@ -18,13 +18,13 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from .amend import AmendError, apply, build_changeset, parse_amendment
-from .kg import DEF_TITLE, TERM_RE, VALUE_RE
+from .kg import DEF_TITLE, SHORT_TERM_MIN_LEN, TERM_RE, VALUE_RE, def_terms
 
 PARTICLES = ("으로서", "으로써", "에서는", "에게는", "이라고", "이라는", "하여", "하고", "에서", "에게", "으로", "까지", "부터", "보다", "처럼", "마다", "에는", "과의", "와의",
              "은", "는", "이", "가", "을", "를", "의", "에", "와", "과", "로", "도", "만", "및", "등")
 TERM_SUFFIX = ("의무", "제도", "업무", "체계", "절차", "기준", "사항", "행위", "관리", "대상")
 STOP = {"다음", "각호", "경우", "때에는", "따라", "정한다", "한다", "있다", "하여야", "아니한다", "그밖", "관한", "대한", "관련", "위한", "따른", "이하", "이상"}
-DELEG = re.compile(r"별도로\s*정|정하는\s*바|따라\s*정|위임|「[^」]*법[^」]*」|법\s*제\s*\d+\s*조|에\s*따른다|에\s*따라")
+DELEG = re.compile(r"별도로\s*정|정하는\s*바|따라\s*정|위임|「[^」]*법[^」]*」|법\s*제\s*\d+\s*조|에\s*따른다|에\s*따라|[가-힣]+(?:이|가)\s*정(?:한다|하고|하여|하며)")
 
 
 @dataclass
@@ -37,6 +37,7 @@ class ChangeQuery:
     units: list[str] = field(default_factory=list)           # 바뀌는 단위 표기 (제30조제2항)
     removed: list[str] = field(default_factory=list)         # 지워지거나 바뀌기 전의 말
     added: list[str] = field(default_factory=list)           # 새로 들어가거나 바뀐 뒤의 말
+    old_phrases: list[str] = field(default_factory=list)     # 개정문이 따옴표로 지목한 바뀌기 전 말 전체 (「매월 25일」). 같은 말을 그대로 쓴 다른 단위를 찾는 데 쓴다
     old_values: list[str] = field(default_factory=list)      # 바뀌기 전 값 (2회, 10일)
     new_values: list[str] = field(default_factory=list)
     terms: list[str] = field(default_factory=list)           # 정의가 바뀌는 용어
@@ -150,6 +151,15 @@ def _numeric_only_change(old: str, new: str) -> bool:
     return old != new and "#" in mask(old) and mask(old) == mask(new)
 
 
+PERIOD_WORDS = {"연", "매년", "연간", "반기", "매반기", "반기별", "분기", "매분기", "분기별", "월", "매월", "월별", "주", "매주"}
+
+
+def _period_change(removed: list[str], added: list[str]) -> bool:
+    """바뀐 말이 모두 주기 말(연 -> 반기, 분기 -> 월)이면 값 변경이다 (「연 1회 이상」 -> 「반기 1회 이상」은 숫자가 같아 값 비교로는 안 잡힌다)."""
+    rm, ad = [_norm(x) for x in removed], [_norm(x) for x in added]
+    return bool(rm) and bool(ad) and all(x in PERIOD_WORDS for x in rm + ad) and set(rm) != set(ad)
+
+
 def _values(text: str) -> list[str]:
     return [re.sub(r"\s+", "", m) for m in VALUE_RE.findall(text or "")]
 
@@ -166,7 +176,31 @@ def _context_lines(new_by_label: dict, q: "ChangeQuery", old_arts: dict) -> list
     return out
 
 
+APPX_TARGET = re.compile(r"^\s*(?P<name>별지\s*제\s*(?P<n>\d+)\s*호\s*서식|별표\s*(?P<b>\d+))\s*(?=중)")
+PSEUDO_LABEL = "제9999조"
+
+
+def _appendix_pseudo(reg: dict, m: re.Match) -> dict | None:
+    """개정문의 대상이 별지 서식 · 별표이면 그 단위를 임시 조(제9999조)로 감싼 규정 사본. 서식 본문의 문구 치환도 조와 같은 분석을 탄다."""
+    kind, num = ("별지", f"제{m.group('n')}호 서식") if m.group("n") else ("별표", m.group("b"))
+    ap = next((a for a in reg.get("appendices") or [] if a.get("kind") == kind and re.sub(r"\s+", "", a.get("number") or "") == re.sub(r"\s+", "", num)), None)
+    if ap is None:
+        return None
+    text = re.sub(r"\s+", " ", ap.get("text") or "").strip()
+    pseudo = {"id": ap["id"], "label": PSEUDO_LABEL, "title": "", "chapter": "", "deleted": False, "amend_notes": [],
+              "items": [{"id": ap["id"] + "-0-0-0", "path": [0, 0, 0], "text": text, "norm": text, "amend_marks": [], "deleted": False}]}
+    return {**reg, "articles": [*reg["articles"], pseudo]}
+
+
 def analyze(reg: dict, amendment: str, cid: str = "") -> ChangeQuery:
+    m_ap = APPX_TARGET.match(amendment or "")
+    if m_ap:
+        reg2 = _appendix_pseudo(reg, m_ap)
+        if reg2 is not None:
+            q = analyze(reg2, PSEUDO_LABEL + " " + amendment[m_ap.end():].lstrip(), cid)
+            q.units = [re.sub(r"\s+", " ", m_ap.group("name"))]
+            q.evidence = (q.evidence + " (별지 서식 · 별표)").strip()
+            return q
     q = ChangeQuery(id=cid, reg_id=reg["reg_id"], kind="분석 실패")
     try:
         ops = parse_amendment(amendment)
@@ -216,6 +250,8 @@ def analyze(reg: dict, amendment: str, cid: str = "") -> ChangeQuery:
         if o["unit"] not in q.units:
             q.units.append(o["unit"])
         if o["op"] == "replace":
+            if o["old"] not in q.old_phrases:
+                q.old_phrases.append(o["old"])
             rem, add = _diff_segments(o["old"], o["new"])
             q.removed += rem or [o["old"]]
             q.added += add or [o["new"]]
@@ -238,26 +274,53 @@ def analyze(reg: dict, amendment: str, cid: str = "") -> ChangeQuery:
     # 종류 분류
     first = old_arts[q.starts[0]]
     touched = [it for it in first["items"] if any(_norm(r)[:30] in _norm(it["norm"]) for r in q.removed if r)]
-    is_def = bool(DEF_TITLE.search(first.get("title") or "")) and any(TERM_RE.search(it["norm"]) for it in touched)
+    # 정의 조에서 정의 항목 자체 또는 그 하위 호(정의 항목 아래 열거)를 고치면 정의 변경이다
+    def_items = [t for t in touched if def_terms(t["norm"])]
+    if not def_items:   # 고친 곳이 정의 항목 아래 열거(호 · 목)이면 그 정의 항목(머리 문장)을 본다. 경로 [2,3,0] -> [2,0,0], [0,1,2] -> [0,1,0]
+        by_path = {tuple(it["path"]): it for it in first["items"]}
+        for t in touched:
+            p_ = list(t["path"])
+            for k in range(len(p_) - 1, 0, -1):
+                cand = by_path.get(tuple(p_[:k] + [0] * (len(p_) - k)))
+                if cand is not None and cand is not t and def_terms(cand["norm"]):
+                    def_items.append(cand)
+                    break
+    is_def = bool(DEF_TITLE.search(first.get("title") or "")) and bool(def_items)
     if is_def:
         q.kind, q.evidence = "정의 변경", "정의 조의 용어 정의 항목을 고침"
-        for it in touched:
-            for m in TERM_RE.finditer(it["norm"]):
-                t = re.sub(r"\s*[\(（].*?[\)）]\s*$", "", m.group(1)).strip()
-                if len(t) >= 3 and t not in q.terms:
+        for it in def_items:
+            for t in def_terms(it["norm"]):
+                if len(t) >= SHORT_TERM_MIN_LEN and t not in q.terms:
                     q.terms.append(t)
         q.term_cores = [c for c in (_core(t) for t in q.terms) if c]
+    elif _period_change(q.removed, q.added):
+        q.kind, q.evidence = "값 변경", f"주기가 바뀜: {q.removed} -> {q.added}"
+        q.old_values, q.new_values = list(q.removed), list(q.added)
     elif (q.old_values != q.new_values and (q.old_values or q.new_values)) or any(_numeric_only_change(r, a_) for r, a_ in zip(q.removed, q.added)):
         q.kind, q.evidence = "값 변경", f"값이 바뀜: {q.old_values or q.removed[:2]} -> {q.new_values or q.added[:2]}"
     else:
         ot, nt = _norm(" ".join(q.removed)), _norm(" ".join(q.added))
         sim = difflib.SequenceMatcher(None, ot, nt, autojunk=False).ratio() if ot and nt else 0
         new_words = [t for t in _phrases(q.added, q.removed) if " " not in t]
-        if not new_words and len(nt) <= 24 and len(ot) <= 24:
+        if q.added and not new_words and len(nt) <= 24 and len(ot) <= 24:   # 바꿔 넣는 말이 없는 삭제는 표현 수정이 아니다 (말이나 항이 사라지면 그것에 기댄 곳이 있다)
             q.kind, q.evidence = "표현 수정", f"문구 유사도 {sim:.2f}, 새 실질 낱말(3자 이상) 없음"
         elif any(DELEG.search(ln) for ln in q.added + _context_lines(new_by_label, q, old_arts)):
             q.kind, q.evidence = "위임·법령 변경", "바뀐 항에 위임 · 법령 표현이 있음"
         else:
             q.kind, q.evidence = "내용 변경", "값 · 정의 · 위임 어느 것도 아닌 내용 수정"
     q.phrases = _phrases(q.added, q.removed)
+    return q
+
+
+def analyze_law(cid: str, law_name: str, amendment: str, law_nodes: dict | None = None) -> ChangeQuery:
+    """법령 개정(규정 밖). 법령 노드가 그래프에 있으면 시작점으로, 없으면 문구 · 의미 검색에만 맡긴다."""
+    from .kg_onto import find_law_article, find_law_node
+    nid = (find_law_node(law_nodes, law_name) if law_nodes is not None else None) or f"LAW:{law_name}"   # 띄어쓰기 · 약칭 표기 차이는 같은 법령
+    q = ChangeQuery(id=cid, reg_id="", kind="위임·법령 변경", evidence="법령 개정(가정)")
+    if law_nodes is not None and nid in law_nodes:
+        art = find_law_article(law_nodes, nid, amendment)   # 개정문이 제N조를 말하고 그 조를 인용한 규정이 있으면 조 단위로 먼저 본다
+        q.starts = [art, nid] if art else [nid]
+    q.units = [law_name]
+    q.added = [amendment]
+    q.phrases = _phrases([amendment], [])
     return q

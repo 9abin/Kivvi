@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-from . import consistency, moves
+from . import consistency, legal_basis, moves
 
 ROOT = Path(__file__).resolve().parents[2]
 RULES = ROOT / "data" / "manual" / "rules.json"
@@ -127,7 +127,59 @@ def chain_edges(rule: dict, regs: dict, rels: list[dict], ctx: dict) -> list[dic
     return out
 
 
-IMPL = {"DL-01": dl01, "DEF-01": def01, "MOVE-01": move01, "CHAIN-01": chain_edges}
+def count01(rule: dict, regs: dict, rels: list[dict], ctx: dict) -> list[dict]:
+    out = []
+    for d in ctx["counts"]:
+        a = _art(regs, d["a"].split(":")[0], d["a_label"])
+        if not a:
+            continue
+        note = f"같은 제목 「{d['title']}」 조의 횟수 한도가 {d['a_reg']}는 {d['a_counts']}, {d['b_reg']}는 {d['b_counts']}. 확인: 적용 대상 · 횟수의 의미 · 시행 시점 · 예외"
+        laws = []
+        con = ctx.get("lawcon")
+        if con is not None:
+            laws = legal_basis.law_counts(con, d["title"], d["a_ctx"])
+        ca, cb = legal_basis.first_count(d["a_ctx"]), legal_basis.first_count(d["b_ctx"])
+        r7 = legal_basis.apply_article7({"name": d["a_reg"], "revised": d.get("a_revised"), "count": ca}, {"name": d["b_reg"], "revised": d.get("b_revised"), "count": cb}, laws)
+        hints = ["내규관리규정 제7조 적용(제안, 내규담당부서 확인 전): " + r7["text"]]
+        if laws:
+            hints += [h for h in (legal_basis.floor_hint(d["a_reg"], ca, laws), legal_basis.floor_hint(d["b_reg"], cb, laws)) if h]
+        out.append(_edge(rule, len(out), regs, src=_src_item(a, 0, d["a_ctx"]), target=d["b"], evidence="/".join(f"{n}회" for n in d["a_counts"]), context=d["a_ctx"], target_context=d["b_ctx"],
+                         note=note + " | 적용 결과(제안, 확정 아님): " + " | ".join(hints)))
+    return out
+
+
+def auth01(rule: dict, regs: dict, rels: list[dict], ctx: dict) -> list[dict]:
+    out = []
+    for d in ctx["authority"]:
+        a = _art(regs, d["a"].split(":")[0], d["a_label"])
+        if not a:
+            continue
+        r7 = legal_basis.apply_article7({"name": d["a_reg"], "revised": regs[d["a"].split(":")[0]].get("revised"), "count": None}, {"name": d["b_reg"], "revised": regs[d["b"].split(":")[0]].get("revised"), "count": None}, [])
+        out.append(_edge(rule, len(out), regs, src=d["a_item"], target=d["b"], evidence=f"{d['a_body']} {d['a_act']}", context=d["a_ctx"], target_context=d["b_ctx"],
+                         note=f"같은 사안({', '.join(d['shared'][:4])})에 {d['a_reg']}는 {d['a_body']}의 {d['a_act']}, {d['b_reg']}는 {d['b_body']}의 {d['b_act']}. 확인: 사안이 같은지 · 단계(일부는 보고·협의일 수 있음) · 적용 대상 | 제7조 적용(제안): {r7['text']}"))
+    return out
+
+
+def quorum01(rule: dict, regs: dict, rels: list[dict], ctx: dict) -> list[dict]:
+    out = []
+    for d in ctx["quorum"]:
+        a = _art(regs, d["a"].split(":")[0], d["a_label"])
+        if not a:
+            continue
+        r7 = legal_basis.apply_article7({"name": d["a_reg"], "revised": regs[d["a"].split(":")[0]].get("revised"), "count": None}, {"name": d["b_reg"], "revised": regs[d["b"].split(":")[0]].get("revised"), "count": None}, [])
+        out.append(_edge(rule, len(out), regs, src=_src_item(a, 0, d["a_ctx"]), target=d["b"], evidence="/".join(d["a_quorum"]), context=d["a_ctx"], target_context=d["b_ctx"],
+                         note=f"{d['body']} 의결 정족수가 {d['a_reg']}는 {d['a_quorum']}, {d['b_reg']}는 {d['b_quorum']}. 확인: 일반 정족수와 특례(제척 · 기피 등)의 구분 · 같은 안건인지 | 제7조 적용(제안): {r7['text']}"))
+    return out
+
+
+IMPL = {"AUTH-01": auth01, "QUORUM-01": quorum01, "COUNT-01": count01, "DL-01": dl01, "DEF-01": def01, "MOVE-01": move01, "CHAIN-01": chain_edges}
+
+
+def _law_connection():
+    """법률 DB가 있으면 읽기 전용 연결 (없으면 법령 기준 힌트만 뺀다)."""
+    import sqlite3
+    path = ROOT / "data" / "law_rag.sqlite3"
+    return sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True) if path.exists() else None
 
 
 def infer(regs: dict[str, dict], rels: list[dict], rules: list[dict] | None = None) -> list[dict]:
@@ -139,6 +191,13 @@ def infer(regs: dict[str, dict], rels: list[dict], rules: list[dict] | None = No
         ctx["deadlines"] = consistency.deadlines(regs)
     if "DEF-01" in want:
         ctx["definitions"] = consistency.definition_diffs(regs)
+    if "AUTH-01" in want:
+        ctx["authority"] = consistency.authority_diffs(regs)
+    if "QUORUM-01" in want:
+        ctx["quorum"] = consistency.quorum_diffs(regs)
+    if "COUNT-01" in want:
+        ctx["counts"] = consistency.count_diffs(regs)
+        ctx["lawcon"] = _law_connection()
     if "MOVE-01" in want:
         mv = moves.parse_moves(regs)
         ctx["moved"] = moves.stale_by_moves(regs, mv, rels)

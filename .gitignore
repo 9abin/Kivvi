@@ -63,3 +63,6 @@ review_data.json
 eval/combo/
 eval/combo_smoke/
 eval/combo_final/
+
+# 영향 평가 라벨 키트의 규정 원문 사본 (KVIC 저작물: 원문은 ALIO 링크로 복원, 저장소에 올리지 않는다)
+eval/impact_label_kit*/규정/

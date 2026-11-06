@@ -65,3 +65,53 @@ def test_search_terms_skip_common_words():
     q = analyze(reg(), '제3조제1호 중 "신원 확인 및 검증을 하는 것"을 "신원 확인 및 검증과 지속적 거래 모니터링을 하는 것"으로 한다.', "T")
     terms = dict(q.search_terms(lambda t: 100 if t == "고객확인" else 3))
     assert "고객확인" not in terms and "고객확인의무" in terms
+
+
+def test_sub_item_of_definition_is_definition_change():
+    text = TEXT + "\n제7조(용어의 정의) 이 지침에서 사용하는 용어의 뜻은 다음과 같다.\n1. \"임기제 직원\"은 다음 각 호에 해당하는 사람을 말한다.\n가. 프로젝트 업무\n나. 9개월 이상 2년 이내 기간 동안 수행되는 업무"
+    r = {"reg_id": "9", "name": "시험규정", **to_records("9", parse(text.splitlines()))}
+    q = analyze(r, '제7조제1호나목 중 "9개월 이상 2년 이내 기간"을 "6개월 이상 3년 이내 기간"으로 한다.', "T")
+    assert q.kind == "정의 변경" and q.terms == ["임기제 직원"]
+
+
+def test_body_decides_is_delegation():
+    q = analyze(reg(), '제5조 중 "사장이 정한다"를 "사장이 정하고 이사회에 보고한다"로 한다.', "T")
+    assert q.kind == "위임·법령 변경"
+
+
+def test_item_reference_when_numbered_list_is_parsed_as_paragraphs():
+    r = reg()
+    a = next(x for x in r["articles"] if x["label"] == "제3조")
+    for n, it in enumerate(a["items"]):   # 항 구분 없이 1. 2. 만 있는 조: 호가 항 자리([n,0,0])로 읽힌 모양
+        it["path"] = [n, 0, 0]
+    q = analyze(r, '제3조제1호 중 "신원 확인 및 검증을 하는 것"을 "신원 확인 및 검증과 지속적 거래 모니터링을 하는 것"으로 한다.', "T")
+    assert q.kind != "분석 실패", q.error
+
+
+def test_period_word_change_is_value_change():
+    from regcheck.change_query import _period_change
+    assert _period_change(["연"], ["반기"])
+    assert _period_change(["분기"], ["월"])
+    assert not _period_change(["연"], ["연"])
+    assert not _period_change(["연"], ["반기별 점검"])   # 주기 말이 아닌 것이 섞이면 아니다
+    assert not _period_change([], ["반기"])
+
+
+def _reg_with_appendix():
+    art = {"id": "R:1", "label": "제1조", "title": "목적", "chapter": "", "deleted": False, "amend_notes": [],
+           "items": [{"id": "R:1-0-0-0", "path": [0, 0, 0], "text": "이 규정은 급여를 정한다.", "norm": "이 규정은 급여를 정한다.", "amend_marks": [], "deleted": False}]}
+    ap = {"id": "R:별지제1호서식", "kind": "별지", "number": "제1호 서식", "title": "", "text": "근 로 계 약 서\n임금은 매월 25일에 지급한다."}
+    return {"reg_id": "R", "name": "가규정", "articles": [art], "appendices": [ap]}
+
+
+def test_appendix_target_is_analyzed_as_a_value_change():
+    from regcheck.change_query import analyze
+    q = analyze(_reg_with_appendix(), '별지 제1호 서식 중 "매월 25일"을 "매월 20일"로 한다.', "T")
+    assert q.kind == "값 변경" and q.starts == ["R:별지제1호서식"], (q.kind, q.starts, q.error)
+    assert q.old_values == ["25일"] and q.new_values == ["20일"] and q.units == ["별지 제1호 서식"]
+
+
+def test_appendix_target_missing_is_reported_not_crashed():
+    from regcheck.change_query import analyze
+    q = analyze(_reg_with_appendix(), '별지 제9호 서식 중 "매월 25일"을 "매월 20일"로 한다.', "T")
+    assert q.kind == "분석 실패"

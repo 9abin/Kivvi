@@ -1,0 +1,105 @@
+"""[휴직 층 비교용] exp_pool_items.py와 같은 풀에, 주제 층(우리 키워드 층 · 팀 휴직 DB 연결 표 · 둘의 조합)이 내는 후보를 더한다.
+어느 층이 낸 후보든 라벨러가 정답 여부를 판정하게 해서, 풀 밖 후보가 정답으로 세지지 못하는 편향을 없앤다.
+  uv run python scripts/exp_pool_leave.py <changes.jsonl> <출력 폴더>   (out/hyujik_links.jsonl 필요)
+아래는 원본 설명: 문서 파일(changes.jsonl)의 파이프라인(RAG 포함)이 만드는 후보와 서로 다른 검색기(밀집 · BM25 · 하이브리드)의 상위 후보를 합쳐
+라벨러용 풀(<출력 폴더>/pool_<id>.md, 기본 out/fresh_items)을 만든다. 한 시스템에 유리하지 않도록 풀은 여러 방법의 합이다.
+  uv run python scripts/exp_pool_items.py [changes.jsonl] [출력 폴더]
+"""
+import collections
+import glob
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src")); sys.path.insert(0, str(ROOT / "scripts"))
+sys.stdout.reconfigure(encoding="utf-8")
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+import eval_collect_dev as ecd  # noqa: E402
+from exp_query_text_dev import BM25  # noqa: E402
+from regcheck.impact_view import load_context, run  # noqa: E402
+from sentence_transformers import SentenceTransformer  # noqa: E402
+
+K = 30
+V = ecd.V
+
+
+def law_run(ctx, m, i, rag):
+    """법령 개정(규정 밖): 내규가 아니라 법령 이름이 들어온다. eval_collect_dev.build의 같은 경로(analyze_law + collect)."""
+    from regcheck.change_query import analyze_law
+    from regcheck.collect import collect
+    from regcheck.review_list import split_view
+    cq = analyze_law(i, m["규정"], m["개정문"], ctx.nodes)
+    tx = {"title": m["규정"], "old": "", "new": "", "amend": m["개정문"]}
+    cands = collect(ctx.kg, cq, ctx.find, lambda q, k: rag(q, k), tx)
+    return {"cq": cq, "view": split_view(cands), "error": ""}
+
+
+def main():
+    regs = {r["reg_id"]: r for r in (json.loads(Path(p).read_text(encoding="utf-8")) for p in glob.glob(str(ROOT / "out/parsed/[0-9]*.json")))}
+    ctx = load_context(ROOT, regs)
+    by = {r["name"]: k for k, r in regs.items()}
+    emb = np.load(V / "embeddings.npy"); emb = emb / np.linalg.norm(emb, axis=1, keepdims=True)
+    chunks = ecd.jl(V / "chunks.jsonl")
+    ext = np.load(ROOT / "out/kg/ext_emb.npy"); ext_ids = json.loads((ROOT / "out/kg/ext_ids.json").read_text(encoding="utf-8"))
+    ids = [c["article_id"] for c in chunks] + ext_ids; E = np.vstack([emb, ext])
+    texts = [c["text"] for c in chunks] + [ctx.unit_text.get(k, "") for k in ext_ids]
+    bm = BM25(texts); enc = SentenceTransformer("BAAI/bge-m3", device="cuda"); enc.max_seq_length = 512
+
+    def uniq(order, k):
+        out, seen = [], set()
+        for j in order:
+            x = ids[j]
+            if x not in seen:
+                seen.add(x); out.append(x)
+            if len(out) >= k:
+                break
+        return out
+
+    def dense(q, k):
+        return uniq(np.argsort(-(E @ enc.encode([q[:1200]], normalize_embeddings=True)[0]))[:400], k)
+
+    def lex(q, k):
+        return uniq(np.argsort(-bm.scores(q))[:400], k)
+
+    def rag(q, k):
+        qa = enc.encode([q[:1200]], normalize_embeddings=True)[0]
+        rrf = collections.defaultdict(float)
+        for r_, j in enumerate(np.argsort(-(E @ qa))[:200]):
+            rrf[j] += 1 / (60 + r_)
+        for r_, j in enumerate(np.argsort(-bm.scores(q))[:200]):
+            rrf[j] += 1 / (60 + r_)
+        return uniq(sorted(rrf, key=lambda j: -rrf[j]), k)
+
+    from regcheck.leave_layer import LeaveLayer
+    from regcheck.linked_layer import LinkLayer, item_texts
+    ours = LeaveLayer(ctx.unit_text); txt = item_texts(regs); links = ROOT / "out/hyujik_links.jsonl"
+    LAYERS = [ours, LinkLayer(links, item_text=txt, hierarchy=True), LinkLayer(links, item_text=txt, hierarchy=True, same_concept_any_attr=True), LinkLayer(links, item_text=txt, hierarchy=True, trusted_only=True)]
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "out/fresh_items"; out.mkdir(parents=True, exist_ok=True)
+    for line in (Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "eval/impact_label_kit_r5/산출/changes.jsonl").read_text(encoding="utf-8").splitlines():
+        it = json.loads(line); m = it["수정"]; i = it["id"]
+        r = run(ctx, regs, by[m["규정"]], m["개정문"], i, rag=rag) if m["규정"] in by else law_run(ctx, m, i, rag)
+        cq = r["cq"]
+        if cq.kind == "분석 실패":
+            print(i, "분석 실패:", cq.error); continue
+        start = set(cq.starts)
+        t = ctx.unit_text.get((cq.starts or [""])[0], "")[:600]
+        q = f"{m['조']}\n{m['개정문']}\n{t}"
+        pipe = {c.id for c in r["view"]["all"]}
+        for ly in LAYERS:   # 층 후보도 풀에 넣는다
+            pipe |= {c.id for c in run(ctx, regs, by[m["규정"]], m["개정문"], i, rag=rag, leave=ly)["view"]["all"]}
+        pool = (pipe | set(dense(q, K)) | set(lex(q, K)) | set(rag(q, K))) - start
+        pool = {u for u in pool if u in ctx.unit_text}
+        rows = [f"# {i}  {m['규정']} {m['조']} {m['항'] or ''}항\n\n개정문: {m['개정문']}\n\n바뀐 조 원문:\n{t}\n\n---\n"]
+        for u in sorted(pool):
+            rows.append(f"## [{u}] {regs[u.split(':')[0]]['name']}\n{ctx.unit_text.get(u, '')[:600]}\n")
+        (out / f"pool_{i}.md").write_text("\n".join(rows), encoding="utf-8")
+        print(i, cq.kind, "파이프라인 후보", len(pipe), "풀", len(pool), "|", cq.evidence[:50])
+
+
+if __name__ == "__main__":
+    main()

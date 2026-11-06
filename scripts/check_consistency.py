@@ -38,7 +38,7 @@ def main() -> None:
 
     rows = consistency.deadlines(regs)
     mv = moves.parse_moves(regs)
-    findings = consistency.vocab_findings(regs, vocab) + consistency.deadline_findings(rows) + moves.stale_by_moves(regs, mv, rels) + moves.move_conflicts(mv)
+    findings = consistency.vocab_findings(regs, vocab) + consistency.deadline_findings(rows) + moves.stale_by_moves(regs, mv, rels) + moves.move_conflicts(mv) + consistency.structure_findings(regs, rels)
     diffs = consistency.definition_diffs(regs)
 
     (OUT / "findings.jsonl").write_text("\n".join(json.dumps(f, ensure_ascii=False) for f in findings), encoding="utf-8")

@@ -202,3 +202,164 @@ def deadline_findings(rows: list[dict]) -> list[dict]:
                         "target": "일수 단위", "priority": "낮음", "handling": "판단 가능",
                         "reason": f"한 규정에서 「{r0['unit']}」와 단순 「일」을 함께 씀 (일 {len(d['일'])}곳 · {r0['unit']} {len(d.get('영업일', [])) + len(d.get('근무일', []))}곳). 달력일인지 확인"})
     return out
+
+
+# ── 횟수 한도 (COUNT-01) ──────────────────────────────────────────────────────
+
+RE_COUNT = re.compile(r"(?<![\d제])(\d+)\s*회(?!의\s*기간)")
+RE_COUNT_WORDS = re.compile(r"분할|나누어|한정|최대|이내|까지|한하여|횟수")
+
+
+def count_limits(text: str) -> dict[int, str]:
+    """조 본문에서 횟수 한도처럼 쓰인 「N회」: {N: 근거 문장}. 문장에 분할 · 한정 · 최대 같은 한도 말이 있을 때만 (「각 1회의 기간」 「2회 이상 거부」 같은 경우를 거른다)."""
+    out: dict[int, str] = {}
+    for m in RE_COUNT.finditer(text):
+        sent = _sentence(text, m.start())
+        if RE_COUNT_WORDS.search(sent):
+            out.setdefault(int(m.group(1)), sent)
+    return out
+
+
+def count_diffs(regs: dict[str, dict], same_title_max: int = 8) -> list[dict]:
+    """제목이 같은 다른 규정의 조끼리 횟수 한도 값 집합이 다른 쌍. 판정이 아니라 후보다 (적용 대상 · 횟수의 의미 · 시행 시점 · 예외는 사람이 본다)."""
+    from .kg import GENERIC_TITLES   # 같은 제목 기준을 그래프(SAME_TITLE)와 맞춘다
+    generic = {re.sub(r"\s+", "", g) for g in GENERIC_TITLES}
+    by_title: dict[str, list[tuple[dict, dict]]] = collections.defaultdict(list)
+    for reg in regs.values():
+        for a in reg["articles"]:
+            t = re.sub(r"\s+", "", a.get("title") or "")
+            if a.get("deleted") or len(t) < 3 or t in generic:
+                continue
+            by_title[t].append((reg, a))
+    out = []
+    for t, group in by_title.items():
+        if len({r["reg_id"] for r, _ in group}) < 2 or len(group) > same_title_max:
+            continue
+        lim = [(r, a, count_limits(a["norm"])) for r, a in group]
+        for (r1, a1, c1), (r2, a2, c2) in itertools.combinations(lim, 2):
+            if r1["reg_id"] != r2["reg_id"] and c1 and c2 and set(c1) != set(c2):
+                out.append({"title": a1.get("title"), "a": a1["id"], "b": a2["id"], "a_reg": r1["name"], "b_reg": r2["name"], "a_label": a1["label"], "b_label": a2["label"],
+                            "a_counts": sorted(c1), "b_counts": sorted(c2), "a_ctx": next(iter(c1.values())), "b_ctx": next(iter(c2.values())),
+                            "a_revised": r1.get("revised"), "b_revised": r2.get("revised")})
+    return out
+
+
+# ── 권한 · 의결 주체 차이 (AUTH-01)와 의결 정족수 차이 (QUORUM-01) ─────────────────────
+
+AUTH_BODIES = r"(대표이사|이사회|주주총회|인사위원회|징계위원회|감사위원회|준법감시인)"
+AUTH_ACTS = r"(승인|의결|결의|결정|결재)"
+RE_AUTH = re.compile(AUTH_BODIES + r"(?:의|가|이|에서|로부터)?\s*(?:[가-힣]{1,6}\s*){0,3}?" + AUTH_ACTS)
+AUTH_STOP = {"승인", "의결", "결정", "결재", "결의", "대표이사", "이사회", "주주총회", "인사위원회", "징계위원회", "감사위원회", "준법감시인", "회사", "한국벤처투자", "경우", "다음", "사항", "관한",
+             "거쳐", "최종", "받아", "정할", "달리", "이동", "종전", "개정", "위원", "위원회", "의결사항", "확정한다", "시행한다", "요청할", "정한다", "한다", "있다"}
+RE_PUNCT = re.compile(r"[\s·ㆍ‧・,，、()（）]")
+
+
+def _auth_statements(regs: dict[str, dict]) -> list[dict]:
+    from .change_query import _tokens   # 낱말 쪼개기는 변경 분석과 같은 방식
+    out = []
+    for reg in regs.values():
+        for a in reg["articles"]:
+            if a.get("deleted"):
+                continue
+            title = a.get("title") or ""
+            heads = {it["path"][0]: it["norm"] for it in a.get("items", []) if list(it["path"][1:]) == [0, 0]}
+            for it in a.get("items", []):
+                m = RE_AUTH.search(it["norm"])
+                if not m and list(it["path"][1:]) != [0, 0]:
+                    m = RE_AUTH.search(heads.get(it["path"][0], ""))   # 호는 항의 머리 문장에서 주체 · 행위를 이어받는다
+                if m:
+                    out.append({"reg": reg, "article": a, "item": it, "body": m.group(1), "act": m.group(2), "toks": set(_tokens(title + " " + it["norm"])), "title_toks": set(_tokens(title))})
+    return out
+
+
+def authority_diffs(regs: dict[str, dict], max_df: int = 70, min_shared: int = 2) -> list[dict]:
+    """같은 사안(희귀하지 않은 일반어를 뺀 공통 낱말 2개 이상, 그중 하나는 조 제목의 낱말)에 대해 다른 규정이 승인 · 의결 주체를 다르게 정한 쌍. 후보일 뿐이다."""
+    stm = _auth_statements(regs)
+    df: collections.Counter = collections.Counter()
+    for s in stm:   # 조 단위 문서 빈도 대신 문장 집합의 빈도로 근사하지 않고, 전체 조에서 센다
+        pass
+    from .change_query import _tokens
+    for reg in regs.values():
+        for a in reg["articles"]:
+            if not a.get("deleted"):
+                for t in set(_tokens((a.get("title") or "") + " " + (a.get("norm") or ""))):
+                    df[t] += 1
+    key = lambda toks: {t for t in toks if t not in AUTH_STOP and df[t] <= max_df and len(t) >= 2}   # noqa: E731
+    out, seen = [], set()
+    for s1, s2 in itertools.combinations(stm, 2):
+        if s1["reg"]["reg_id"] == s2["reg"]["reg_id"] or s1["body"] == s2["body"]:
+            continue
+        sh = key(s1["toks"]) & key(s2["toks"])
+        if len(sh) < min_shared or not (sh & (s1["title_toks"] | s2["title_toks"])):
+            continue
+        k = (s1["article"]["id"], s2["article"]["id"])
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append({"a": s1["article"]["id"], "b": s2["article"]["id"], "a_reg": s1["reg"]["name"], "b_reg": s2["reg"]["name"], "a_label": s1["article"]["label"], "b_label": s2["article"]["label"],
+                    "a_body": s1["body"], "b_body": s2["body"], "a_act": s1["act"], "b_act": s2["act"], "shared": sorted(sh), "a_ctx": s1["item"]["norm"], "b_ctx": s2["item"]["norm"], "a_item": s1["item"]["id"]})
+    return sorted(out, key=lambda d: -len(d["shared"]))
+
+
+RE_QUORUM = re.compile(r"(재적|출석)[가-힣]{0,8}\s*(\d+\s*분의\s*\d+|과반수)")
+QUORUM_BODIES = ("인사위원회", "이사회", "징계위원회")   # 이름이 분명한 기관만 (「심의회」 「위원회」처럼 규정마다 다른 기구는 섞이지 않게 뺀다)
+
+
+def quorum_diffs(regs: dict[str, dict]) -> list[dict]:
+    """같은 기관(인사위원회 · 이사회 · 징계위원회)의 의결 정족수 표현(재적 · 출석 + 분수 · 과반수)을 서로 다른 규정이 다르게 정한 조 쌍.
+    한쪽이 다른 쪽의 부분집합이면(일반 정족수와 일부 표현) 뺀다. 같은 규정 안의 특례는 대상이 아니다."""
+    by_body: dict[str, list[tuple[dict, dict, dict]]] = collections.defaultdict(list)
+    for reg in regs.values():
+        for a in reg["articles"]:
+            if a.get("deleted"):
+                continue
+            found = {(m.group(1), re.sub(r"\s+", "", m.group(2))): m.start() for m in RE_QUORUM.finditer(a["norm"])}
+            if not found:
+                continue
+            for body in QUORUM_BODIES:
+                near = [pos for pos in found.values() if body in a["norm"][max(0, pos - 200): pos + 40]]
+                if near:
+                    by_body[body].append((reg, a, {k: v for k, v in found.items() if v in near}))
+    out = []
+    for body, group in by_body.items():
+        for (r1, a1, q1), (r2, a2, q2) in itertools.combinations(group, 2):
+            if r1["reg_id"] == r2["reg_id"] or set(q1) <= set(q2) or set(q2) <= set(q1):
+                continue
+            out.append({"body": body, "a": a1["id"], "b": a2["id"], "a_reg": r1["name"], "b_reg": r2["name"], "a_label": a1["label"], "b_label": a2["label"],
+                        "a_quorum": sorted(f"{x}{y}" for x, y in q1), "b_quorum": sorted(f"{x}{y}" for x, y in q2),
+                        "a_ctx": _sentence(a1["norm"], min(q1.values())), "b_ctx": _sentence(a2["norm"], min(q2.values()))})
+    return out
+
+
+# ── 구조 점검 (DUPNUM-01 · SELFCITE-01): 원본 문서의 번호 · 인용 오류 후보 ───────────────
+
+def structure_findings(regs: dict[str, dict], rels: list[dict]) -> list[dict]:
+    """한 규정 안의 같은 조 번호 중복(DUPNUM-01)과, 조가 자기 번호를 그대로 인용하는 경우(SELFCITE-01). 「제N조 M항」 · 「제N조부터 제M조까지」 같은 표현은 자기 인용이 아니라서 뺀다.
+    파서가 번호를 잘못 읽었을 수도 있어 원본 확인이 필요한 후보다 (판정이 아니라 확인 요청)."""
+    out = []
+    for reg in regs.values():
+        cnt = collections.Counter(a["label"] for a in reg["articles"] if not a.get("deleted"))
+        for label, n in cnt.items():
+            if n > 1:
+                a = next(x for x in reg["articles"] if x["label"] == label and not x.get("deleted"))
+                titles = [x.get("title") for x in reg["articles"] if x["label"] == label and not x.get("deleted")]
+                out.append({"category": "review", "reg_id": reg["reg_id"], "reg_name": reg["name"], "unit": "본문", "article": label, "para": 0, "quote": label, "context": " / ".join(map(str, titles)),
+                            "path": "조 번호", "rule": "DUPNUM-01", "target": "조 번호", "priority": "중간", "handling": "판단 가능",
+                            "reason": f"같은 규정에 「{label}」가 {n}개 있음({', '.join(map(str, titles))}). 번호 오기인지 원본 확인"})
+    for r in rels:
+        if r.get("kind") != "인용" or r.get("src_article") != r.get("target") or r.get("target_type") != "article":
+            continue
+        ev, ctx = r.get("evidence", ""), r.get("context", "")
+        if re.search(r"항|호|목", ev):   # 「제10조 2항」처럼 같은 조의 항 · 호를 가리키는 표현
+            continue
+        i = ctx.find(ev)
+        after = ctx[i + len(ev): i + len(ev) + 8] if i >= 0 else ""
+        if re.search(r"^\s*제?\s*\d+\s*항|^\s*부터|^\s*\(", after) or "부터" in ctx[i: i + len(ev) + 12]:
+            continue
+        reg = regs.get(r["src_article"].split(":")[0])
+        a = next((x for x in reg["articles"] if x["id"] == r["src_article"]), None) if reg else None
+        if a:
+            out.append({"category": "review", "reg_id": reg["reg_id"], "reg_name": reg["name"], "unit": "본문", "article": a["label"], "para": 0, "quote": ev, "context": ctx,
+                        "path": "인용 표", "rule": "SELFCITE-01", "target": a["label"], "priority": "낮음", "handling": "판단 가능",
+                        "reason": f"{a['label']}가 자기 번호 「{ev}」를 인용함. 다른 조를 가리키려던 번호 오기인지 확인"})
+    return out

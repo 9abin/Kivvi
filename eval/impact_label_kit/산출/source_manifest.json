@@ -1,0 +1,378 @@
+[
+    {
+        "sha256":  "15b2062004d2d48306f3a7185b426b5c8e248932dfd69b68f169b02744429c0d",
+        "path":  "규정/감사규정.txt"
+    },
+    {
+        "sha256":  "2413d4ebc403efe6555fa8b3220dcc9226b45903ea47c8ac00e180457515c1b1",
+        "path":  "규정/감사지침.txt"
+    },
+    {
+        "sha256":  "51cfb4b76f33a6736a34a63a3ae159253aba0b3413cdcc58971ca9f7e50982f8",
+        "path":  "규정/개인정보 보호 및 관리지침.txt"
+    },
+    {
+        "sha256":  "9c05ecb620a8ca2976c186e57c570d21a173dc27df07200b1f994d00456e2819",
+        "path":  "규정/개인정보 침해사고 대응 및 복구지침.txt"
+    },
+    {
+        "sha256":  "8262137b983cb8c00db37455c2a1f04ebdd092e227aac9a6941456e3b5cfc162",
+        "path":  "규정/경영공시 관리지침.txt"
+    },
+    {
+        "sha256":  "ac355e845a967c709a1fb17e1f5188a55d564e55093f8a398cb0959855d85f88",
+        "path":  "규정/계약사무처리지침.txt"
+    },
+    {
+        "sha256":  "0fde2119fecda8ae3a4e141ba3e21d7d86d0dbec4e974d833b161cf2d070358b",
+        "path":  "규정/고객헌장 운영지침.txt"
+    },
+    {
+        "sha256":  "8cd2b6c9d49b153b21a124ccc094eb7197e845eaea15b29269c4b0224f4124a4",
+        "path":  "규정/공무직관리지침.txt"
+    },
+    {
+        "sha256":  "8edd25c7524b19b2a0699a5a944bea286a96d256411b1501e5cdd3c95a61558e",
+        "path":  "규정/공익신고 처리 및 신고자 보호 등에 관한 운영지침.txt"
+    },
+    {
+        "sha256":  "c6e743ced34d738e3db55b930945924b29d5df2d7430a0470771924acaa17d0d",
+        "path":  "규정/근무평정시행지침.txt"
+    },
+    {
+        "sha256":  "c3ddca223da332d73f4f18636f3dcce6011cf933b005d7e50d717a24f134b45c",
+        "path":  "규정/글로벌 자금세탁행위 방지를 위한 업무규정.txt"
+    },
+    {
+        "sha256":  "6a86323611ceca220d057c2f70d6ff85bf77aa0a02abef4f504b874173336705",
+        "path":  "규정/급여규정.txt"
+    },
+    {
+        "sha256":  "b11dd98cd0452ea040af113072e1542149d727f3d488020f4ee271c5e0d061c5",
+        "path":  "규정/기록물관리규정.txt"
+    },
+    {
+        "sha256":  "29d28f02a8fdeb08dbbee06a18e143b46acce97b614e1175f9030a53371bd18e",
+        "path":  "규정/내규관리규정.txt"
+    },
+    {
+        "sha256":  "41486b1e3879409f1cb177c1da11701cc0adfefedef0ff14805f3c0428116b59",
+        "path":  "규정/내부통제운영지침.txt"
+    },
+    {
+        "sha256":  "71c4457bfa578cdf1868d95320ddc9782a283c4048dae2760245271fce1416da",
+        "path":  "규정/노사협의회규정.txt"
+    },
+    {
+        "sha256":  "d6fa0b1e4a2b861230c242e6a64721ee258f7283c44cd9906478ee67b40b4f0e",
+        "path":  "규정/도서관리지침.txt"
+    },
+    {
+        "sha256":  "2ad689d82818777c4e05229853176f0d78bfca1c33069086888029b641f7e7c8",
+        "path":  "규정/문서관리규정.txt"
+    },
+    {
+        "sha256":  "561e86425f3e551988280b9f3a6d4416a810874fb26d3c956946aed2a4e2c582",
+        "path":  "규정/물품관리규정.txt"
+    },
+    {
+        "sha256":  "a15961a1786b604c1b705d3e35d26d1ea75c4352256691ec8226dfe89559398c",
+        "path":  "규정/민원 처리지침.txt"
+    },
+    {
+        "sha256":  "639f903800faf9cec9e60ccee4ddb35249838ca15a0e23204fc90160a07abed9",
+        "path":  "규정/방첩업무 시행지침.txt"
+    },
+    {
+        "sha256":  "b0009f9d2cec085e638a886ea6dc948f7ea93da29a17c8e439d49952e6a16533",
+        "path":  "규정/법인카드 사용지침.txt"
+    },
+    {
+        "sha256":  "7a75d718d384c00c1484c0001e3915b2f0a79c13e8acff7c380924a002b83302",
+        "path":  "규정/벤처투자회사 등에 관한 행정자료 보관·관리 지침.txt"
+    },
+    {
+        "sha256":  "3af0001ae08247dc2f4cd7da57431d03db0e8127f56957413f8952172cde22e4",
+        "path":  "규정/보안업무지침.txt"
+    },
+    {
+        "sha256":  "f74c2bcb19213acbc964755b86549c6031127c75978ae698eb4e5102b29da2ec",
+        "path":  "규정/복무규정.txt"
+    },
+    {
+        "sha256":  "d59c84faf70f9e0e4c1a8fdc7b675abb6b5b6bb6bbb9fd78142472ccb63ca02d",
+        "path":  "규정/복지·후생규정.txt"
+    },
+    {
+        "sha256":  "8b4083b9e1ec3f7160c56c630918c99762efcafd96108da4ef23028c38ec599d",
+        "path":  "규정/복지후생 운영지침.txt"
+    },
+    {
+        "sha256":  "7230a17db46c6215409a70f4d68fc8b512a8c81ebe345fb911f8270fa595f1d7",
+        "path":  "규정/부정청탁 및 금품등 수수의 신고사무 처리지침.txt"
+    },
+    {
+        "sha256":  "008b4cfff6426b72db65a4824a238af7ffe8e7034704f7ba482b5b40391b3b0d",
+        "path":  "규정/부패신고 처리 및 신고자 보호 등에 관한 운영지침.txt"
+    },
+    {
+        "sha256":  "6420ab6222185034c81c28e366079ec0675e4908cc479108d086b40e54231058",
+        "path":  "규정/사옥관리지침.txt"
+    },
+    {
+        "sha256":  "4379515c8c794881ab209103ffef452814f0b5a293909ba271a4b7142a988664",
+        "path":  "규정/사택 대여 및 관리지침.txt"
+    },
+    {
+        "sha256":  "484db6c7c4742c0d085de2d245dc73401dd80d8e29c0c8a29d4757684559cac4",
+        "path":  "규정/상품권 관리지침.txt"
+    },
+    {
+        "sha256":  "eb1d4f7ea9ce1c73a14050f227df8cd7d07629e3588f6422122920793d837b56",
+        "path":  "규정/서식관리지침.txt"
+    },
+    {
+        "sha256":  "deabf0fd10e52cb361fba1d7960ba503a9d04573fa1824c77081db6ad278f7f5",
+        "path":  "규정/성과급지급지침.txt"
+    },
+    {
+        "sha256":  "0887cdbd44d4b1c35f785b54fdc78d6e8cdfb6121743c5d9c02dba196bea83b6",
+        "path":  "규정/성희롱·성폭력 예방 운영지침.txt"
+    },
+    {
+        "sha256":  "1dec0821d5f716aa21bde5e5f7684bb81164196cd9da74a8d75c981c6ddb9f3d",
+        "path":  "규정/승진지침.txt"
+    },
+    {
+        "sha256":  "b944e09668ee5eee148ad4b16e0df1d495ef835c51120c298384a71fb0c6ee7b",
+        "path":  "규정/안전관리규정.txt"
+    },
+    {
+        "sha256":  "5a337997f09012b680d42c08557cde6d478fa249d5368f81cd66532f36b3b184",
+        "path":  "규정/안전사고에 관한 문책 지침.txt"
+    },
+    {
+        "sha256":  "ac5ef28774a66e1360f65b3e272d4fcb7af653af933b96881d3c47316c62d4df",
+        "path":  "규정/업무추진비 및 판공비 지출에 관한 지침.txt"
+    },
+    {
+        "sha256":  "8b05e49c76ae751943fc1e9d4c81b2186f28c48cf3b447d75032af3e4c261b70",
+        "path":  "규정/여비규정.txt"
+    },
+    {
+        "sha256":  "fe5c4b015d1134bd8702ca903bf55668024ce77cce9b51bf426dbbea7a1da5ad",
+        "path":  "규정/연구용역 관리지침.txt"
+    },
+    {
+        "sha256":  "05c3715c7d703251a00ea166b2e074c2d82ae8edd90e1fc7d3b01782722d4f42",
+        "path":  "규정/연봉제운영지침.txt"
+    },
+    {
+        "sha256":  "9544941b3610229877b056a1c21cdc4a8aacef25d7ac983d06bb4e6acdb50353",
+        "path":  "규정/영상정보처리기기 관리 및 운영지침.txt"
+    },
+    {
+        "sha256":  "caf1e7982423d8691462b91f90604002b24f7437007a0c8cfb491bcfe0619232",
+        "path":  "규정/유연근무제 운영지침.txt"
+    },
+    {
+        "sha256":  "5a7bb1372f6b7865be5eae7e0a453aec3b085fb006f4b861bf126261efc6e8c0",
+        "path":  "규정/윤리강령.txt"
+    },
+    {
+        "sha256":  "dddc3da60ce713faaa0b7610df90517690d00de4cb194e513bfd8fead8c7908e",
+        "path":  "규정/이사회규정.txt"
+    },
+    {
+        "sha256":  "c546055ac055cc7e6b8ce003c675d0b7172441d1d7f2c48ef492fa9a1cea2edc",
+        "path":  "규정/인권경영이행지침.txt"
+    },
+    {
+        "sha256":  "fdb79fe591ccca609c65e2c6519dac89d8745538fb18f753764a9fc428665ceb",
+        "path":  "규정/인사규정.txt"
+    },
+    {
+        "sha256":  "fdff5d475897af40009533af6c83a988cc6a153a6ccf833838a85f8ee52f1666",
+        "path":  "규정/인장관리지침.txt"
+    },
+    {
+        "sha256":  "03b641cbfcdca07757fb4c7dee2c63d514815749d761cf9074f0f1c792b83e16",
+        "path":  "규정/임금피크제 운영지침.txt"
+    },
+    {
+        "sha256":  "453e6fabf5af7f9b2d001749b73ac49d34516126415b92dbb041595a9c63fb44",
+        "path":  "규정/임원 복무 등에 관한 지침.txt"
+    },
+    {
+        "sha256":  "dbd698109b2e34f279ca9eba237d5aa05f4de4fa1a8614eae3ff8dab809cf673",
+        "path":  "규정/임원추천위원회 운영규정.txt"
+    },
+    {
+        "sha256":  "ffec94699569d8a5363b3ac282daed86c051b8ed9ffa408df4434a2ffc69d501",
+        "path":  "규정/임직원교육훈련지침.txt"
+    },
+    {
+        "sha256":  "17f270b49aa202ef339acd8a0c4f63432f7a04a7fbb6574308f888d78ef3c473",
+        "path":  "규정/임직원행동강령.txt"
+    },
+    {
+        "sha256":  "a476b07df40cb969bff97c4ba9a05c79de4f4f963b76939f68822fd9b129e636",
+        "path":  "규정/자금세탁행위 방지를 위한 업무규정.txt"
+    },
+    {
+        "sha256":  "bf79de2d115675d7863317ffdf6a14a87962547524f4cf421625caa7b9ab99c7",
+        "path":  "규정/자금세탁행위 방지를 위한 업무지침.txt"
+    },
+    {
+        "sha256":  "367dcff1794b0d476b06b5ebcc5defc2377b8c41c2dcaf6dd05fde9ed7ad94c0",
+        "path":  "규정/전문계약직 운영지침.txt"
+    },
+    {
+        "sha256":  "c6c395bc8362970fed6e84eadb515a659102f6fbbff94e7d13081dddc69f84ca",
+        "path":  "규정/전산업무규정.txt"
+    },
+    {
+        "sha256":  "ad148646cbdf29de78b34319b4006d4be6dbf7dddbe9946d6b8065531aa1c0f7",
+        "path":  "규정/전산업무지침.txt"
+    },
+    {
+        "sha256":  "8683773013f890915911eea686885d3d875d07f430efe119bf6b72156419276f",
+        "path":  "규정/전화 녹음관리 및 운영지침.txt"
+    },
+    {
+        "sha256":  "7d19375079104fe7ef04d0e3a5ba584448e3fce9d44ded3b2d22aead8452b112",
+        "path":  "규정/정보공개지침.txt"
+    },
+    {
+        "sha256":  "a37fe849a8cf9e90e572339d1bf0bd20161abf271b97360dc3b3aeafa8f7aa76",
+        "path":  "규정/정보보안관리지침.txt"
+    },
+    {
+        "sha256":  "c955603112927041081f65834374252bad0416d33505b93237458c27d98c91dc",
+        "path":  "규정/제수수료 및 수당지급 지침.txt"
+    },
+    {
+        "sha256":  "b34eb5d7a3033be473c8c0ff10f7f522421ae9fcf11eb06907fdb02365d02c7a",
+        "path":  "규정/조직성과평가지침.txt"
+    },
+    {
+        "sha256":  "5db8c329b7fce4b2ce192fd105a272c172e3e178091af07e41285dee90d6b9e8",
+        "path":  "규정/준법윤리경영지침.txt"
+    },
+    {
+        "sha256":  "10159bcc0f602074bd73bc57388945baf60c0e710275a235a069625b6f6be9cb",
+        "path":  "규정/직무관련범죄 고발기준 지침.txt"
+    },
+    {
+        "sha256":  "36388d1e19f3d5db4062246cd860b1d54d6c785ce8c7fea15a0fcc6ad36feba3",
+        "path":  "규정/직무전결규정.txt"
+    },
+    {
+        "sha256":  "41a9b84f991ade02869426966cab9b5560bf80021d76593a1ed8be5a8e2db717",
+        "path":  "규정/직무청렴계약 운영지침.txt"
+    },
+    {
+        "sha256":  "b6412748fd67f3f48b085eb7d78e9b4626f3f60d16d8a65524a44b45f7ebe709",
+        "path":  "규정/직원채용지침.txt"
+    },
+    {
+        "sha256":  "7e2d94ef03a99e778a6c9b7eed0cfc79b807f0ddf35434412e1851845f788dd1",
+        "path":  "규정/직장 내 괴롭힘 예방 운영지침.txt"
+    },
+    {
+        "sha256":  "ce06350250e2b235981c7a2adf14f20dd54f5508cea22271850134abd7fca0e0",
+        "path":  "규정/직제규정.txt"
+    },
+    {
+        "sha256":  "acf20b462b3da46c05f15fc9fd9a93f0125a607eb8b8bb9f44d1c65460ff5c68",
+        "path":  "규정/직제지침.txt"
+    },
+    {
+        "sha256":  "c990940e27b4d19809983b4a1f0a772fca902a457aae6949420de027305447c7",
+        "path":  "규정/집행간부 운영규정.txt"
+    },
+    {
+        "sha256":  "4e77614a76c40b4f88e4dd03a6c1f502f46452fc070ffd33a0cc79db4c89897e",
+        "path":  "규정/징계지침.txt"
+    },
+    {
+        "sha256":  "931e677a8a497eb05a34edeceae076c7e3a6e69d67a4acb41e9b21aa61e345a7",
+        "path":  "규정/차량관리지침.txt"
+    },
+    {
+        "sha256":  "3e5fb7b449498693233a7f2b3661b79ce8e5044bdf044d2d63b180c2678524cc",
+        "path":  "규정/출자회사관리지침.txt"
+    },
+    {
+        "sha256":  "b72e690511d98a23558aa6f054688f48a41fa36ff4befe3f72e97eda32839269",
+        "path":  "규정/취업규칙.txt"
+    },
+    {
+        "sha256":  "6c78995885f1565af4e9149a348561e76849c548e5032b710f8e8f3ce502db98",
+        "path":  "규정/퇴직금중간정산 운영지침.txt"
+    },
+    {
+        "sha256":  "f312b01d3ede73d853366f5ce3d449ec16b80f47d06f514754b1206712b3ea35",
+        "path":  "규정/퇴직금지급규정.txt"
+    },
+    {
+        "sha256":  "98998ff661bd76bf5b8a9e0cff390fb611f74edb35ac68eecd8f0719208620d6",
+        "path":  "규정/한국벤처투자 윤리헌장.txt"
+    },
+    {
+        "sha256":  "657739c2e6911cad98553159eadb6868cd48220e15b7870dcdb0b2d9b414bd98",
+        "path":  "규정/한국벤처투자 이해충돌 방지제도 운영지침.txt"
+    },
+    {
+        "sha256":  "743b244cb1acde70dfb7c645654d7b6f74df26b496e414efa5526b2b6d3ead18",
+        "path":  "규정/한국벤처투자 정관.txt"
+    },
+    {
+        "sha256":  "5ac4f1733e460507c33df1f436ef4cce9c07d1103101a6e1fd1e5ac28ea892a4",
+        "path":  "규정/해외 근무직원 복지후생 운영지침.txt"
+    },
+    {
+        "sha256":  "c2c022eb27ac3590e800906b571de4a2ec7aaa63bc67eeec477a4ff34433dbb2",
+        "path":  "규정/해외 파견 업무처리 및 해외사무소 운영지침.txt"
+    },
+    {
+        "sha256":  "c7af27bef674d1c984b01611f33785f1d473629202c6e1a3e7019d80a7401ea7",
+        "path":  "규정/해외근무직원 보수·복지규정.txt"
+    },
+    {
+        "sha256":  "5efe59c2601df7f6db34ce8d027029e6a46a1b6903f745f3f900775077c75262",
+        "path":  "규정/혁신제안제도 운영지침.txt"
+    },
+    {
+        "sha256":  "7b84430e9b2b5c7901c5acbc562ed17fd50056a93d5fc8b99ab81d9ddfb2ff77",
+        "path":  "규정/홍보업무지침.txt"
+    },
+    {
+        "sha256":  "8f50419ba3637333f16cf69dddeed483114a16f1654d6b6f71a1c531fb43e452",
+        "path":  "규정/회계규정.txt"
+    },
+    {
+        "sha256":  "742e13e5feda7eb75f3831724a5525872379c0bfffa3b2e9c454a73eb6e1cc84",
+        "path":  "규정/회의비 지출에 관한 지침.txt"
+    },
+    {
+        "sha256":  "68b8f008f476b2c4355fbe88406e004eb6222daf2dfc002343e6de7626a33ce8",
+        "path":  "규정/휴직자 복무관리 지침.txt"
+    },
+    {
+        "sha256":  "d181c685bea18562f761e674d4eb8fa9c2e91ca78d1a482d8c18b25911eb6c48",
+        "path":  "지시서.md"
+    },
+    {
+        "sha256":  "69cf27791d1d278fb097279ad9a2ac274f59d7d5104404919e6149aed7e76412",
+        "path":  "규정목록.tsv"
+    },
+    {
+        "sha256":  "eb33b8438c6e3074b6673bc26855ae30f8d11734138f0c4f1cfbf921d50ad4b3",
+        "path":  "validate.py"
+    },
+    {
+        "sha256":  "e6250a86e82cefe8e8c099cf12114b6415e8b571e8b0476559332285ba5dfe30",
+        "path":  "산출/changes.jsonl"
+    }
+]

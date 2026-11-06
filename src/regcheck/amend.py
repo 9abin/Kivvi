@@ -220,6 +220,9 @@ def _items_in(a: dict, u: Unit) -> list[dict]:
             ok = False
         if ok:
             out.append(it)
+    if not out and u.hang is None and u.ho:
+        # 「제2조제3호」인데 그 조의 번호 목록이 항 자리([3,0,0])로 읽힌 경우 (항 구분 없이 1. 2. 로만 나열한 조)
+        out = [it for it in a["items"] if it["path"][0] == u.ho and it["path"][1] == 0 and (u.mok is None or it["path"][2] == u.mok)]
     if not out:
         raise AmendError(f"대상 단위 없음: {a['label']} → {u.label()}")
     return out
