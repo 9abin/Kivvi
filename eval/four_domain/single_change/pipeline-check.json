@@ -1,0 +1,11 @@
+{
+  "real_cli_prepare_smoke_test": "passed",
+  "cases": [
+    "SC001",
+    "SC003"
+  ],
+  "single_focus_per_case": true,
+  "methods": 3,
+  "model_api_called": false,
+  "vectors": "deterministic local fake vectors; not model evaluation"
+}
