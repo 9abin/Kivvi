@@ -1,0 +1,50 @@
+{
+  "provider": "openai",
+  "model": "gpt-5.6-luna",
+  "embedding_model": "text-embedding-3-small",
+  "dimensions": 768,
+  "reasoning_effort": "low",
+  "methods": [
+    "rag",
+    "pr_graph_rag",
+    "domain_graph_rag"
+  ],
+  "k": 10,
+  "prompt_version": "four-domain-120-multifocus-v1",
+  "prompt_sha256": "6aca78e74ab7bd593aa7e4c74076312948fe9f4d0b79c92fc1a7e1025df445a6",
+  "runner_sha256": "02a0863435fc09c1088df2a87754661183050adfca9921234c0b7586d4c8f5f2",
+  "schema_sha256": "7c1ae7c16ac8c4904dca1979c3f8a6eeddf2e9867f47b37514ea2f88dd0407e1",
+  "scorer_sha256": "0fbc4bdc54a481f90f7e666b5f703cdd8ca21df26eaeec962c05ce3a1d2a5385",
+  "input_hashes": {
+    "inputs.jsonl": "1240d7f119ab94a8e8999affecfce8da49bb56892690bf8417f27ed8d48fea39",
+    "gold.jsonl": "f0d01d81c1097916ddb7d2f111c9894ede9bee935b35531ad125e744fa56fc21",
+    "base_corpus.jsonl": "a7489c394895ed3099ec64c9cb251a2350f13010783803203144e766b8e1a8bb",
+    "domain_schema.py": "7c1ae7c16ac8c4904dca1979c3f8a6eeddf2e9867f47b37514ea2f88dd0407e1",
+    "domain_ontology.db": "01cad46e3088d14e9b2c410e4f9b9bd2814ee4a698b189e119134d1a700647e2",
+    "score_results.py": "0fbc4bdc54a481f90f7e666b5f703cdd8ca21df26eaeec962c05ce3a1d2a5385",
+    "questions.md": "ba23bebc2aca73d73c97a567855993f965b9d94ef1fe2ecad3b8ba7a24ac582e"
+  },
+  "retrieval": "one query per actually amended logical article; per-focus RRF then round-robin unique aggregation",
+  "query_char_cap_per_focus": 1200,
+  "source_embedding_char_cap": 1200,
+  "context_char_cap_per_article": 3200,
+  "shared_auxiliary_metadata": "visible-source article/appendix reference existence from the same parser in all arms",
+  "max_parallel_api_calls": 4,
+  "source_commit": "99c8e7c2f6eb5b67223a3eeb5b79201b1b310ca1",
+  "no_previous_outputs_reused": false,
+  "reviewed_graph_provenance": {
+    "variant": "user_original_leave_plus_source_reviewed_other_domains",
+    "database_sha256": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+    "adapter_sha256": "6114e8844deb61a68e8b750016f49734816e3ee48dbe18827a432ae184e253f9",
+    "wrapper_sha256": "239e15e9af8b38fbf1d5567ffecf476b75dbff73f5ef4348668f76626ca8ef86",
+    "user_original_edges": 151,
+    "graph_stats": {
+      "all_edges": 1997,
+      "user_original_edges": 151,
+      "source_checked_active_new_edges": 1766,
+      "all_head_bindings": 516
+    },
+    "schema_data_and_concept_scoped_matching_changed": true
+  },
+  "response_cache_policy": "Identical complete prompt/model/config requests reuse cached responses; unchanged RAG and PR controls are expected to match the prior run."
+}

@@ -1,0 +1,12 @@
+{
+  "validated_cases": 120,
+  "operation_application": "passed",
+  "overlay_reconstruction": "passed",
+  "source_quote_exactness": "passed",
+  "state_delta": "passed",
+  "domain_and_type_balance": "passed",
+  "no_label_fields_in_inputs": "passed",
+  "frozen_hashes": "passed",
+  "90_raw_source_hashes": "passed",
+  "model_api_called": false
+}

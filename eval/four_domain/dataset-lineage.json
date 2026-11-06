@@ -1,0 +1,14 @@
+{
+  "upstream_commit": "99c8e7c2f6eb5b67223a3eeb5b79201b1b310ca1",
+  "data_matches_recorded_run": {
+    "inputs.jsonl": true,
+    "gold.jsonl": true,
+    "base_corpus.jsonl": true,
+    "score_results.py": true
+  },
+  "recorded_prompt_sha256": "6aca78e74ab7bd593aa7e4c74076312948fe9f4d0b79c92fc1a7e1025df445a6",
+  "recorded_adapter_sha256": "6114e8844deb61a68e8b750016f49734816e3ee48dbe18827a432ae184e253f9",
+  "packaged_adapter_sha256": "6114e8844deb61a68e8b750016f49734816e3ee48dbe18827a432ae184e253f9",
+  "published_results_are_existing_run": true,
+  "packaging_does_not_claim_another_live_API_run": true
+}

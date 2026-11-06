@@ -1,0 +1,52 @@
+{"unit": "U00366", "reason": "삭제된 서식으로 원문 내용이 없어 인사·보수·휴가 개념 연결을 확인할 수 없다.", "batch": "B0017", "source_item_id": "23411:별지제1-1호서식", "classification": "NO_EDGE_DELETED_SOURCE"}
+{"unit": "U00367", "reason": "삭제된 서식으로 원문 내용이 없어 인사·보수·휴가 개념 연결을 확인할 수 없다.", "batch": "B0017", "source_item_id": "23411:별지제1-2호서식", "classification": "NO_EDGE_DELETED_SOURCE"}
+{"unit": "U00396", "reason": "삭제된 별표로 원문이 없어 개념 연결을 확인할 수 없다.", "batch": "B0019", "source_item_id": "23411:별표5", "classification": "NO_EDGE_DELETED_SOURCE"}
+{"unit": "U00397", "reason": "시행일만 규정하고 인사·보수·휴가 개념의 실질 규칙을 정하지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙13:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00399", "reason": "시행일만 규정하고 인사·보수·휴가 개념의 실질 규칙을 정하지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙1:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00402", "reason": "시행일만 규정하고 인사·보수·휴가 개념의 실질 규칙을 정하지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙3:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00404", "reason": "시행일만 규정하고 인사·보수·휴가 개념의 실질 규칙을 정하지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙8:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00407", "reason": "시행일만 규정하고 인사·보수·휴가 개념의 실질 규칙을 정하지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙9:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00409", "reason": "시행일만 규정하고 인사·보수·휴가 개념의 실질 규칙을 정하지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙비정형10", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00410", "reason": "지침의 시행일과 특정 조항의 적용 시점만 기재되어 대상 개념의 내용은 확인되지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙비정형11", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00411", "reason": "지침의 시행일과 특정 조항의 소급 적용만 기재되어 대상 개념의 내용은 확인되지 않는다.", "batch": "B0019", "source_item_id": "23411:부칙비정형12", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U00563", "reason": "삭제된 별표로 원문이 비어 있어 연결 개념을 확인할 수 없다.", "batch": "B0026", "source_item_id": "23536:별표1", "classification": "NO_EDGE_DELETED_SOURCE"}
+{"unit": "U00876", "reason": "임원의 해임건의는 직원의 인사상 면직과 구별되는 임원 제재이므로 면직 간선으로 연결하지 않았다.", "batch": "B0042", "source_item_id": "23840:10-1-1-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00878", "reason": "구체적인 제재 종류가 이사회에 위임되어 있어 catalog 개념과의 연결을 확정하기 어렵다.", "batch": "B0042", "source_item_id": "23840:10-1-3-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00879", "reason": "손해배상책임은 제시된 인사·보수·휴가 catalog 개념에 해당하지 않는다.", "batch": "B0042", "source_item_id": "23840:10-2-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00881", "reason": "제재 수준의 세부사항을 이사회 심의·의결에 따르도록 할 뿐 구체적인 catalog 개념을 정하지 않는다.", "batch": "B0042", "source_item_id": "23840:10-4-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00882", "reason": "직무청렴계약 체결기한은 인사·보수·휴가 개념의 채용 또는 임명 규칙으로 확정하기 어렵다.", "batch": "B0042", "source_item_id": "23840:4-1-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00883", "reason": "임원의 사임·해임에 따른 계약 효력 상실은 직원의 퇴직 규칙과 구별된다.", "batch": "B0042", "source_item_id": "23840:4-2-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00884", "reason": "집행간부의 대상 범위를 정하지만 catalog의 구체적인 인사 개념을 직접 규율하지 않는다.", "batch": "B0042", "source_item_id": "23859:3-1-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00885", "reason": "집행간부 임명 및 사내공모는 catalog의 채용 개념으로 확정하기 어렵다.", "batch": "B0042", "source_item_id": "23859:3-2-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00887", "reason": "집행간부 임기는 인사·보수·휴가 catalog 개념에 해당하지 않는다.", "batch": "B0042", "source_item_id": "23859:3-4-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00888", "reason": "연임 여부 평가가 계약 이행실적 평가이므로 근무평정으로 확정하지 않았다.", "batch": "B0042", "source_item_id": "23859:3-5-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00889", "reason": "집행간부 자격요건의 도입문으로 구체적인 catalog 개념을 정하지 않는다.", "batch": "B0042", "source_item_id": "23859:4-0-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00890", "reason": "국가공무원법상 결격사유 참조로 catalog 개념과 직접 연결되지 않는다.", "batch": "B0042", "source_item_id": "23859:4-0-1-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U00892", "reason": "경력·전문지식 요건은 catalog의 인사·보수·휴가 개념을 직접 규율하지 않는다.", "batch": "B0042", "source_item_id": "23859:4-0-3-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U01579", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙10:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01580", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙11:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01581", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙12:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01583", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙13:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01584", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙14:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01585", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙15:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01586", "reason": "시행일과 특정 조항의 시행일만 규정하고 해당 조항의 내용이 없어 개념 연결을 확정할 수 없다.", "batch": "B0076", "source_item_id": "24010:부칙16:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01587", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙17:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01588", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙18:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01589", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙19:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01590", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙1:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01591", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙20:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01592", "reason": "시행일만 규정하여 인사·보수·휴가 개념 연결 근거가 없다.", "batch": "B0076", "source_item_id": "24010:부칙21:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U01917", "reason": "문장이 제17조 승진소요년수 조항을 열거하다가 끝나므로 경과조치의 구체적 적용 범위를 확인할 수 없다.", "batch": "B0092", "source_item_id": "24024:부칙40:2-0-0-0", "classification": "SOURCE_PARSE_TRUNCATION_REQUIRES_CORRECTION"}
+{"unit": "U01926", "reason": "제34조 제1항 제3호 및 제37조 제1항 제6호의 내용이 제공되지 않아 해당 조항이 어떤 인사·보수·휴가 개념을 규율하는지 확인할 수 없다.", "batch": "B0092", "source_item_id": "24024:부칙49:2-0-0-0", "classification": "REFERENCED_RULE_CONTEXT_NOT_IN_SINGLE_ARTICLE_REVIEW"}
+{"unit": "U01992", "reason": "정의 조의 총칙 문장으로 허용 catalog 개념을 직접 규정하지 않는다.", "batch": "B0096", "source_item_id": "24047:3-0-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U01993", "reason": "보수는 catalog에 없는 개념이며, 문장에 열거된 연봉·성과급·기타수당을 각 개념의 정의로 확장할 근거는 없다.", "batch": "B0096", "source_item_id": "24047:3-0-1-0", "classification": "RESOLVED_BY_DIRECT_SOURCE_REVIEW"}
+{"unit": "U02012", "reason": "시행일만 정하고 허용 catalog 개념의 인사·보수·휴가 규칙은 정하지 않는다.", "batch": "B0096", "source_item_id": "24047:부칙10:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U02015", "reason": "시행일만 정하고 허용 catalog 개념의 인사·보수·휴가 규칙은 정하지 않는다.", "batch": "B0096", "source_item_id": "24047:부칙11:1-0-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U02085", "reason": "원문은 '징계 해직'이라고 하며 catalog의 '면직'과 동일한지 확정할 수 없다.", "batch": "B0099", "source_item_id": "24125:7-1-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U02202", "reason": "용어 정의 조항의 서문으로 특정 catalog 개념의 정의나 규칙을 직접 정하지 않는다.", "batch": "B0105", "source_item_id": "24210:2-0-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U02204", "reason": "임금피크제 대상자라는 비 catalog 용어를 정의하며, catalog 개념인 임금피크제 자체의 규칙은 직접 정하지 않는다.", "batch": "B0105", "source_item_id": "24210:2-0-2-0", "classification": "RESOLVED_BY_DIRECT_SOURCE_REVIEW"}
+{"unit": "U02205", "reason": "기준급여는 catalog의 기본급 또는 급여지급과 동일하다고 확정할 수 없는 별도 용어이다.", "batch": "B0105", "source_item_id": "24210:2-0-3-0", "classification": "RESOLVED_BY_DIRECT_SOURCE_REVIEW"}
+{"unit": "U02475", "reason": "연수는 인사·보수·휴가 catalog의 허용 개념에 해당하지 않아 연결하지 않음.", "batch": "B0117", "source_item_id": "43558:37-0-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U02478", "reason": "공무직 정원 관리는 catalog의 인사·보수·휴가 개념에 직접 해당하지 않아 연결하지 않음.", "batch": "B0117", "source_item_id": "43558:5-0-0-0", "classification": "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER"}
+{"unit": "U02682", "reason": "시행일만 정하고 승진 자체의 내용·조건·효과를 규정하지 않아 승진 간선을 생성하지 않았다.", "batch": "B0129", "source_item_id": "48440:부칙5:1-1-0-0", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}
+{"unit": "U02686", "reason": "시행일만 정하고 승진 자체의 내용·조건·효과를 규정하지 않아 승진 간선을 생성하지 않았다.", "batch": "B0129", "source_item_id": "48440:부칙비정형6", "classification": "NO_EDGE_HISTORICAL_DATE_RECORD"}

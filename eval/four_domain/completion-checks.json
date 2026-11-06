@@ -1,0 +1,71 @@
+{
+  "original_file_unchanged": true,
+  "original_row_preservation": {
+    "meta": {
+      "original_rows": 8,
+      "preserved_rows": 8,
+      "unchanged": true
+    },
+    "document": {
+      "original_rows": 17,
+      "preserved_rows": 17,
+      "unchanged": true
+    },
+    "article": {
+      "original_rows": 49,
+      "preserved_rows": 49,
+      "unchanged": true
+    },
+    "item": {
+      "original_rows": 135,
+      "preserved_rows": 135,
+      "unchanged": true
+    },
+    "concept": {
+      "original_rows": 6,
+      "preserved_rows": 6,
+      "unchanged": true
+    },
+    "concept_attr": {
+      "original_rows": 38,
+      "preserved_rows": 38,
+      "unchanged": true
+    },
+    "concept_primary": {
+      "original_rows": 7,
+      "preserved_rows": 7,
+      "unchanged": true
+    },
+    "edge_item_concept": {
+      "original_rows": 151,
+      "preserved_rows": 151,
+      "unchanged": true
+    },
+    "edge_attr": {
+      "original_rows": 148,
+      "preserved_rows": 148,
+      "unchanged": true
+    },
+    "edge_head": {
+      "original_rows": 38,
+      "preserved_rows": 38,
+      "unchanged": true
+    },
+    "change_log": {
+      "original_rows": 46,
+      "preserved_rows": 46,
+      "unchanged": true
+    }
+  },
+  "graph_stats": {
+    "all_edges": 1997,
+    "user_original_edges": 151,
+    "source_checked_active_new_edges": 1766,
+    "all_head_bindings": 516
+  },
+  "tests_passed": 9,
+  "reviewed_db_sha256": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+  "model_benchmark_rerun": true,
+  "human_semantic_signoff": false,
+  "results": "results-openai-luna-reviewed-120"
+}

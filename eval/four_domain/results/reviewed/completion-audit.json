@@ -1,0 +1,10 @@
+{
+  "records": 360,
+  "unique_pairs": 360,
+  "actual_curated_edges": 151,
+  "baseline_controls_identical": 240,
+  "graph_db_hash_verified": true,
+  "input_gold_scorer_hashes_verified": true,
+  "labels_modified": false,
+  "source_quote_audit_performed": true
+}
