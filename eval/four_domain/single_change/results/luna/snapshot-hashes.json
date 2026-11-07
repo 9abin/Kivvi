@@ -1,0 +1,12 @@
+{
+  "api-usage.json": "ac81034114770d4060320f299cc72ccdb28baaba55948f6b29dfa28ed10b0300",
+  "case_results.jsonl": "1d7f986f682f28052d515ce6234c145af2ec4ae1af94addb3c01aed1e670a5aa",
+  "config.json": "dc1ef8933b02a27895ea837682eb0d321cf943dd7e6bc2104de1b7296fcdd90a",
+  "failed_tasks.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "predictions.jsonl": "a27308f7d3ba60896cbe56c55f5371e647c14cbdae9edb237c3614ce2d1caf87",
+  "report.md": "d76349d8af3224efdc63f2c33b7eacd623200b362b0155778b53ad15593c300f",
+  "retrieval.jsonl.gz": "b162797c57a3fe520edef0360d24ef5a7ac7b0e6e54e9b4b0b14d60e599794ef",
+  "summary.json": "71e9c9f6f171c96e7d827a841341de588907d211ce57e54d8201247f8a3fb5e1",
+  "unjudged.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "verification.json": "a065921eb8675ae70e133644c7817e4a2eaf535b8620331c9aec1cd9d1af1ce7"
+}

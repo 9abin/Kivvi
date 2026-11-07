@@ -23,7 +23,15 @@
 - `inputs.jsonl`: 모든 문항의 `amendment_ops` 길이는 1이다.
 - `validation-summary.json`: 실제로 달라진 논리 조항도 각 1개임을 검증한다.
 
-**모델 평가 실행 전이다. 기존 120문항의 88/120·93/120 등 점수는 이 구성의 성능이 아니다.** 기존 실험 파일과 결과는 상위 폴더에 보존한다.
+## 전체 결과
+
+| 방식 | 전체 60문항 결과 |
+|---|---:|
+| RAG | 46/60 · 76.7% |
+| PR 그래프 + RAG | 52/60 · 86.7% |
+| 복원·재검토 도메인 그래프 + RAG | 53/60 · 88.3% |
+
+세 방식 합계 180개 응답을 완료했다. [실제 응답·채점·재현 기록](results/luna/README.md)을 참고한다. 기존 120문항의 88/120·93/120 등 점수는 다른 구성의 성능이며, 상위 폴더에 보존한다.
 
 저장소 루트에서 실행한다.
 
@@ -33,3 +41,5 @@ uv run --no-project --with numpy python eval/four_domain/single_change/run_evalu
 ```
 
 같은 Luna·후보 10개·전후 상태 비교 지시로 RAG, PR 그래프+RAG, 복원 도메인 그래프+RAG를 비교한다. 출력은 무시되는 `single_change/runs/`에 저장하며, 원본 DB와 기존 평가 스냅샷은 변경하지 않는다.
+
+API 없는 결과 재채점: `python eval/four_domain/single_change/replay_results.py`
