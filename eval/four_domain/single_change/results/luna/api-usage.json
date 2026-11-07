@@ -1,0 +1,11 @@
+[
+  {
+    "calls": 205,
+    "usage": {
+      "prompt_tokens": 769213,
+      "total_tokens": 2399233,
+      "input_tokens": 1577603,
+      "output_tokens": 52417
+    }
+  }
+]
