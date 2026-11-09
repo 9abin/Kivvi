@@ -16,6 +16,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src")); sys.path.insert(0, str(ROOT / "scripts"))
 sys.stdout.reconfigure(encoding="utf-8")
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
+TAG = os.environ.get("FD_TAG", "")   # "" = 120문항, "_single" = 한 곳 변경 60문항
+
+
+def issue_of(g, state, iid):
+    """new는 after, resolved는 before 쪽에서 문제 id로 꺼낸다. 120문항은 이슈 딕셔너리, 한 곳 변경 60문항은 id 목록 + before/after_facts(좌 · 우 조)다."""
+    box = g["after_issues"] if state == "new" else g["before_issues"]
+    if isinstance(box, dict):
+        return box[iid]
+    f = (g["after_facts"] if state == "new" else g["before_facts"])[iid]
+    return {"logical_pair": [f["left"]["logical_item_id"], f["right"]["logical_item_id"]], "kind": f["kind"]}
 
 
 def amend_text(op):
@@ -41,7 +51,7 @@ def amend_text(op):
 def main():
     from regcheck.impact_view import load_context, run
     gold = {json.loads(l)["id"]: json.loads(l) for l in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines() if l.strip()}
-    ops = json.loads((ROOT / "out/four_domain_ops.json").read_text(encoding="utf-8"))
+    ops = json.loads((ROOT / f"out/four_domain{TAG}_ops.json").read_text(encoding="utf-8"))
     regs = {r["reg_id"]: r for r in (json.loads(Path(p).read_text(encoding="utf-8")) for p in glob.glob(str(ROOT / "out/parsed/[0-9]*.json")))}
     ctx = load_context(ROOT, regs)
     rag = None
@@ -56,6 +66,10 @@ def main():
             txt = amend_text(op)
             try:
                 r = run(ctx, regs, reg, txt, f"{q}-{k}", rag=rag)
+                if r["cq"].kind == "분석 실패" and op["type"] == "replace" and op.get("old") and "없음" in (r["cq"].error or ""):
+                    # 가상 시작 상태(before_overlay)의 문구가 실제 코퍼스에 없다: 실제 본문에 있는 쪽(new)을 기준으로 방향을 뒤집어 분석한다 (같은 사항의 짝을 찾는 데는 동등)
+                    r = run(ctx, regs, reg, amend_text({**op, "old": op["new"], "new": op["old"]}), f"{q}-{k}", rag=rag)
+                    stat["역방향 재분석"] += 1
             except Exception as e:   # noqa: BLE001
                 stat["오류"] += 1; fails.append((q, k, txt, repr(e)[:80])); cache[(q, k)] = None; continue
             if r["cq"].kind == "분석 실패":
@@ -73,7 +87,7 @@ def main():
             touched.setdefault(op["article"], []).append(k)
         for state in ("new", "resolved"):
             for iid in g["expected_delta"][state]:
-                iss = (g["after_issues"] if state == "new" else g["before_issues"])[iid]
+                iss = issue_of(g, state, iid)
                 a, b = [x.split("-")[0] for x in iss["logical_pair"]]
                 kind = iss["kind"]
                 for me, partner in ((a, b), (b, a)):
@@ -102,7 +116,7 @@ def main():
         tot.update(c)
     print(f"{'합계':28s} {tot['쌍']:4d} {tot['후보 안']:4d} ({tot['후보 안']/max(tot['쌍'],1):.0%}) {tot['기본화면 안']:4d} ({tot['기본화면 안']/max(tot['쌍'],1):.0%})")
     print("\n놓친 쌍 표본:", miss[:12])
-    json.dump({"cache": {f"{q}-{k}": (None if v is None else {"kind": v["kind"], "all": sorted(v["all"]), "dflt": sorted(v["dflt"])}) for (q, k), v in cache.items()}}, open(ROOT / "out/four_domain_stage1.json", "w", encoding="utf-8"), ensure_ascii=False)
+    json.dump({"cache": {f"{q}-{k}": (None if v is None else {"kind": v["kind"], "all": sorted(v["all"]), "dflt": sorted(v["dflt"])}) for (q, k), v in cache.items()}}, open(ROOT / f"out/four_domain{TAG}_stage1.json", "w", encoding="utf-8"), ensure_ascii=False)
 
 
 if __name__ == "__main__":

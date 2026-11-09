@@ -14,6 +14,7 @@
 | `impact_r7_pool/` | `out/fresh7_label_kit/산출/` | 7차 휴직 20문항(I101~I120) |
 | `coamend/` | `out/coamend_kit/산출/`, `out/coamend_none_key.json` | 동반 개정 「연결 없음」 282쌍의 AI 판정(`labels_a/b.json`)과 쌍 id 대응(`none_key.json`) |
 | `four_domain_ops.json` | `out/four_domain_ops.json` | 한석희 120문항(`questions.md`)에서 파싱한 개정 항목(`scripts/four_domain_parse.py`) |
+| `four_domain_single_ops.json` | `out/four_domain_single_ops.json` | 한석희 한 곳 변경 60문항(`single_change/inputs.jsonl`)에서 만든 개정 항목(`scripts/four_domain_ops_from_inputs.py`). 실행은 `FD_TAG=_single` |
 
 ## 읽는 법과 주의
 

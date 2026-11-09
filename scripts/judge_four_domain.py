@@ -12,6 +12,7 @@
 """
 import collections
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.stdout.reconfigure(encoding="utf-8")
 NUM = r"\d+(?:/\d+)?(?:\.\d+)?"
 RARE_DF = 20   # 이 문서 수 이하에만 나오는 낱말을 희귀하다고 본다
+TAG = os.environ.get("FD_TAG", "")   # "" = 120문항, "_single" = 한 곳 변경 60문항
 sl = lambda s: re.sub(r"\s+", "", s or "")  # noqa: E731
 JOSA = re.compile(r"(으로|에서|에게|까지|부터|이다|하는|하여|한다|에는|에도|의|를|을|은|는|이|가|에|로|과|와|도|만)$")
 
@@ -31,6 +33,15 @@ def words(t):
         if len(w) >= 3:
             out.add(w)
     return out
+
+
+def issue_of(g, state, iid):
+    """new는 after, resolved는 before 쪽에서 문제 id로 꺼낸다. 120문항은 이슈 딕셔너리, 한 곳 변경 60문항은 id 목록 + before/after_facts(좌 · 우 조)다."""
+    box = g["after_issues"] if state == "new" else g["before_issues"]
+    if isinstance(box, dict):
+        return box[iid]
+    f = (g["after_facts"] if state == "new" else g["before_facts"])[iid]
+    return {"logical_pair": [f["left"]["logical_item_id"], f["right"]["logical_item_id"]], "kind": f["kind"]}
 
 
 def jl(p):
@@ -47,14 +58,27 @@ def main():
     gold = {x["id"]: x for x in jl(sys.argv[1])}
     cases_dir = Path(sys.argv[2]); base = {r["id"]: r for r in jl(sys.argv[3])}
     use_t2 = "--no-t2" not in sys.argv
-    ops = json.loads((ROOT / "out/four_domain_ops.json").read_text(encoding="utf-8"))
-    st1 = json.loads((ROOT / "out/four_domain_stage1.json").read_text(encoding="utf-8"))["cache"]
+    ops = json.loads((ROOT / f"out/four_domain{TAG}_ops.json").read_text(encoding="utf-8"))
+    st1 = json.loads((ROOT / f"out/four_domain{TAG}_stage1.json").read_text(encoding="utf-8"))["cache"]
     nodes = {n["id"]: n for n in jl(ROOT / "out/kg/nodes.jsonl")}
     cites_in = collections.defaultdict(set)
     for e in jl(ROOT / "out/kg/edges.jsonl"):
         if e["type"] == "CITES":
             cites_in[e["dst"]].add(e["src"])
     df = collections.Counter(w for r in base.values() for w in words(r["text"]))
+    dom = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in sys.argv if a.startswith(("--dom=", "--dom-mode="))}
+    facts = collections.defaultdict(list)   # 조 id -> [(항 id, 속성, 값)] 도메인 온톨로지 DB의 항별 속성값 (원문 기준)
+    concepts = collections.defaultdict(set)   # 항 id -> 연결된 개념 이름들
+    if "--dom" in dom:
+        import sqlite3
+        c = sqlite3.connect(dom["--dom"])
+        for art, it, attr, val in c.execute("select s.logical_article_id, s.logical_item_id, f.attr, f.value from source_binding s join edge_item_concept e on e.item_id=s.item_id join edge_rule_fact f on f.edge_id=e.id where f.value is not null"):
+            facts[art].append((it, attr, val))
+        for it, cn in c.execute("select s.logical_item_id, e.concept from source_binding s join edge_item_concept e on e.item_id=s.item_id"):
+            concepts[it].add(cn)
+    dmode = dom.get("--dom-mode", "fallback")
+    TOK = re.compile(NUM + "[가-힣%]?")
+    toks = lambda s: set(TOK.findall(s or ""))  # noqa: E731
 
     def overlay(q, which):
         p = cases_dir / "cases" / q / f"{which}_overlay.jsonl"
@@ -93,6 +117,20 @@ def main():
             cand = (st1.get(f"{q}-{k}") or {}).get("all", [])
             wU = words(ut[max(0, i - 40):i + len(sa) + 40])
             overlap = lambda t, s0, e0: bool({w for w in words(t[max(0, s0 - 40):e0 + 40]) & wU if df[w] <= RARE_DF})  # noqa: E731
+            ntok = toks(a) | toks(b)
+            uf = [(it, at, v) for it, at, v in facts.get(U, ()) if toks(v) & ntok] if facts else []
+            attrs_U = {at for _, at, _ in uf}
+            CU = set().union(*[concepts[it] for it, _, _ in uf]) if uf else set()   # 바뀌는 값을 가진 항의 개념들
+
+            def partner_toks(P):
+                """P에서 U와 같은 속성이면서 U와 개념이 가장 많이 겹치는 항들의 값 토큰."""
+                rows = [(len(concepts[it] & CU), it, v) for it, at, v in facts.get(P, ()) if at in attrs_U and toks(v) & ntok]
+                if not rows:
+                    return set()
+                best = max(r[0] for r in rows)
+                return {tk for ov, _, v in rows if ov == best and best > 0 for tk in toks(v) & ntok}
+            if facts and dmode == "union" and attrs_U:
+                cand = list(cand) + [A for A in facts if A not in cand and partner_toks(A)]
             for P in cand:
                 if P == U or P not in base:
                     continue
@@ -111,6 +149,11 @@ def main():
                             return mm.group(1), "T2"
                     return None, None
                 vb, how_b = val(text_b); va, _ = val(text_a)
+                if (vb is None or va is None) and attrs_U and text_b(P) == sl(base[P]["text"]) and text_a(P) == text_b(P):
+                    # 도메인 DB 폴백: P가 이번 문항에서 바뀌지 않았고, U와 같은 속성의 사실값이 옛 · 새 값 중 하나와 같다
+                    pv = partner_toks(P)
+                    if len(pv) == 1:
+                        vb = va = next(iter(pv)); how_b = "DOM"
                 if vb is None or va is None:
                     continue
                 key = tuple(sorted((U, P)))
@@ -120,6 +163,17 @@ def main():
                     issues.add(("resolved", key, "value_mismatch", how_b))
         # (2) 깨진 인용
         for op in ops[q]:
+            if op["type"] == "move" and op.get("mode") == "state":
+                # 한 곳 변경 평가셋: 인용하는 조는 개정 전 기본 번호로 X를 가리키고, X의 번호는 개정 전 · 후 상태에서 따로 정해진다.
+                X = op["article"]; lab0 = sl((base.get(X) or {}).get("label", ""))
+                lab_b = sl((bo.get(X) or base.get(X) or {}).get("label", "")); lab_a = sl((ao.get(X) or bo.get(X) or base.get(X) or {}).get("label", ""))
+                broken_b, broken_a = lab0 != lab_b, lab0 != lab_a
+                if broken_b != broken_a:
+                    for u in cites_in.get(X, ()):
+                        if nodes.get(u, {}).get("type") == "Supplement":
+                            continue
+                        issues.add(("new" if broken_a else "resolved", tuple(sorted((u.split("-")[0], X))), "broken_citation", "state"))
+                continue
             if op["type"] != "move":
                 continue
             X, N, M = op["article"], sl(op["label"]), sl(op["to"])
@@ -144,7 +198,7 @@ def main():
         s = set()
         for state in ("new", "resolved"):
             for iid in g["expected_delta"][state]:
-                iss = (g["after_issues"] if state == "new" else g["before_issues"])[iid]
+                iss = issue_of(g, state, iid)
                 a, b = [x.split("-")[0] for x in iss["logical_pair"]]
                 s.add((state, tuple(sorted((a, b))), iss["kind"]))
         return s
@@ -175,7 +229,7 @@ def main():
             print(f"  정상 변경 {c['문항']}문항 중 오경보가 있는 문항 {c['오경보 문항']}")
         else:
             print(f"  {k[0]:9s} {k[1]:16s} 정답 {c['정답']:3d} 맞음 {c['맞음']:3d} ({c['맞음']/max(c['정답'],1):.0%})")
-    json.dump({q: [list(map(str, i)) for i in sorted(v, key=str)] for q, v in pred.items()}, open(ROOT / "out/four_domain_stage2.json", "w", encoding="utf-8"), ensure_ascii=False)
+    json.dump({q: [list(map(str, i)) for i in sorted(v, key=str)] for q, v in pred.items()}, open(ROOT / f"out/four_domain{TAG}_stage2.json", "w", encoding="utf-8"), ensure_ascii=False)
 
 
 if __name__ == "__main__":

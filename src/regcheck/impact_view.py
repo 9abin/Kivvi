@@ -80,7 +80,7 @@ def make_rag(model, index) -> Callable[[str, int], list[str]]:
 
 
 def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, rag: Callable[[str, int], list[str]] | None = None,
-        rag_k: int = 30, graph_n: int = 20, leave=False) -> dict:
+        rag_k: int = 30, graph_n: int = 20, leave=False, tier_open: bool = True) -> dict:
     cq = analyze(regs[reg_id], amendment, cid)
     if cq.kind == "분석 실패":
         return {"cq": cq, "view": {"default": [], "all": [], "hidden": 0}, "cards": [], "error": cq.error or "개정문을 읽지 못함"}
@@ -105,6 +105,6 @@ def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, r
     elif not leave:
         layer = None
     cands = collect(ctx.kg, cq, ctx.find, rag_fn, texts, rag_k=rag_k, leave=layer)
-    view = split_view(cands, rag_k=rag_k, graph_n=graph_n)
+    view = split_view(cands, rag_k=rag_k, graph_n=graph_n, tier_open=tier_open)
     cards = [card(c, cq, ctx.nodes, ctx.unit_text) for c in view["default"]]
     return {"cq": cq, "view": view, "cards": cards, "error": ""}
