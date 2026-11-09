@@ -7,7 +7,7 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 sys.stdout.reconfigure(encoding="utf-8")
 NS = Path(sys.argv[1]); LIMIT = int(os.environ.get("LIMIT", "0"))
-D = pickle.load(open(NS / "pairs6.pkl", "rb")); items, texts = D["items"], D["texts"]
+D = pickle.load(open(NS / os.environ.get("PAIRS", "pairs6.pkl"), "rb")); items, texts = D["items"], D["texts"]
 from transformers import AutoModel
 path = snapshot_download("kakaocorp/kanana-2-v-decide-3b-2611")
 model = AutoModel.from_pretrained(path, trust_remote_code=True, dtype=torch.bfloat16).to("cuda").eval()
@@ -16,10 +16,10 @@ Q = {
     "S": {"type": "score", "instructions": "개정된 조항을 고칠 때 후보 조항을 함께 확인해야 하는 정도는?", "criteria": ["무관", "약한 관련", "확인 권장", "반드시 함께 수정"]},
 }
 outN, outS = {}, {}
-fN, fS = NS / "scores6_kananaN.pkl", NS / "scores6_kananaS.pkl"
+fN, fS = NS / ("scores6_kananaN" + os.environ.get("SUF", "") + ".pkl"), NS / ("scores6_kananaS" + os.environ.get("SUF", "") + ".pkl")
 if fN.exists(): outN = pickle.load(open(fN, "rb")); outS = pickle.load(open(fS, "rb"))
 t0 = time.time(); n = 0
-for s, v in [("team", items["team"]), ("pr12", items["pr12"])]:
+for s, v in [(k, items[k]) for k in os.environ.get("SETS", "team,pr12").split(",")]:
     for i, x in enumerate(v[:LIMIT] if LIMIT else v):
         for d in (x["docs"][:25] if s == "pr12" else x["docs"]):
             key = (s, i, d)

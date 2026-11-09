@@ -20,11 +20,11 @@ if MODE == "smoke":
     print(r["answers"]["rel"]["score"], r["answers"]["rel"]["probabilities"])
     sys.exit()
 
-D = pickle.load(open(NS / "pairs6.pkl", "rb")); items, texts = D["items"], D["texts"]
-OUT = NS / "scores6_d3.pkl"
+D = pickle.load(open(NS / os.environ.get("PAIRS", "pairs6.pkl"), "rb")); items, texts = D["items"], D["texts"]
+OUT = NS / ("scores6_d3" + os.environ.get("SUF", "") + ".pkl")
 scores = pickle.load(open(OUT, "rb")) if OUT.exists() else {}
 LIMIT = int(os.environ.get("LIMIT", "0")); t0 = time.time(); n = 0
-for s in ("team", "pr12"):
+for s in os.environ.get("SETS", "team,pr12").split(","):
     for i, x in enumerate(items[s][:LIMIT] if LIMIT else items[s]):
         for d in (x["docs"][:25] if s == "pr12" else x["docs"]):
             if (s, i, d) in scores: continue
