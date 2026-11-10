@@ -79,6 +79,34 @@ def make_rag(model, index) -> Callable[[str, int], list[str]]:
     return rag
 
 
+def _clause_query(old_a, texts: dict, amendment: str) -> str:
+    """개정문의 따옴표 안 옛 문구가 들어 있는 항(없으면 조 원문)에 개정문을 이어 붙인 글."""
+    q = re.findall(r'"([^"]+)"', amendment)
+    old = re.sub(r"\s+", "", q[0]) if q else ""
+    base = texts["old"]
+    if old and old_a:
+        hit = [it["text"] for it in (old_a.get("items") or []) if old in re.sub(r"\s+", "", it.get("text", ""))]
+        if hit:
+            base = min(hit, key=len)
+    return f"{base} {amendment}"[:1500]
+
+
+def _fuse_clause(all_cands: list, rag_fn, old_a, texts: dict, amendment: str, w: float, k: int = 50) -> list:
+    """기존 후보 순서와 항 질의 의미 검색 순위를 순위 합치기(RRF)로 섞는다. 새로 들어오는 후보의 경로 이름은 기존 의미 검색과 같은 RAG."""
+    from .collect import Candidate, _tier
+    lane = rag_fn(_clause_query(old_a, texts, amendment), k)
+    by_id = {c.id: c for c in all_cands}
+    sc = {c.id: 1 / (60 + r) for r, c in enumerate(all_cands)}
+    for r, a in enumerate(lane):
+        sc[a] = sc.get(a, 0.0) + w / (60 + r)
+        if a not in by_id:
+            c = Candidate(a, 0.2 - 0.001 * r)
+            c.paths.append("RAG")
+            c.tier = _tier(c.paths)
+            by_id[a] = c
+    return [by_id[a] for a in sorted(sc, key=lambda a: -sc[a])]
+
+
 def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, rag: Callable[[str, int], list[str]] | None = None,
         rag_k: int = 30, graph_n: int = 20, leave=False, tier_open: bool = True) -> dict:
     cq = analyze(regs[reg_id], amendment, cid)
@@ -106,5 +134,9 @@ def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, r
         layer = None
     cands = collect(ctx.kg, cq, ctx.find, rag_fn, texts, rag_k=rag_k, leave=layer)
     view = split_view(cands, rag_k=rag_k, graph_n=graph_n, tier_open=tier_open)
+    import os as _os
+    _w = float(_os.environ.get("CLAUSE_RRF") or 0)   # 시험용: 개정된 항 질의 의미 검색을 순위 합치기로 더한다 (기본 꺼짐)
+    if _w > 0 and rag:
+        view["all"] = _fuse_clause(view["all"], rag_fn, old_a, texts, amendment, _w)
     cards = [card(c, cq, ctx.nodes, ctx.unit_text) for c in view["default"]]
     return {"cq": cq, "view": view, "cards": cards, "error": ""}
