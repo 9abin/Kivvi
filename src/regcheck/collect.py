@@ -106,8 +106,8 @@ def collect(kg: KG, cq: ChangeQuery, find: Callable[[str], list[str]], rag: Call
                         add(x["src"], 0.5, "CITES_DOC_NAME")
                     add(f"{e['dst']}:1", 0.5, "CITES_DOC_NAME")
         import os as _os
-        _v = _os.environ.get("EXPR_RAG")   # 시험용: 표현 수정에서도 의미 검색 (old=제목+수정 전 원문, clause=수정 전 원문+개정문)
-        if _v:
+        _v = _os.environ.get("EXPR_RAG", "clause")   # 표현 수정에서도 의미 검색 (old=제목+수정 전 원문, clause=수정 전 원문+개정문). 기본 clause, 끄려면 EXPR_RAG=off (가빈 리포트 91)
+        if _v and _v != "off":
             _q = texts.get('title','') + chr(10) + texts.get('old','') if _v == "old" else f"{texts.get('old','')} {texts.get('amend','')}"
             for r, n in enumerate(rag(_q, rag_k)):
                 add(n, 0.2 - 0.001 * r, "RAG")

@@ -41,9 +41,20 @@ class CollectTest(unittest.TestCase):
         self.assertEqual(tiers, sorted(tiers))
         self.assertEqual(out[0].tier, "확정급")
 
-    def test_unreadable_or_wording_only_change_collects_nothing(self):
-        for kind in ("분석 실패", "표현 수정"):
-            self.assertEqual(collect(self.kg, self.cq(kind), no_find, lambda q, k: ["B:3"], TEXTS), [])
+    def test_unreadable_change_collects_nothing(self):
+        self.assertEqual(collect(self.kg, self.cq("분석 실패"), no_find, lambda q, k: ["B:3"], TEXTS), [])
+
+    def test_wording_only_change_uses_semantic_search_by_default(self):
+        # 표현 수정도 수정 전 원문 + 개정문으로 의미 검색 후보를 낸다 (기본 켬, 끄려면 EXPR_RAG=off)
+        out = collect(self.kg, self.cq("표현 수정"), no_find, lambda q, k: ["B:3"], TEXTS)
+        self.assertEqual([c.id for c in out], ["B:3"])
+        self.assertEqual(out[0].paths, ["RAG"])
+        import os
+        os.environ["EXPR_RAG"] = "off"
+        try:
+            self.assertEqual(collect(self.kg, self.cq("표현 수정"), no_find, lambda q, k: ["B:3"], TEXTS), [])
+        finally:
+            del os.environ["EXPR_RAG"]
 
     def test_rag_query_follows_change_kind(self):
         seen = {}

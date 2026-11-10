@@ -135,7 +135,7 @@ def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, r
     cands = collect(ctx.kg, cq, ctx.find, rag_fn, texts, rag_k=rag_k, leave=layer)
     view = split_view(cands, rag_k=rag_k, graph_n=graph_n, tier_open=tier_open)
     import os as _os
-    _w = float(_os.environ.get("CLAUSE_RRF") or 0)   # 시험용: 개정된 항 질의 의미 검색을 순위 합치기로 더한다 (기본 꺼짐)
+    _w = float(_os.environ.get("CLAUSE_RRF", "1.0") or 0)   # 개정된 항 질의 의미 검색을 순위 합치기로 더한다 (기본 1.0, 끄려면 CLAUSE_RRF=0) (가빈 리포트 91)
     if _w > 0 and rag:
         view["all"] = _fuse_clause(view["all"], rag_fn, old_a, texts, amendment, _w)
     cards = [card(c, cq, ctx.nodes, ctx.unit_text) for c in view["default"]]

@@ -48,7 +48,7 @@ def main():
     for name, d in sets.items():
         ch = {json.loads(l)["id"]: json.loads(l) for l in (d / "산출/changes.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()}
         lb = {json.loads(l)["id"]: json.loads(l) for l in (d / "산출/labels_final.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()}
-        Q, zero, fails, unmapped = [], [], 0, 0
+        Q, zero, fails, unmapped, sizes = [], [], 0, 0, []
         for i, m in ch.items():
             s = m["수정"]; gold = set()
             for e in lb[i]["영향"]:
@@ -64,6 +64,7 @@ def main():
             r = run(ctx, regs, by[s["규정"]], s["개정문"], i, rag=rag, leave=links)
             ok = r["cq"].kind != "분석 실패"; fails += not ok
             allc = r["view"]["all"] if ok else []
+            sizes.append(len(allc))
             if not gold:
                 zero.append(len(allc)); continue
             L = {"합침": [x.id for x in allc]}
@@ -73,7 +74,7 @@ def main():
             L["RAG"] = [u for u in (rec[0] if (ok and rec) else []) if u not in set(r["cq"].starts or [])]
             Q.append((gold, L))
         G = sum(len(g) for g, _ in Q)
-        print(f"\n## {name}: 문항 {len(ch)} (정답 있는 {len(Q)}), 정답 쌍 {G}, 개정문 분석 실패 {fails}, 연결 못한 정답 {unmapped}, 정답 0개 문항 후보 평균 {sum(zero) / max(len(zero), 1):.0f}")
+        print(f"\n## {name}: 문항 {len(ch)} (정답 있는 {len(Q)}), 정답 쌍 {G}, 개정문 분석 실패 {fails}, 연결 못한 정답 {unmapped}, 정답 0개 문항 후보 평균 {sum(zero) / max(len(zero), 1):.0f}, 문항당 후보 평균 {sum(sizes) / max(len(sizes), 1):.1f}")
         print(f"{'경로':6s} " + " ".join(f"{'@' + str(k) if k != '전체' else '전체':>6s}" for k in KS) + " | 이 경로만 찾은 쌍")
         for ln in lanes + ["합침"]:
             row = []
