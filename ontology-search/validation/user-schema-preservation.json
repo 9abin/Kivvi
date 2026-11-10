@@ -1,0 +1,37 @@
+{
+  "concept": {
+    "original_rows": 6,
+    "identical_rows_preserved": 6,
+    "all_preserved": true
+  },
+  "concept_attr": {
+    "original_rows": 38,
+    "identical_rows_preserved": 38,
+    "all_preserved": true
+  },
+  "concept_primary": {
+    "original_rows": 7,
+    "identical_rows_preserved": 7,
+    "all_preserved": true
+  },
+  "edge_item_concept": {
+    "original_rows": 151,
+    "identical_rows_preserved": 151,
+    "all_preserved": true
+  },
+  "edge_attr": {
+    "original_rows": 148,
+    "identical_rows_preserved": 148,
+    "all_preserved": true
+  },
+  "edge_head": {
+    "original_rows": 38,
+    "identical_rows_preserved": 38,
+    "all_preserved": true
+  },
+  "change_log": {
+    "original_rows": 46,
+    "identical_rows_preserved": 46,
+    "all_preserved": true
+  }
+}

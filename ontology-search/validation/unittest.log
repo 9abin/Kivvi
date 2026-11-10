@@ -1,0 +1,19 @@
+test_every_seed_key (tests.test_domain_keys.DomainKeyTests.test_every_seed_key) ... ok
+test_inactive_edges (tests.test_domain_keys.DomainKeyTests.test_inactive_edges) ... ok
+test_shared_source (tests.test_domain_keys.DomainKeyTests.test_shared_source) ... ok
+test_snapshot_compatibility (tests.test_domain_keys.DomainKeyTests.test_snapshot_compatibility) ... ok
+test_candidate_budget_is_also_hard_bound (tests.test_propagating_graph.PropagationTests.test_candidate_budget_is_also_hard_bound) ... ok
+test_cycles_and_duplicate_paths_terminate (tests.test_propagating_graph.PropagationTests.test_cycles_and_duplicate_paths_terminate) ... ok
+test_definition_does_not_leak_to_another_regulation (tests.test_propagating_graph.PropagationTests.test_definition_does_not_leak_to_another_regulation) ... ok
+test_event_budget_is_hard_bound (tests.test_propagating_graph.PropagationTests.test_event_budget_is_hard_bound) ... ok
+test_gate_stops_after_initial_two_hops (tests.test_propagating_graph.PropagationTests.test_gate_stops_after_initial_two_hops) ... ok
+test_new_fact_can_revisit_same_node_but_state_budget_holds (tests.test_propagating_graph.PropagationTests.test_new_fact_can_revisit_same_node_but_state_budget_holds) ... ok
+test_wording_change_still_follows_explicit_reference (tests.test_propagating_graph.PropagationTests.test_wording_change_still_follows_explicit_reference) ... ok
+test_change_property_is_procedure_not_all_salary_context (tests.test_scoped_propagating_graph.ScopedTests.test_change_property_is_procedure_not_all_salary_context) ... ok
+test_delegation_does_not_open_unreached_sibling_item (tests.test_scoped_propagating_graph.ScopedTests.test_delegation_does_not_open_unreached_sibling_item) ... ok
+test_terminal_candidate_never_becomes_second_hop_seed (tests.test_scoped_propagating_graph.ScopedTests.test_terminal_candidate_never_becomes_second_hop_seed) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.269s
+
+OK
