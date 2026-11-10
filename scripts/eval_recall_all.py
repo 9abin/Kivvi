@@ -57,13 +57,18 @@ def section_a():
 def build_rag(ctx):
     from exp_query_text_dev import BM25
     from sentence_transformers import SentenceTransformer
-    V = ecd.V
+    q4b = os.environ.get("RAG_EMB") == "q4b"   # Qwen3-Embedding-4B 색인 (out/vector/qwen3-embedding-4b-q8_0 + out/kg/ext_emb_q4b.npy). 기본은 bge-m3
+    V = ROOT / "out/vector/qwen3-embedding-4b-q8_0" if q4b else ecd.V
     emb = np.load(V / "embeddings.npy"); emb = emb / np.linalg.norm(emb, axis=1, keepdims=True)
-    chunks = ecd.jl(V / "chunks.jsonl")
-    ext = np.load(ROOT / "out/kg/ext_emb.npy"); ext_ids = json.loads((ROOT / "out/kg/ext_ids.json").read_text(encoding="utf-8"))
+    chunks = ecd.jl(ecd.V / "chunks.jsonl")
+    ext = np.load(ROOT / ("out/kg/ext_emb_q4b.npy" if q4b else "out/kg/ext_emb.npy")); ext_ids = json.loads((ROOT / "out/kg/ext_ids.json").read_text(encoding="utf-8"))
     ids = [c["article_id"] for c in chunks] + ext_ids; E = np.vstack([emb, ext])
     bm = BM25([c["text"] for c in chunks] + [ctx.unit_text.get(k, "") for k in ext_ids])
-    enc = SentenceTransformer("BAAI/bge-m3", device="cuda"); enc.max_seq_length = 512
+    if q4b:
+        from regcheck.vectors import IMPACT_QUERY_INSTRUCT, OllamaEncoder
+        enc = OllamaEncoder("qwen3-embedding:4b-q8_0", IMPACT_QUERY_INSTRUCT)
+    else:
+        enc = SentenceTransformer("BAAI/bge-m3", device="cuda"); enc.max_seq_length = 512
 
     def rag(q, k):
         qa = enc.encode([q[:1200]], normalize_embeddings=True)[0]

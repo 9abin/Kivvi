@@ -83,6 +83,39 @@ def load_model(name: str = DEFAULT_MODEL):
     return model
 
 
+# 영향 점검 의미 검색의 질의 지시문 (Qwen3-Embedding 계열은 질의 앞에 지시문을 붙인다). 문서 쪽에는 붙이지 않는다
+IMPACT_QUERY_INSTRUCT = "Instruct: Given an amendment to one internal regulation article, retrieve other regulation articles that cite, repeat or must stay consistent with the changed content\nQuery: "
+
+
+class OllamaEncoder:
+    """Ollama 임베딩을 SentenceTransformer처럼 쓰는 얇은 껍데기 (encode(texts, normalize_embeddings=True)). 로컬 서버만 쓴다."""
+
+    def __init__(self, model: str, instruction: str = "", url: str = "http://127.0.0.1:11434/api/embed"):
+        self.model, self.instruction, self.url = model, instruction, url
+
+    def encode(self, texts, batch_size: int = 16, normalize_embeddings: bool = True, show_progress_bar: bool = False):
+        import urllib.request
+
+        import numpy as np
+
+        out: list = []
+        for i in range(0, len(texts), batch_size):
+            body = json.dumps({"model": self.model, "input": [self.instruction + t for t in texts[i : i + batch_size]], "truncate": True}).encode("utf-8")
+            req = urllib.request.Request(self.url, data=body, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=300) as r:
+                out += json.loads(r.read())["embeddings"]
+        v = np.asarray(out, dtype=np.float32)
+        return v / np.linalg.norm(v, axis=1, keepdims=True) if normalize_embeddings else v
+
+
+def load_encoder(index_dir: Path):
+    """색인 폴더의 meta.json이 ollama 백엔드면 OllamaEncoder(영향 점검 질의 지시문), 아니면 SentenceTransformer."""
+    meta = json.loads((index_dir / "meta.json").read_text(encoding="utf-8"))
+    if meta.get("backend") == "ollama":
+        return OllamaEncoder(meta["model"], IMPACT_QUERY_INSTRUCT)
+    return load_model(meta["model"])
+
+
 def embed(model, texts: list[str], batch_size: int = 32) -> np.ndarray:
     import numpy as np
 

@@ -83,9 +83,10 @@ def load_changes() -> dict[str, dict]:
 def vector_backend():
     import os
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    from regcheck.vectors import Index, load_model
-    index = Index(ROOT / "out" / "vector" / "BAAI__bge-m3")
-    return load_model(index.model_name), index
+    from regcheck.vectors import Index, load_encoder
+    emb_dir = {"q4b": "qwen3-embedding-4b-q8_0"}.get(os.environ.get("IMPACT_EMB", ""), "BAAI__bge-m3")   # 영향 점검 색인: 기본 bge-m3, IMPACT_EMB=q4b면 Qwen3-Embedding-4B
+    index = Index(ROOT / "out" / "vector" / emb_dir)
+    return load_encoder(ROOT / "out" / "vector" / emb_dir), index
 
 
 @st.cache_resource

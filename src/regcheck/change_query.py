@@ -286,10 +286,13 @@ def analyze(reg: dict, amendment: str, cid: str = "") -> ChangeQuery:
                     def_items.append(cand)
                     break
     is_def = bool(DEF_TITLE.search(first.get("title") or "")) and bool(def_items)
+    ins_defs = [t for _, _, o in edits for t in (o.get("inserted") or []) if def_terms(t)]   # 호 신설(「제N조에 제M호를 다음과 같이 신설」)로 새 용어 정의가 들어옴
+    if not is_def and ins_defs and DEF_TITLE.search(first.get("title") or ""):
+        is_def = True
     if is_def:
-        q.kind, q.evidence = "정의 변경", "정의 조의 용어 정의 항목을 고침"
-        for it in def_items:
-            for t in def_terms(it["norm"]):
+        q.kind, q.evidence = "정의 변경", "정의 조의 용어 정의 항목을 고침" if def_items else "정의 조에 용어 정의 호를 신설"
+        for norm in [it["norm"] for it in def_items] + ins_defs:
+            for t in def_terms(norm):
                 if len(t) >= SHORT_TERM_MIN_LEN and t not in q.terms:
                     q.terms.append(t)
         q.term_cores = [c for c in (_core(t) for t in q.terms) if c]

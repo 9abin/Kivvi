@@ -468,6 +468,9 @@ class KG:
                     elif rel == "MENTIONS_TITLE" and d == "in" and h == 0:
                         for r in self.inb.get((rel, cur), []):
                             add(r["src"], rel, w)
+                    elif rel == "MENTIONS_TITLE" and d == "out" and h == 0:   # 바뀐 조가 제목으로 언급하는 조 (change_paths에 넣은 수정 종류에서만)
+                        for r in self.out.get((rel, cur), []):
+                            add(r["dst"], "MENTIONS_TITLE_out", w)
                     elif rel == "USES_TERM" and d == "term_in" and h == 0:
                         for tid in (term_hint if term_hint is not None else self.terms_defined_in(cur)):
                             for r in self.inb.get(("USES_TERM", tid), []):
