@@ -1,0 +1,3 @@
+# Preserve snapshot bytes so manifest SHA256 checks work on every platform.
+* -text
+*.db binary

@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Keep the required read-only ontology snapshot in the standalone bundle.
+!data/ontology.db
