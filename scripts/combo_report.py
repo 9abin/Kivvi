@@ -126,8 +126,15 @@ def main():
     by = {}
     for r in sorted(runs, key=lambda r: r["meta"]["time"]):
         by.setdefault(key(r), []).append(r)
-    best = {k: v[0] for k, v in by.items()}  # 첫 실행을 기준으로, 반복 실행은 변동 계산에 쓴다
-    reps = {k: v for k, v in by.items() if len(v) > 1}
+    # 기준 결과 = 태그 없는 실행 중 가장 최근 것(같은 설정의 --stage final 재실행은 최신 결과를 쓴다).
+    # 태그를 붙인 실행(--tag r2 등)은 변동 크기를 보는 반복으로만 쓴다.
+    best, reps = {}, {}
+    for k, v in by.items():
+        main_runs = [r for r in v if not r["meta"].get("run_tag")]
+        best[k] = main_runs[-1] if main_runs else v[0]
+        tagged = [r for r in v if r["meta"].get("run_tag")]
+        if tagged:
+            reps[k] = [best[k]] + tagged
 
     rows, trows, lrows = [], [], []
     for k, r in sorted(best.items()):

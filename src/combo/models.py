@@ -130,7 +130,8 @@ class QwenReranker:
             texts = [self.prefix + f"<Instruct>: {self.inst}\n<Query>: {pairs[i][0]}\n<Document>: {pairs[i][1]}" + self.suffix for i in idx]
             enc = self.tok(texts, padding=True, truncation=True, max_length=self.max_length, return_tensors="pt").to(self.dev)
             with torch.no_grad():
-                logits = self.m(**enc).logits[:, -1, :]
+                # 마지막 위치만 계산한다(logits_to_keep=1): 전체 위치의 어휘 로짓(15만 차원)을 만들지 않아 메모리와 시간이 크게 준다
+                logits = self.m(**enc, logits_to_keep=1).logits[:, -1, :]
             two = torch.stack([logits[:, self.no], logits[:, self.yes]], dim=1).float()
             for i, p in zip(idx, torch.softmax(two, dim=1)[:, 1].tolist()):
                 scores[i] = float(p)

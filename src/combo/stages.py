@@ -93,8 +93,10 @@ def fmt(x, nd=3):
 
 
 class Run:
-    def __init__(self, cfg, run_tag="", force=()):
+    def __init__(self, cfg, run_tag="", force=(), fresh=False):
         self.cfg, self.tag, self.force = cfg, run_tag, set(force)
+        # fresh: 같은 설정을 처음부터 다시 돌려 변동을 본다. 바꿔 쓰기·후보·리랭크도 태그를 붙인 새 파일에 만든다(기존 캐시를 쓰지 않고 덮어쓰지도 않는다)
+        self.sfx = f"_{run_tag}" if (fresh and run_tag) else ""
         d = cfg["data"]
         self.gold = [json.loads(line) for line in open(d["questions"], encoding="utf-8") if line.strip()]
         if d.get("limit"):
@@ -173,7 +175,7 @@ class Run:
 
     # ---- ① 바꿔 쓰기 ---------------------------------------------------
     def stage_rewrite(self):
-        path = self.p(f"rewrite_{self.Lrw}.json")
+        path = self.p(f"rewrite_{self.Lrw}{self.sfx}.json")
         data = load_json(path) or {"meta": {}, "items": {}}
         todo = [g for g in self.gold if g["id"] not in data["items"] or "rewrite" in self.force]
         if not todo:
@@ -221,7 +223,7 @@ class Run:
 
     # ---- ② 후보 --------------------------------------------------------
     def stage_cands(self, rew):
-        path = self.p(f"cands_{self.E}_{self.Lrw}.json")
+        path = self.p(f"cands_{self.E}_{self.Lrw}{self.sfx}.json")
         data = load_json(path)
         if data and "cands" not in self.force and all(g["id"] in data["items"] for g in self.gold):
             print(f"② 후보: 캐시 사용 ({os.path.basename(path)})", flush=True)
@@ -278,7 +280,7 @@ class Run:
 
     # ---- ③ 리랭크 ------------------------------------------------------
     def stage_rerank(self, cands):
-        path = self.p(f"rerank_{self.E}_{self.Lrw}_{self.R}.json")
+        path = self.p(f"rerank_{self.E}_{self.Lrw}_{self.R}{self.sfx}.json")
         data = load_json(path)
         if data and "rerank" not in self.force and all(g["id"] in data["items"] for g in self.gold):
             print(f"③ 리랭크: 캐시 사용 ({os.path.basename(path)})", flush=True)
@@ -310,7 +312,7 @@ class Run:
             dm = reranker.m.hf_device_map
             offload = {"cpu_modules": sum(1 for v in dm.values() if v in ("cpu", "disk")), "total_modules": len(dm),
                        "gpu_mem": rcfg.get("gpu_mem"), "cpu_mem": rcfg.get("cpu_mem")}
-        data = {"meta": self.stage_meta({"reranker": rcfg.get("model"), "kind": rcfg.get("kind"), "load_sec": round(load_sec, 2),
+        data = {"meta": self.stage_meta({"reranker": None if rcfg.get("kind") == "none" else rcfg.get("model"), "kind": rcfg.get("kind"), "load_sec": round(load_sec, 2),
                                          "fp16": rcfg.get("fp16"), "offload": offload, "label": self.R}), "items": items}
         save_json(path, data)
         if reranker is not None:
@@ -504,16 +506,19 @@ class Run:
 
     @staticmethod
     def check_rewrite(rw, titles):
-        """바꿔 쓰기 출력 점검: 빈 출력, 형식 위반(여러 줄·너무 긺·JSON/코드블록), 없는 규정명·조 번호 포함."""
+        """바꿔 쓰기 출력 점검: 빈 출력, 형식 위반(여러 줄·너무 긺·JSON/코드블록), 없는 규정명·조 번호 포함, 한자(중국어) 섞임.
+
+        규정명은 '붙여 쓴 한글 낱말 + 규정/지침/규칙/세칙'만 보고 제목 목록에 없으면 지어낸 것으로 센다.
+        "휴가 관련 규정"처럼 띄어 쓴 일반어는 규정명이 아니라서 세지 않는다 (처음에는 이것까지 세어 58%로 과대 집계됐다)."""
         raw, text = rw.get("raw"), rw.get("rewritten")
         if not text:
-            return {"empty": True, "format": False, "invented": False}
+            return {"empty": True, "format": False, "invented": False, "cjk": False}
         lines = [x for x in (raw or "").strip().splitlines() if x.strip()]
         fmt_bad = len(lines) > 1 or len(text) > 200 or "{" in text or "```" in (raw or "")
         art = bool(re.search(r"제\s*\d+\s*조", text))
-        names = re.findall(r"([가-힣A-Za-z0-9·\s]{2,20}?(?:규정|지침|규칙|세칙))", text)
-        unknown = any(not any(n.strip().replace(" ", "") in t.replace(" ", "") for t in titles) for n in names)
-        return {"empty": False, "format": fmt_bad, "invented": art or unknown}
+        names = re.findall(r"([가-힣]{2,25}(?:규정|지침|규칙|세칙))", text)
+        unknown = any(not any(n in t.replace(" ", "") for t in titles) for n in names)
+        return {"empty": False, "format": fmt_bad, "invented": art or unknown, "cjk": bool(re.search(r"[一-鿿]", text))}
 
     def aggregate(self, qrecs, cands, rr, sel, rew):
         rks, fks = self.cfg["eval"]["rerank_ks"], self.cfg["eval"]["final_ks"]
@@ -536,7 +541,8 @@ class Run:
         agg["rewrite"]["recall30_change_vs_orig"] = {"diff": d[0], "ci": [d[1], d[2]]} if d else None
         chk = [q["rewrite_check"] for q in qrecs]
         agg["rewrite"].update({"empty_rate": sum(c["empty"] for c in chk) / n, "format_violation_rate": sum(c["format"] for c in chk) / n,
-                               "invented_rate": sum(c["invented"] for c in chk) / n})
+                               "invented_rate": sum(c["invented"] for c in chk) / n,
+                               "cjk_rate": sum(c.get("cjk", False) for c in chk) / n})
         for k in rks:
             agg["rerank"][f"core@{k}"] = rec(pairs(lambda q, k=k: q["rerank"]["core"][f"@{k}"]))
             agg["rerank"][f"aux@{k}"] = rec(apairs(lambda q, k=k: q["rerank"]["aux"][f"@{k}"]))
@@ -581,8 +587,9 @@ class Run:
         T["ram_peak_gb"] = {"cands": cands["meta"].get("ram_peak_gb"), "rerank": rr["meta"].get("ram_peak_gb"), "final": env.ram_peak_gb()}
         T["offload"] = rr["meta"].get("offload")
         T["ollama_ps"] = {"rewrite": rew["meta"].get("ollama_ps"), "select": sel["meta"].get("ollama_ps") if sel else None}
-        tags = [self.cfg["embedding"]["model"], self.cfg["reranker"].get("model") or "없음"] + sorted({m.model for m in self._llms.values()})
-        T["env"] = env.env_line(tags, self.cfg["eval"].get("num_ctx"))
+        tags = [self.cfg["embedding"]["model"], "리랭커 없음" if self.cfg["reranker"].get("kind") == "none" else self.cfg["reranker"].get("model")]             + sorted({m.model for m in self._llms.values()})
+        ps = (rew["meta"].get("ollama_ps") or []) + ((sel["meta"].get("ollama_ps") or []) if sel else [])
+        T["env"] = env.env_line(tags, self.cfg["eval"].get("num_ctx") or env.ctx_from_ps(ps))
         by = {}
         for q in qrecs:
             key = q.get("유형") or "?"

@@ -16,7 +16,7 @@ E = {
 R = {
     "none": 'kind = "none"                    # 리랭커 없음: RRF 순서 그대로',
     "bge": 'kind = "cross"\nmodel = "BAAI/bge-reranker-v2-m3"\nfp16 = true',
-    "qwen4b": 'kind = "qwen"                    # 후보 목록당 약 43분. GPU 6GiB + 나머지 CPU 오프로드\nmodel = "Qwen/Qwen3-Reranker-4B"\ngpu_mem = "6GiB"\ncpu_mem = "24GiB"\nbatch_size = 2\nmax_length = 2048',
+    "qwen4b": 'kind = "qwen"                    # GPU 6GiB + 나머지 CPU 오프로드 (100문항 약 40분)\nmodel = "Qwen/Qwen3-Reranker-4B"\ngpu_mem = "6GiB"\ncpu_mem = "24GiB"\nbatch_size = 6                      # 4명 모두 같게 둔다: 시험 2문항 3.7초·실제 100문항 질문당 약 24초, GPU 6.9GB (배치 2는 6.9초, 15 이상은 GPU 메모리 부족으로 느려짐). 배치가 다르면 점수가 0.01 안팎 달라진다\nmax_length = 2048',
 }
 L = {
     "9b": ('[llm.default]\nmodel = "qwen3.5:9b"\nbase_url = "http://localhost:11434/v1"   # Ollama OpenAI 호환 주소\nreasoning_effort = "none"                # 사고 모드 끄기 (파싱이 깨지지 않게)\ntimeout = 300', "qwen3.5:9b"),
