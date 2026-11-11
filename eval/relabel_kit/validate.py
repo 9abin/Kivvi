@@ -14,8 +14,33 @@ RELS = {"인용", "준용·위임", "같은 사항", "정의 용어", "전제", 
 WAYS = {"번호 · 제목 검색", "낱말 검색", "다른 표현 검색", "같은 규정 통독", "위임 추적", "관련 규정 통독", "2단계 추적"}
 
 
+_PUNCT = str.maketrans({"ㆍ": "·", "․": "·", "‧": "·", "∙": "·", "“": '"', "”": '"', "‘": "'", "’": "'"})
+
+
 def norm(s):
-    return re.sub(r"\s+", "", s or "")
+    """띄어쓰기와 가운뎃점 · 따옴표 표기 차이는 무시한다"""
+    return re.sub(r"\s+", "", (s or "").translate(_PUNCT))
+
+
+RE_HEAD = re.compile(r"^\s*(제\s*\d+\s*조(?:의\s*\d+)?)\s*\(", re.M)
+
+
+def segments(text, label):
+    """규정 글에서 그 조(같은 번호가 첨부 문서에 또 있으면 모두)의 본문 조각들. 별표 · 별지는 [별표N] 머리부터 다음 머리까지."""
+    label = norm(label)
+    out = []
+    if label.startswith(("별표", "별지")):
+        for m in re.finditer(r"\[(별[표지][^\]]*)\]", text):
+            if norm(m.group(1)).startswith(label):
+                nxt = re.search(r"\[별[표지][^\]]*\]", text[m.end():])
+                out.append(text[m.start(): m.end() + (nxt.start() if nxt else len(text))])
+        return out
+    heads = list(RE_HEAD.finditer(text))
+    for i, m in enumerate(heads):
+        if norm(m.group(1)) == label:
+            end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+            out.append(text[m.start(): end])
+    return out
 
 
 def load_regs():
@@ -80,6 +105,8 @@ def check_labels(path, changes_path):
             q = norm(e.get("근거문장"))
             if not q or q not in texts[g]:
                 errs.append(f"{tag}: 근거문장이 원문과 글자 그대로 일치하지 않음")
+            elif not any(q in norm(s) for s in segments(regs[g], c)):
+                errs.append(f"{tag}: 근거문장이 그 조 안에 없음 (같은 규정의 다른 조 · 첨부 문서에 있음. 조 번호를 확인한다)")
             if e.get("확신") not in ("높음", "중간", "낮음"):
                 errs.append(f"{tag}: 확신은 높음·중간·낮음 중 하나")
             if not (e.get("이유") or "").strip():

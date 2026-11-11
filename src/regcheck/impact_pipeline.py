@@ -63,15 +63,30 @@ def pick_for_luna(states: list[CandState], n_rag: int | None = 50, n_graph: int 
     return picked
 
 
-def apply_decide(states: list[CandState], lv: dict[str, float] | None, th: float = RULE_TH) -> None:
-    """규칙 후보: 확정급은 항상 남기고, 나머지는 판단 모델 점수 th 이상만. 점수가 없으면 남긴다(리포트 92).
+# 파이프라인용 판단 모델 문턱. 화면(final_view, 리포트 92)의 RULE_TH 0.5와 따로 둔다.
+# 261111 val: 0.5 -> 0.7에서 규칙 쪽 정답 19/20 그대로, 문항당 3.9 -> 3.3개 (최종 100: 48 -> 47, 3.3 -> 2.8개)
+DECIDE_TH = 0.7
+
+
+def _decide_bypass(s: CandState, kind: str) -> bool:
+    """판단 모델을 거치지 않고 남기는 규칙 후보: 정의 변경에서 「정의가 바뀌는 용어를 씀」(USES_TERM).
+    261111: 판단 모델이 이 후보의 정답에 0.09~0.28을 줬다(val 1 · 최종 100 3). 통과시키면 목록은 거의 그대로(6.6 · 5.1 -> 6.6 · 5.2개),
+    상위 10 재현율 val 84 -> 87%, 최종 100 86 -> 90%."""
+    return kind == "정의 변경" and any(p.split(":")[0] == "USES_TERM" for p in s.paths)
+
+
+def apply_decide(states: list[CandState], lv: dict[str, float] | None, th: float = RULE_TH, kind: str = "") -> None:
+    """규칙 후보: 확정급과 _decide_bypass는 항상 남기고, 나머지는 판단 모델 점수 th 이상만. 점수가 없으면 남긴다(리포트 92).
     남긴 후보의 순위는 수집 순서 그대로. 판단 모델 점수 순으로 놓으면 val 상위 3 재현율이 47% -> 39%로 낮아졌다(261111):
     수집 순서에 경로의 확실성(확정급 먼저)이 이미 들어 있다."""
     rank = 0
     for s in sorted(by_route(states, "decide"), key=lambda s: s.order):
         sc = None if lv is None else lv.get(s.id)
-        kept = s.tier == "확정급" or sc is None or sc >= th
+        bypass = _decide_bypass(s, kind)
+        kept = s.tier == "확정급" or bypass or sc is None or sc >= th
         s.rerank = {"by": "decide_model" if sc is not None else ("tier" if s.tier == "확정급" else "none"), "score": sc, "kept": kept}
+        if bypass and sc is not None and sc < th:
+            s.rerank["by"] = "bypass_uses_term"
         if kept:
             s.rerank["rank"] = rank
             rank += 1
@@ -128,7 +143,7 @@ def final_list(states: list[CandState]) -> dict:
 
 def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=None, graph=None,
                  lv: dict | Callable[[dict], dict] | None = None, luna: Callable | None = None, writer: Callable | None = None,
-                 n_rag: int | None = 50, n_graph: int | None = 10, orders: int = 2, seed: int = 0) -> dict:
+                 n_rag: int | None = 50, n_graph: int | None = 10, orders: int = 2, seed: int = 0, rule_th: float = DECIDE_TH) -> dict:
     from .impact_view import run
 
     res = run(ctx, regs, reg_id, amendment, cid, rag=rag, graph=graph)
@@ -143,7 +158,7 @@ def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=Non
     if callable(lv):
         rule_c = [_cand(s) for s in by_route(states, "decide")]
         lv = lv(decide_inputs(rule_c, cq.kind, amendment, ctx.unit_text.get(start, ""), ctx.unit_text))
-    apply_decide(states, lv)
+    apply_decide(states, lv, rule_th, cq.kind)
     rule_evidence(states, cq, ctx.nodes, ctx.unit_text)
 
     # 2. 그래프 · RAG 후보: luna 목록 리랭킹 + 근거

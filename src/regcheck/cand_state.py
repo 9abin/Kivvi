@@ -35,6 +35,7 @@ FOUND_BY = {
     "CITE_MENTION": "고쳐지는 조가 인용하는 조의 제목을 언급함",
     "CO_MENTION": "고쳐지는 조와 같은 조 제목을 언급함",
     "DELETED_TERM": "개정으로 빠지는 낱말이 나옴",
+    "CITES_CHAPTER_in": "고쳐지는 조가 속한 장 · 절을 인용함",
     "CITES_out": "고쳐지는 조가 이 조를 번호로 인용함",
     "CITES_REG": "고쳐지는 규정을 이름으로 가리킴",
     "MENTIONS_TITLE_out": "고쳐지는 조가 이 조의 제목을 언급함",

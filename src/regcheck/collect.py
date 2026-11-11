@@ -21,7 +21,7 @@ from .kg import KG
 
 # 경로 -> 단계 (개발 + 봉인 12문항에서 잰 후보 정밀도: 인용받음 97%, 용어 사용 88%, 제목 언급 39%, 제목 줄기 14%, 조직 이름 3%)
 TIER_STRONG = {"CITES_in", "STALE_CITE", "CITES_internal", "CITES_REG:제목어", "CITES_LAW_ART"}   # 번호 · 이름으로 직접 인용한 경우만 (용어 사용은 의미 판단이 필요해 확인 권장)
-TIER_REVIEW = {"USES_TERM", "CO_CITE", "CITE_MENTION", "CO_MENTION", "MENTIONS_TITLE", "SAME_TITLE:값다름", "SAME_TITLE", "TERM_CORE", "PHRASE", "VALUE_DIFF", "DEF_DIFF", "CITES_DOC_NAME", "OLD_PHRASE"}   # 주제 층의 <머리말>_ATTR도 확인 권장, _KIND는 참고
+TIER_REVIEW = {"CITES_CHAPTER_in", "USES_TERM", "CO_CITE", "CITE_MENTION", "CO_MENTION", "MENTIONS_TITLE", "SAME_TITLE:값다름", "SAME_TITLE", "TERM_CORE", "PHRASE", "VALUE_DIFF", "DEF_DIFF", "CITES_DOC_NAME", "OLD_PHRASE"}   # 주제 층의 <머리말>_ATTR도 확인 권장, _KIND는 참고
 # 탐색 중 전이 규칙: 수정 종류별로 허용하는 2단계 조합 (관계 · 방향, 관계 · 방향, 점수, 경로 이름). out = 따라감, in = 거슬러감.
 # 개발 분할에서 잰 2단계 조합 정밀도로 고른 것만 둔다 (번호 이동 CITES>CITES< 83%, 위임 · 법령 MENTIONS_TITLE>MENTIONS_TITLE< 26%).
 TRANSITIVE = {

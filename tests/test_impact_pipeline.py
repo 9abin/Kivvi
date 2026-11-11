@@ -54,6 +54,11 @@ class StateTest(unittest.TestCase):
         st = build_states([cand("A", "확정급", "CITES_in"), cand("B", "확인 권장", "USES_TERM"), cand("C", "참고", "CO_MENTION")])
         apply_decide(st, {"A": 0.0, "B": 0.1})
         self.assertEqual([s.rerank["kept"] for s in st], [True, False, True])
+        # 정의 변경이면 「정의가 바뀌는 용어를 씀」은 점수가 낮아도 남긴다
+        st = build_states([cand("B", "확인 권장", "USES_TERM"), cand("C", "확인 권장", "MENTIONS_TITLE")])
+        apply_decide(st, {"B": 0.1, "C": 0.1}, 0.7, "정의 변경")
+        self.assertEqual([s.rerank["kept"] for s in st], [True, False])
+        self.assertEqual(st[0].rerank["by"], "bypass_uses_term")
 
 
 class LunaTest(unittest.TestCase):

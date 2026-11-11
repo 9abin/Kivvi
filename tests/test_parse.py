@@ -165,3 +165,13 @@ def test_wrapped_da_is_not_mok():
     # 정보보안관리지침 제15조: 「…익일에 실시한」 + 다음 줄 「다.」
     p = parse(["제15조(진단) ① 익일에 실시한", "다.", "  ② 보안진단을 한다."])
     assert [i.path for i in p.articles[0].items] == [(1, 0, 0), (2, 0, 0)]
+
+
+def test_jang_and_jeol_kept_separately():
+    """절 머리줄이 장 머리줄을 가리지 않는다 (261111: 「제3장제2절」 인용 연결)."""
+    text = "가 규정\n제1장 총칙\n제1조(목적) 목적\n제2장 보안\n제1절 전자정보\n제2조(관리) 관리\n제2절 매체\n제3조(파기) 파기\n제3장 기타\n제4조(기타) 기타\n"
+    arts = {a.label: a for a in parse(text.splitlines()).articles}
+    assert (arts["제1조"].jang, arts["제1조"].jeol) == ("제1장 총칙", "")
+    assert (arts["제2조"].jang, arts["제2조"].jeol) == ("제2장 보안", "제1절 전자정보")
+    assert (arts["제3조"].jang, arts["제3조"].jeol, arts["제3조"].chapter) == ("제2장 보안", "제2절 매체", "제2절 매체")
+    assert (arts["제4조"].jang, arts["제4조"].jeol) == ("제3장 기타", "")

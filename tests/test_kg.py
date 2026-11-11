@@ -95,3 +95,22 @@ class KGTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChapterCiteTest(unittest.TestCase):
+    """장 · 절 인용 -> CITES_CHAPTER (그 장 · 절의 조마다), 수정 종류 경로로 후보가 된다 (261111)."""
+
+    def test_chapter_and_section(self):
+        arts = [art("S", 1, "목적", "목적"), art("S", 2, "관리", "관리"), art("S", 3, "파기", "파기"), art("S", 4, "기타", "기타")]
+        for a, (j, s) in zip(arts, [("제1장 총칙", ""), ("제2장 보안", "제1절 전자"), ("제2장 보안", "제2절 매체"), ("제3장 기타", "")]):
+            a["jang"], a["jeol"] = j, s
+        regs = {"S": reg("S", "보안지침", arts, tier="지침"), "T": reg("T", "전산지침", [art("T", 1, "도입", "보안지침 제2장제2절에 따라 조치한다"), art("T", 2, "운영", "보안지침 제2장에 따른다")], tier="지침")}
+        e1 = edge("T:1-0-0-0", "", ttype="chapter", raw="제2장", status="missing_chapter", ctx="보안지침 제2장제2절에 따라 조치한다")
+        e2 = edge("T:2-0-0-0", "S:장2", ttype="chapter", raw="제2장", ctx="보안지침 제2장에 따른다")
+        for e in (e1, e2):
+            e["target_ref"], e["target_reg"] = {"jang": 2}, "S"
+        nodes, rows = build(regs, [e1, e2])
+        got = sorted((r["src"], r["dst"]) for r in rows if r["type"] == "CITES_CHAPTER")
+        self.assertEqual(got, [("T:1", "S:3"), ("T:2", "S:2"), ("T:2", "S:3")])
+        res = KG(nodes, rows).impact("S:3", "값 변경")
+        self.assertIn("CITES_CHAPTER_in", res["candidates"]["T:1"]["paths"])

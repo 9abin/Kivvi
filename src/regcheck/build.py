@@ -60,6 +60,8 @@ def to_records(reg_id: str, parsed: ParsedRegulation) -> dict:
             "label": a.label,
             "title": a.title,
             "chapter": a.chapter,
+            "jang": a.jang,
+            "jeol": a.jeol,
             "deleted": a.deleted,
             "amend_notes": a.amend_notes,
             "text": a.text,

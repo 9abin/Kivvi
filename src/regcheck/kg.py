@@ -41,6 +41,8 @@ ONTOLOGY = {
         "CITES": {"from": "Article|Supplement|Annex|Form", "to": "Article|Supplement|Annex|Form|Regulation", "method": "인용 표(amend.edge)",
                   "meaning": "조 번호 · 별표 · 서식으로 다른 단위를 가리킨다. sub = 인용 | 준용 | 예외. 부칙이 본칙 조를 번호로 인용한 경우 조 단위로 풀리지 않아 규정(Regulation)에 연결되는 것이 32개 있음", "inbound_means": "이 단위를 인용하는 곳"},
         "CITES_REG": {"from": "Article|Supplement|Annex|Form", "to": "Regulation", "method": "인용 표", "meaning": "규정 이름만으로 규정 전체를 가리킨다 (위임 · 준용 포함). 조 단위로 좁혀지지 않음"},
+        "CITES_CHAPTER": {"from": "Article|Supplement|Annex|Form", "to": "Article", "method": "인용 표의 장 인용 + 조의 장 · 절(parse jang · jeol)",
+                          "meaning": "「제3장제2절에 따라」 「복무규정 제4장이 정한 휴가」처럼 장 · 절 단위로 가리킨다. 그 장(절이 있으면 그 절)의 조마다 선을 둔다. sub = 인용 | 준용 (261111)"},
         "CITES_LAW": {"from": "Article|Supplement|Annex|Form", "to": "Law", "method": "인용 표", "meaning": "법령 또는 법령 조를 인용한다"},
         "CITES_LAW_ART": {"from": "Article|Supplement|Annex|Form", "to": "LawArticle", "method": "본문의 법령 조 인용(kg_onto.law_article_cites)", "meaning": "법령의 어느 조를 인용하는가. 조 번호가 없는 인용은 CITES_LAW(법령 단위)만 있다"},
         "ARTICLE_OF": {"from": "LawArticle", "to": "Law", "method": "구조", "meaning": "법령의 조가 어느 법령에 속하는가"},
@@ -69,15 +71,15 @@ ONTOLOGY = {
     "rules_outside_graph": {"COUNT-01": "횟수 한도 불일치(표본 1)", "AUTH-01": "승인 · 의결 주체 차이(표본 5)", "CHAIN-01": "인용 전이(영향 범위 표시, 충돌 판단 아님)", "QUORUM-01": "사용 안 함"},
     # 관계마다 어디서 왔는가 (그래프는 하나이고, 출처는 투명성과 기여 분석용 표시일 뿐이다)
     "origin": {"기존 규칙": ["PART_OF", "CITES", "CITES_REG", "CITES_LAW", "SAME_TITLE", "VALUE_DIFF", "DEF_DIFF", "STALE_CITE"],
-             "신규": ["CITES_LAW_ART", "ARTICLE_OF", "ALIAS_OF", "DEFINES", "USES_TERM", "MENTIONS_TITLE", "SUPPLEMENTS", "MENTIONS_BODY", "MENTIONS_FORM", "SHARED_ATTACH", "MENTIONS_STEM", "SAME_VALUE", "MENTIONS_ORG"]},
+             "신규": ["CITES_CHAPTER", "CITES_LAW_ART", "ARTICLE_OF", "ALIAS_OF", "DEFINES", "USES_TERM", "MENTIONS_TITLE", "SUPPLEMENTS", "MENTIONS_BODY", "MENTIONS_FORM", "SHARED_ATTACH", "MENTIONS_STEM", "SAME_VALUE", "MENTIONS_ORG"]},
     # 수정 종류 → 영향이 번지는 경로. (관계, 방향, 가중치) — in: 이 단위를 가리키는 쪽, out: 이 단위가 가리키는 쪽
     "change_paths": {
-        "값 변경": [("SAME_TITLE", "both", 0.9), ("CITES", "in", 1.0), ("VALUE_DIFF", "both", 0.8), ("MENTIONS_TITLE", "in", 0.6), ("SAME_VALUE", "both", 0.7), ("MENTIONS_STEM", "in", 0.45), ("MENTIONS_FORM", "out", 0.7), ("SHARED_ATTACH", "both", 0.6), ("SUPPLEMENTS", "reg", 0.4), ("CITES_REG", "reg_in", 0.3)],
-        "삭제": [("CITES", "in", 1.0), ("STALE_CITE", "in", 1.0), ("MENTIONS_TITLE", "in", 0.6), ("MENTIONS_STEM", "in", 0.45), ("MENTIONS_FORM", "out", 0.7), ("SHARED_ATTACH", "both", 0.6), ("CITES_REG", "reg_in", 0.3)],
-        "번호 이동": [("CITES", "in", 1.0), ("STALE_CITE", "in", 1.0), ("MENTIONS_ORG", "share", 0.5)],
-        "정의 변경": [("USES_TERM", "term_in", 0.8), ("CITES", "in", 1.0), ("DEF_DIFF", "both", 0.8), ("MENTIONS_TITLE", "in", 0.6), ("MENTIONS_STEM", "in", 0.45)],
-        "위임·법령 변경": [("CITES", "in", 1.0), ("CITES", "out", 0.7), ("MENTIONS_TITLE", "in", 0.6), ("MENTIONS_STEM", "in", 0.45), ("MENTIONS_FORM", "out", 0.7), ("SHARED_ATTACH", "both", 0.6), ("MENTIONS_ORG", "share", 0.5), ("CITES_REG", "reg_in", 0.3), ("SUPPLEMENTS", "reg", 0.4), ("CITES_LAW", "law_in", 1.0), ("CITES_LAW_ART", "law_art_in", 1.0)],
-        "내용 변경": [("CITES", "in", 1.0), ("STALE_CITE", "in", 1.0), ("MENTIONS_TITLE", "in", 0.6), ("CITES_REG", "reg_in", 0.3)],
+        "값 변경": [("SAME_TITLE", "both", 0.9), ("CITES", "in", 1.0), ("CITES_CHAPTER", "in", 0.8), ("VALUE_DIFF", "both", 0.8), ("MENTIONS_TITLE", "in", 0.6), ("SAME_VALUE", "both", 0.7), ("MENTIONS_STEM", "in", 0.45), ("MENTIONS_FORM", "out", 0.7), ("SHARED_ATTACH", "both", 0.6), ("SUPPLEMENTS", "reg", 0.4), ("CITES_REG", "reg_in", 0.3)],
+        "삭제": [("CITES", "in", 1.0), ("CITES_CHAPTER", "in", 0.8), ("STALE_CITE", "in", 1.0), ("MENTIONS_TITLE", "in", 0.6), ("MENTIONS_STEM", "in", 0.45), ("MENTIONS_FORM", "out", 0.7), ("SHARED_ATTACH", "both", 0.6), ("CITES_REG", "reg_in", 0.3)],
+        "번호 이동": [("CITES", "in", 1.0), ("CITES_CHAPTER", "in", 0.8), ("STALE_CITE", "in", 1.0), ("MENTIONS_ORG", "share", 0.5)],
+        "정의 변경": [("USES_TERM", "term_in", 0.8), ("CITES", "in", 1.0), ("CITES_CHAPTER", "in", 0.8), ("DEF_DIFF", "both", 0.8), ("MENTIONS_TITLE", "in", 0.6), ("MENTIONS_STEM", "in", 0.45)],
+        "위임·법령 변경": [("CITES", "in", 1.0), ("CITES_CHAPTER", "in", 0.8), ("CITES", "out", 0.7), ("MENTIONS_TITLE", "in", 0.6), ("MENTIONS_STEM", "in", 0.45), ("MENTIONS_FORM", "out", 0.7), ("SHARED_ATTACH", "both", 0.6), ("MENTIONS_ORG", "share", 0.5), ("CITES_REG", "reg_in", 0.3), ("SUPPLEMENTS", "reg", 0.4), ("CITES_LAW", "law_in", 1.0), ("CITES_LAW_ART", "law_art_in", 1.0)],
+        "내용 변경": [("CITES", "in", 1.0), ("CITES_CHAPTER", "in", 0.8), ("STALE_CITE", "in", 1.0), ("MENTIONS_TITLE", "in", 0.6), ("CITES_REG", "reg_in", 0.3)],
         "표현 수정": [],
         "고립 수정": [],
     },
@@ -188,6 +190,30 @@ def build(regs: dict[str, dict], edges: list[dict], inferred: list[dict] | None 
             t = "LAW:" + (registry.canon(raw_name) or raw_name)   # 띄어쓰기 · 약칭 표기 차이는 한 법령으로
             nodes.setdefault(t, {"type": "Law", "name": t[4:]})
             add_edge(s, t, "CITES_LAW", "인용 표", evidence=e["raw"], **flags)
+
+    # 장 · 절 인용 → CITES_CHAPTER (그 장 · 절의 조마다). 인용 표의 장 인용은 장 번호만 읽으므로 절은 문맥에서 읽는다.
+    # 조의 장 · 절은 parse의 jang · jeol(없으면 chapter가 「제N장」일 때만). 장을 못 찾으면(missing_chapter) 이 칸으로 다시 찾는다.
+    def _no(s: str, unit: str) -> int | None:
+        m = re.match(rf"\s*제\s*(\d+)\s*{unit}", s or "")
+        return int(m.group(1)) if m else None
+
+    for e in edges:
+        if e["target_type"] != "chapter" or not (j := (e.get("target_ref") or {}).get("jang")):
+            continue
+        s = src_node(e)
+        treg = regs.get(e.get("target_reg") or "") or regs.get((e.get("target_id") or ":").split(":")[0])
+        if s not in nodes or not treg:
+            continue
+        ctx = (e.get("context") or "")
+        m = re.search(rf"제\s*{j}\s*장\s*제\s*(\d+)\s*절", ctx)
+        jeol = int(m.group(1)) if m else None
+        sub = "준용" if "준용" in ctx else "인용"
+        for a in treg["articles"]:
+            aj = _no(a.get("jang") or a.get("chapter"), "장")
+            if a.get("deleted") or aj != j or a["id"] == s or (jeol is not None and _no(a.get("jeol"), "절") != jeol):
+                continue
+            if a["id"] in nodes:
+                add_edge(s, a["id"], "CITES_CHAPTER", "인용 표", sub=sub, evidence=e["raw"] + (f" 제{jeol}절" if jeol else ""), jang=j, jeol=jeol)
 
     # 정의 조 → Term, 본문의 용어 사용
     terms: dict[str, dict] = {}
@@ -449,6 +475,9 @@ class KG:
                     elif rel in ("VALUE_DIFF", "DEF_DIFF") and d == "both" and h == 0:
                         for r in self.out.get((rel, cur), []) + self.inb.get((rel, cur), []):
                             add(r["dst"] if r["src"] == cur else r["src"], rel, w)
+                    elif rel == "CITES_CHAPTER" and d == "in" and h == 0:
+                        for r in self.inb.get((rel, cur), []):
+                            add(r["src"], "CITES_CHAPTER_in", w)
                     elif rel == "STALE_CITE" and d == "in" and h == 0:
                         for r in self.inb.get((rel, cur), []):
                             add(r["src"], rel, w)

@@ -55,9 +55,11 @@ class Article:
     title: str
     text: str  # 조 전체 원문
     items: list[Item] = field(default_factory=list)
-    chapter: str = ""
+    chapter: str = ""   # 바로 앞 머리줄(장 또는 절). 예전 형식 그대로
     deleted: bool = False
     amend_notes: list[str] = field(default_factory=list)
+    jang: str = ""      # 속한 장 머리줄 (절 머리줄에 가려지지 않게 따로 둔다, 261111: 「제3장제2절」 인용 연결용)
+    jeol: str = ""      # 속한 절 머리줄 (장이 바뀌면 비운다)
 
     @property
     def label(self) -> str:
@@ -156,7 +158,7 @@ def _split_items(lines: list[str]) -> list[Item]:
     return items
 
 
-def _make_article(m: re.Match, body_lines: list[str], chapter: str) -> Article:
+def _make_article(m: re.Match, body_lines: list[str], chapter: str, jang: str = "", jeol: str = "") -> Article:
     no, branch = int(m.group(1)), int(m.group(2) or m.group(3) or m.group(4) or 0)  # 제N-M조, 제N조의M, 제N조M(…)
     title = (m.group(5) or m.group(6) or "").strip()
     first = m.group(7).strip()
@@ -172,6 +174,8 @@ def _make_article(m: re.Match, body_lines: list[str], chapter: str) -> Article:
         chapter=chapter,
         deleted=deleted,
         amend_notes=_amend_notes(text),
+        jang=jang,
+        jeol=jeol,
     )
 
 
@@ -194,6 +198,7 @@ def parse(lines: list[str]) -> ParsedRegulation:
 
     mode = "body"  # body | addendum | appendix
     chapter = ""
+    jang = jeol = ""
     cur_match: re.Match | None = None
     cur_lines: list[str] = []
     add: Addendum | None = None
@@ -203,7 +208,8 @@ def parse(lines: list[str]) -> ParsedRegulation:
         nonlocal cur_match, cur_lines
         if cur_match is None:
             return
-        art = _make_article(cur_match, cur_lines, chapter if mode == "body" else "")
+        body = mode == "body"
+        art = _make_article(cur_match, cur_lines, chapter if body else "", jang if body else "", jeol if body else "")
         (articles if mode == "body" else add.articles).append(art)  # type: ignore[union-attr]
         cur_match, cur_lines = None, []
 
@@ -236,6 +242,10 @@ def parse(lines: list[str]) -> ParsedRegulation:
         if mode == "body" and (m := RE_CHAPTER.match(line)):
             flush_article()
             chapter = line.strip()
+            if m.group(2) == "장":
+                jang, jeol = chapter, ""
+            else:
+                jeol = chapter
             continue
         if m := RE_ARTICLE.match(line):
             flush_article()
