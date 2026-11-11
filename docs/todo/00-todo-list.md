@@ -88,6 +88,7 @@ PoC 표시: **필수** = `03-product-plan.md` PoC "반드시" 항목, 선택 = "
 | todo | P1 | 에러 분석, 오류 유형별 "바로 사용 / 담당자 확인" 분류 | |
 | todo | P1 | 발표 자료: 운영안·초기 도입·역할별 화면은 그림으로, 벤치마킹(강남구·강동구·Definely)과 차별점 | |
 | todo | P2 | 30B 내외 로컬 모델 비교 실험과 원인 분석 (발표 후보. 기관 GPU·보안 등급 확인 필요) | [model-comparison-30b](model-comparison-30b.md) |
+| doing | P0 | 후보 state 파이프라인: val에서 값 · 프롬프트 정함(261111), 규칙 근거 인용 보강 · 최종 100 확인 남음 | [candidate-state-pipeline](candidate-state-pipeline.md) |
 
 ## 완료
 

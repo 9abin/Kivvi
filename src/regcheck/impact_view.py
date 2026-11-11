@@ -108,7 +108,8 @@ def _fuse_clause(all_cands: list, rag_fn, old_a, texts: dict, amendment: str, w:
 
 
 def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, rag: Callable[[str, int], list[str]] | None = None,
-        rag_k: int = 30, graph_n: int = 20, leave=False, tier_open: bool = True) -> dict:
+        rag_k: int = 30, graph_n: int = 20, leave=False, tier_open: bool = True, graph=None) -> dict:
+    """graph: graph_source.GraphSource (도메인 그래프 후보를 전체 후보 뒤에 더한다). 없으면 기존과 같다."""
     cq = analyze(regs[reg_id], amendment, cid)
     if cq.kind == "분석 실패":
         return {"cq": cq, "view": {"default": [], "all": [], "hidden": 0}, "cards": [], "error": cq.error or "개정문을 읽지 못함"}
@@ -138,5 +139,9 @@ def run(ctx: ImpactContext, regs: dict, reg_id: str, amendment: str, cid: str, r
     _w = float(_os.environ.get("CLAUSE_RRF", "1.0") or 0)   # 개정된 항 질의 의미 검색을 순위 합치기로 더한다 (기본 1.0, 끄려면 CLAUSE_RRF=0) (가빈 리포트 91)
     if _w > 0 and rag:
         view["all"] = _fuse_clause(view["all"], rag_fn, old_a, texts, amendment, _w)
+    if graph is not None:
+        from .graph_source import add_graph
+        hits = [h for h in graph.candidates(regs[reg_id], amendment, list(cq.starts), cq.kind) if h[0] not in exclude]
+        view["all"] = add_graph(view["all"], hits, known=set(ctx.nodes))
     cards = [card(c, cq, ctx.nodes, ctx.unit_text) for c in view["default"]]
     return {"cq": cq, "view": view, "cards": cards, "error": ""}

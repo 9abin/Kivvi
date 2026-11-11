@@ -31,7 +31,9 @@ LEVELS = ["전혀 닿지 않는다", "같은 주제일 뿐이다", "닿을 가�
 
 
 def is_rule(c) -> bool:
-    return any(p.split(":")[0] not in RAG_PATHS for p in c.paths)
+    """규칙 경로가 하나라도 있나. 도메인 그래프 경로(GRAPH_ · SCOPED_)는 규칙이 아니다 (cand_state.source_of와 같은 기준)."""
+    from .cand_state import source_of
+    return source_of(c.paths) == "rule"
 
 
 def decide_state(kind: str, amendment: str, start_text: str, cand_text: str) -> str:
