@@ -1,0 +1,27 @@
+단계,작업,모델,제공처,외부전송,건수,입력토큰,출력토큰,결과파일,비고
+B,번호·구조 전수,없음(코드),-,아니오,전체 90개 규정,,,doc_findings_b.csv,scripts/doc_check_b.py
+C,인용 추출·존재 확인,없음(코드),-,아니오,1884 인용,,,doc_findings_c_all.csv,scripts/doc_check_c.py
+G,법령 인용 존재 확인,없음(코드),-,아니오,639 인용,,,doc_findings_g.csv,법령 DB sqlite 대조
+D,옛 기관명 검색,없음(코드),-,아니오,49 적중,,,doc_findings_d_oldname.csv,기관명 변경 연도는 웹 검색으로 확인
+C,인용 내용 일치 1차,gpt-6-luna,OpenAI API,예,202 (200+양성대조 2),미기록,미기록,doc_cite_llm_gpt-6-luna.jsonl,입력 약 483토큰/건 측정
+C,인용 내용 일치 2차(나머지 조 인용),gpt-6-luna,OpenAI API,예,181,89241,55638,doc_cite_llm_gpt-6-luna_rest.jsonl,
+C,불일치 36건 원문 대조,Claude Sonnet 5.5,Anthropic(이 세션),아니오(로컬 파일),36,,,doc_findings_c_llm_rest_flagged.csv,원문대조 열
+C,별표·별지 안 인용 101건 직접 읽기,Claude Sonnet 5.5,Anthropic(이 세션),아니오(로컬 파일),101,,,report_v1.md,
+C,장 인용 11건·별표 이름 대조,Claude Sonnet 5.5 + 코드,Anthropic(이 세션),아니오,11+447,,,doc_findings_c_appendix_name.csv,
+A·D,조문·부칙 읽기 검사,gpt-6-luna,OpenAI API,예,2740,1315685,1056140,doc_ad_llm_gpt-6-luna.jsonl,별표·별지 377건 제외
+A·D,별표·별지 선별,없음(코드),-,아니오,377,,,doc_findings_c_appendix_name.csv 외,오탈자 검증 없음
+F,개념별 수치 표,없음(코드),-,아니오,544 행,,,doc_findings_f_concepts.csv,
+판정,후보 판정(1~8번 파일),미확인(다른 Claude 세션),미확인,미확인,2221,,,doc_judgments.csv,모델명 확인 필요
+판정,F·E·G 개념 단위 비교,미확인(다른 Claude 세션),미확인,미확인,60 개념,,,doc_judgments_f.csv,모델명 확인 필요
+6단계,코드 검사 재현율(심은 오류),없음(코드),-,아니오,86+80 심음,,,report_v1.md,원본 미수정
+6단계,모델 검사 재현율(심은 오류),gpt-6-luna,OpenAI API,예,120,63588,50017,report_v1.md,
+판정,후보 판정: 별표·별지 377건 읽기,Claude Opus 5.5 (claude-opus-5-5),Anthropic(다른 세션),아니오(로컬 파일),95행 판정,,,doc_judgments_appendix.csv,판정 세션이 직접 읽음. 세션이 보고한 모델명
+판정,후보 판정: 못 읽은 개념 충돌 비교,Claude Opus 5.5 (claude-opus-5-5),Anthropic(다른 세션),아니오(로컬 파일),24행 판정,,,doc_judgments_f2.csv,판정 세션이 보고한 모델명
+판정,후보 판정: 법령 인용 미확인 263건,Claude Opus 5.5 (claude-opus-5-5),Anthropic(다른 세션),아니오(로컬 파일),263행 판정,,,doc_judgments_g.csv,판정 세션이 보고한 모델명. 맞음 163건 중 128건은 법령 DB 수록 여부만 확인
+6단계-탐색,후보 줄이기: 일반 리랭커 bge-reranker-v2-m3,BAAI/bge-reranker-v2-m3,로컬 GPU,아니오,18952쌍,,,eval/graph_traversal/rerank,규정 본문 외부 전송 없음
+6단계-탐색,후보 줄이기: Qwen3-Reranker-0.6B,Qwen/Qwen3-Reranker-0.6B,로컬 GPU,아니오,18952쌍,,,eval/graph_traversal/rerank,
+6단계-탐색,후보 줄이기: jina-reranker-v3,jinaai/jina-reranker-v3,로컬 GPU,아니오,10302쌍,,,eval/graph_traversal/rerank,CC-BY-NC 4.0 비상업
+6단계-탐색,후보 줄이기: 카카오 판단 모델(예/아니오 + 4단계 점수),kakaocorp/kanana-2-v-decide-3b-2611,로컬 GPU,아니오,14352쌍,,,eval/graph_traversal/rerank,kanana-open-license. torch 2.10 / transformers 5.5.3 별도 환경
+6단계-탐색,후보 줄이기: d3-nano(4단계 점수),vllm-sr/d3-nano,로컬 GPU,아니오,10302쌍,,,eval/graph_traversal/rerank,Apache-2.0. trust_remote_code(저장소 코드 검토 후 실행). transformers 5.17.0
+6단계-탐색,후보 줄이기: hs-decide-1-flash(4단계 점수),hindsight-ai/hs-decide-1-flash,로컬 GPU,아니오,10302쌍,,,eval/graph_traversal/rerank,Apache-2.0. vLLM 없이 transformers로 직접 읽음(공식 확률과 다를 수 있음)
+6단계-탐색,후보 줄이기: Jev-Style 2B v3(4단계 점수),chaoliangUNSW/Jev-Style-2B-Decision-v3,로컬 GPU,아니오,10302쌍,,,eval/graph_traversal/rerank,Apache-2.0. 개인 개발자 모델. 저장소 파일 하나(jev_style_decision.py)만 사용
