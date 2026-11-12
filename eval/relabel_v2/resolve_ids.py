@@ -61,7 +61,7 @@ def resolve(e: dict, lab: dict, by_reg: dict) -> tuple[str | None, str]:
 
 def main() -> None:
     lab, by_reg = units(ROOT)
-    for d in ("val", "bm"):
+    for d in ("val", "bm", "test"):
         for f in ("gold.jsonl", "gold_low.jsonl"):
             p = ROOT / "eval/relabel_v2" / d / f
             rows, cnt = [], {}
