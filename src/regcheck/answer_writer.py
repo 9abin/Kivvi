@@ -30,8 +30,11 @@ RULE_PROMPT = """내부규정 개정 때문에 확인 대상으로 걸린 조문
 [찾은 경로] {paths}
 [결과] 확인 대상: {effect}
 [확인 대상의 해당 문장] {quote}
+[고쳐지는 조의 해당 문장] {source_quote}
+[확인 대상 조문 앞부분] {target_text}
 
-원인(무엇이 바뀌나)에서 결과(확인 대상이 그것과 어떻게 이어지나) 순서로 쓴다. 해당 문장이 「(없음)」이면 찾은 경로를 근거로 쓰고, 문장이 없다는 말은 쓰지 않는다.
+원인(무엇이 바뀌나)에서 결과(확인 대상이 그것과 어떻게 이어지나) 순서로 쓴다. 이어짐은 해당 문장이나 조문에 실제로 있는 말로 설명한다.
+찾은 경로는 시스템이 이 조를 찾은 방법일 뿐이다. 경로 이름을 문장으로 옮기지 않는다(「~의 제목을 언급한다」, 「의미 검색으로 찾았다」 같은 말을 쓰지 않는다). 「(없음)」인 칸은 언급하지 않는다.
 """ + COMMON_RULES
 
 OTHER_PROMPT = """내부규정 개정 때문에 확인 대상으로 걸린 조문이 있다. 아래는 검토 보조 모델이 이 조문을 고르며 남긴 근거다. 담당자가 읽기 쉽게 다듬는다. 새 사실을 더하지 않는다.
@@ -64,7 +67,8 @@ def prompt_for(s, amendment: str, change_text: str, nodes: dict) -> str:
         c = ev.get("cause", {})
         return RULE_PROMPT.format(change=change, kind=c.get("kind", ""), start=", ".join(c.get("start") or []) or "(없음)",
                                   changed=c.get("changed") or "(없음)", paths=", ".join(c.get("paths") or found_by(s.paths)),
-                                  effect=ev.get("effect") or _effect(s, nodes), quote=(ev.get("quote") or "(없음)")[:400])
+                                  effect=_effect(s, nodes), quote=(ev.get("quote") or "(없음)")[:400],
+                                  source_quote=(ev.get("source_quote") or "(없음)")[:300], target_text=(ev.get("target_text") or "(없음)")[:400])
     return OTHER_PROMPT.format(change=change, effect=_effect(s, nodes), relation=ev.get("relation") or "(없음)",
                                source_quote=(ev.get("source_quote") or "(없음)")[:300], quote=(ev.get("quote") or "(없음)")[:400],
                                reason=ev.get("reason") or "(없음)", paths=", ".join(found_by(s.paths)))

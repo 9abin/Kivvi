@@ -62,6 +62,26 @@ class EvidenceTest(unittest.TestCase):
         self.assertEqual(c["llm"], {"영향": "불확실"})
 
 
+class MentionQuoteTest(unittest.TestCase):
+    """261112: 제목 언급 · 지워진 말 · 규정 이름 경로도 후보 원문에서 문장을 뽑고, 고쳐지는 조 쪽 경로는 그쪽 문장을 뽑는다."""
+    texts = {"A:3": "육아휴직은 제4조의 대상에게 준다. 기간은 1년이다.", "A:4": "대상은 별도로 정한다. 육아휴직 중에는 승진을 미룬다.",
+             "B:2": "직제규정에 따른 부서장이 지급한다. 성과급을 준다."}
+
+    def test_title_mention_quotes_the_sentence_with_the_changed_title(self):
+        c = card(Candidate("A:4", 0.5, ["MENTIONS_TITLE"], "확인 권장"), cq(), NODES, self.texts)
+        self.assertEqual(c["quote"], "육아휴직 중에는 승진을 미룬다.")
+        self.assertEqual(c["quote_kind"], "mention")
+
+    def test_regulation_name_counts_only_for_other_regulations(self):
+        c = card(Candidate("B:2", 0.3, ["CITES_REG"], "참고"), cq(), NODES, self.texts)
+        self.assertEqual(c["quote"], "직제규정에 따른 부서장이 지급한다.")
+
+    def test_out_path_takes_the_sentence_from_the_changed_article(self):
+        c = card(Candidate("A:4", 0.5, ["MENTIONS_TITLE_out"], "참고"), cq(), NODES, self.texts)
+        self.assertEqual(c["source_quote"], "육아휴직은 제4조의 대상에게 준다.")
+        self.assertIsNone(card(Candidate("A:4", 0.5, ["MENTIONS_TITLE"], "참고"), cq(), NODES, self.texts)["source_quote"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -131,6 +131,8 @@ def rule_evidence(states: list[CandState], cq, nodes: dict, unit_text: dict[str,
                       "cause": {"kind": cq.kind, "start": start, "changed": changed, "paths": found_by(s.paths)},
                       "effect": cd["target"],
                       "quote": cd["quote"] or "", "quote_verified": bool(cd["quote"]),
+                      "source_quote": cd["source_quote"] or "",
+                      "target_text": "" if cd["quote"] else unit_text.get(s.id, "")[:400],   # 인용이 없으면 답변 모델이 조문 앞부분을 보고 쓴다
                       "replacement": cd["replacement"]}
         s.log.append("근거: 코드 (" + ("원문 인용 있음" if cd["quote"] else "원문 인용 없음") + ")")
 

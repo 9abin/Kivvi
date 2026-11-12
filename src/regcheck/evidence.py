@@ -72,7 +72,38 @@ def _quote(c: Candidate, cq: ChangeQuery, nodes: dict, text: str) -> tuple[str |
         q = _first(sents, lambda s: any(k and k in re.sub(r"\s+", "", s) for k in keys))
         if q:
             return q, "phrase"
+    # 그 밖의 경로: 고쳐지는 쪽의 말(제목 · 지워진 말 · 바뀌기 전 말 · 규정 이름)이 후보 원문에 나오는 문장 (261112, 규칙 답변 근거 보강)
+    q = _contains(sents, _change_keys(cq, nodes, c.id))
+    if q:
+        return q, "mention"
     return None, ""
+
+
+def _change_keys(cq: ChangeQuery, nodes: dict, cand_id: str) -> list[str]:
+    starts = [s for s in cq.starts if s in nodes and s != cand_id]
+    keys = [nodes[s].get("title", "") for s in starts] + cq.old_phrases + cq.removed + cq.terms
+    reg = nodes.get(cq.reg_id, {}).get("name", "")
+    if reg and nodes.get(cand_id, {}).get("reg") != cq.reg_id:   # 다른 규정에서만 규정 이름이 뜻이 있다
+        keys.append(reg)
+    return [k for k in dict.fromkeys(re.sub(r"\s+", "", k) for k in keys) if len(k) >= 3]
+
+
+def _contains(sents: list[str], keys: list[str]) -> str | None:
+    return _first(sents, lambda s: any(k in re.sub(r"\s+", "", s) for k in keys)) if keys else None
+
+
+def _source_quote(c: Candidate, cq: ChangeQuery, nodes: dict, texts: dict[str, str]) -> str | None:
+    """고쳐지는 조 쪽에 근거가 있는 경로(고쳐지는 조가 후보를 인용 · 언급): 고쳐지는 조 원문에서 후보의 번호 · 제목이 나오는 문장."""
+    nd = nodes.get(c.id, {})
+    title = re.sub(r"\s+", "", nd.get("title", ""))
+    label = nd.get("label", "")
+    for st in cq.starts:
+        text = texts.get(st, "")
+        sents = _sentences(text)
+        q = _first(sents, lambda s: (len(title) >= 3 and title in re.sub(r"\s+", "", s)) or (label and nd.get("reg") == cq.reg_id and _label_re(label).search(s)))
+        if q:
+            return _verified(q, text)
+    return None
 
 
 HEADING = re.compile(r"^제[0-9]+조(의[0-9]+)?\([^)]*\)\s*")
@@ -110,6 +141,7 @@ def card(c: Candidate, cq: ChangeQuery, nodes: dict, texts: dict[str, str], llm:
         "paths": c.paths,
         "quote": quote,
         "quote_kind": kind if quote else "",
+        "source_quote": _source_quote(c, cq, nodes, texts) if any(p.endswith("_out") for p in c.paths) else None,
         "replacement": _replacement(quote, cq, nodes, c.id) if quote and kind == "citation" else None,
         "llm": llm,
         "needs_check": c.tier != "확정급" or not quote,

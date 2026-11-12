@@ -48,6 +48,8 @@
 - 261111 Solar 판정(개발 100): 정밀도 라벨만 0.161 · 라벨 + Solar 「예」 0.592(Precision@5 0.251 · 0.641, Context Precision 0.430 · 0.750, ragas LLM CP 0.475). Faithfulness 0.901(luna 0.942 · 규칙 0.875, ragas 0.890), Hallucination rate 0.165(규칙 답변 0.223). 사람 확인 40개 표 만듦(`eval/relabel_v2/bm/human_check_40.csv`) → 누가 판정할지 정해야 함
 - 261111 평가 지표를 표준 지표로 정리 → [94](../reports/261111-2100-94-eval-metrics.md). 개발 100 현재: Recall@5 0.780 · Recall@10 0.912 · Hit@5 0.964 · MRR 0.734 · MAP 0.689 · nDCG@10 0.769, B1 · B2 Cohen's kappa 0.601. 답변 지표(Faithfulness · Citation Recall/Precision · Answer Relevancy)는 판정 모델(luna 아닌 것)을 정한 뒤
 - 261112 시험 100(가빈 share_test100, `eval/relabel_v2/test/`) 설정 고정 한 번: 최종 재현율 0.860(문항당 5.4, 확신 높음 15/15), Recall@10 0.840(0.744~0.927), MRR 0.589, 정밀도 라벨만 0.080 · + Solar 0.595, Faithfulness 0.908(규칙 답변 할루시네이션 0.229). 결과 [test/RESULTS.md](../../eval/relabel_v2/test/RESULTS.md) · [bm/RESULTS.md](../../eval/relabel_v2/bm/RESULTS.md). 실행 스크립트를 `eval/relabel_v2/run_eval.py`로 옮김. 다음: 현업 판정표, 규칙 근거 인용 보강
+- 261112 현업 판정표(시험 100, 확신 중간 · 낮음 83행: 놓친 12 + 찾은 71, 판정 숨김 · 키 따로) `eval/relabel_v2/test/hyunup_check.csv` + 안내. 현업에 보낼 것
+- 261112 규칙 답변 근거 보강(evidence.card 인용 경로 확장 · source_quote · 조문 앞부분, 답변 프롬프트): 규칙 답변 할루시네이션 개발 0.223 → 0.090, 시험 0.229 → 0.125 → [94](../reports/261111-2100-94-eval-metrics.md)
 - 261111 리랭킹(합치는 순서): 규칙 먼저 / luna 먼저 / 번갈아 / 확정급 먼저 비교. 거르기 최적화 뒤에는 「규칙 먼저」(지금)가 가장 좋거나 같음 -> 유지
 
 ## 막힌 점 / 필요한 것
