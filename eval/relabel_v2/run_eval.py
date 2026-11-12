@@ -63,6 +63,7 @@ def pool(d):
 
 def pairs(d):
     from regcheck.collect import Candidate
+    from regcheck.evidence import change_keys
     from regcheck.final_view import decide_inputs
     from regcheck.impact_view import analyze, load_context
     regs = load_regs(); ctx = load_context(ROOT, regs); by = {r["name"]: k for k, r in regs.items()}
@@ -75,7 +76,8 @@ def pairs(d):
         for x in p["cands"]:
             c = Candidate(x["id"], x["score"]); c.paths = list(x["paths"]); c.tier = x["tier"]; cands.append(c)
         st = (cq.starts or [""])[0]
-        for cid, state in decide_inputs(cands, cq.kind, s["개정문"], ctx.unit_text.get(st, ""), ctx.unit_text).items():
+        for cid, state in decide_inputs(cands, cq.kind, s["개정문"], ctx.unit_text.get(st, ""), ctx.unit_text,
+                                        keys_for=lambda cid: change_keys(cq, ctx.nodes, cid)).items():
             out.append({"key": f"{p['q']}|{cid}", "kind": cq.kind, "state": state})
     (WORK / f"pairs_{d}.json").write_text(json.dumps({"pairs": out}, ensure_ascii=False), encoding="utf-8")
     print("판단 모델 입력", len(out))

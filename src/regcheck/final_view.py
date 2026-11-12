@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+import re
+
 RULE_TH = 0.5
 RAG_N = 15   # 미리 정한 규칙으로 개발 세트에서 고른 값 (리포트 92)
 RAG_PATHS = ("RAG", "RAG_NEW")
@@ -36,14 +38,33 @@ def is_rule(c) -> bool:
     return source_of(c.paths) == "rule"
 
 
-def decide_state(kind: str, amendment: str, start_text: str, cand_text: str) -> str:
+CAND_MAX = 700
+
+
+def cand_window(text: str, keys=(), n: int = CAND_MAX) -> str:
+    """확인 대상 조문이 n자를 넘으면, 앞에서 자르지 않고 바뀌는 말(keys, 앞쪽이 우선)이 처음 나오는 곳 주변을 보인다.
+    조 머리(앞 60자)는 남긴다. 261112: 별표처럼 긴 조문은 근거가 700자 밖에 있어 판단 모델이 못 봤다(시험 T073, 리포트 97)."""
+    if len(text) <= n:
+        return text
+    for k in keys:
+        m = re.search(r"\s*".join(map(re.escape, k)), text)
+        if m:
+            start = max(0, m.start() - n // 4)
+            if start <= 60:
+                return text[:n]
+            return f"{text[:60]} … {text[start:start + n - 63]}"
+    return text[:n]
+
+
+def decide_state(kind: str, amendment: str, start_text: str, cand_text: str, keys=()) -> str:
     gq = f"{amendment}\n{start_text[:600]}"[:700]
-    return f"[개정 종류] {kind}\n[개정 내용]\n{gq}\n\n[확인 대상 조문]\n{cand_text[:700]}"
+    return f"[개정 종류] {kind}\n[개정 내용]\n{gq}\n\n[확인 대상 조문]\n{cand_window(cand_text, keys)}"
 
 
-def decide_inputs(cands: list, kind: str, amendment: str, start_text: str, unit_text: dict) -> dict[str, str]:
-    """판단 모델이 점수를 매길 후보: 확정급이 아닌 규칙 후보 전부 + RAG만 찾은 후보 전부."""
-    return {c.id: decide_state(kind, amendment, start_text, unit_text.get(c.id, ""))
+def decide_inputs(cands: list, kind: str, amendment: str, start_text: str, unit_text: dict, keys_for=None) -> dict[str, str]:
+    """판단 모델이 점수를 매길 후보: 확정급이 아닌 규칙 후보 전부 + RAG만 찾은 후보 전부.
+    keys_for(후보 id) -> 바뀌는 말 목록(evidence.change_keys). 주면 긴 조문은 그 말 주변을 넣는다."""
+    return {c.id: decide_state(kind, amendment, start_text, unit_text.get(c.id, ""), keys_for(c.id) if keys_for else ())
             for c in cands if not (is_rule(c) and c.tier == "확정급")}
 
 

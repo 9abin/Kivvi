@@ -3,7 +3,7 @@ import unittest
 
 sys.path.insert(0, "src")
 from regcheck.collect import Candidate  # noqa: E402
-from regcheck.final_view import decide_inputs, final_view  # noqa: E402
+from regcheck.final_view import cand_window, decide_inputs, final_view  # noqa: E402
 
 
 def cand(cid, tier, *paths):
@@ -33,6 +33,20 @@ class FinalViewTest(unittest.TestCase):
         s = decide_inputs(self.cs, "값 변경", "개정문", "시작 조", {"A:2": "대상 조문"})
         self.assertNotIn("A:1", s)
         self.assertIn("[확인 대상 조문]\n대상 조문", s["A:2"])
+
+
+class CandWindowTest(unittest.TestCase):
+    """261112: 긴 조문은 앞 700자 대신 바뀌는 말 주변을 판단 모델에 넣는다(시험 T073: 근거가 1,792자 위치)."""
+    def test_long_text_shows_window_around_first_key_and_keeps_head(self):
+        text = "제1조(별표) 전결사항 " + "가" * 2000 + " 라. 직원의 신원 보증보험 가입 " + "나" * 500
+        out = cand_window(text, ["없는말", "신원보증보험"], n=700)
+        self.assertTrue(out.startswith("제1조(별표)"))
+        self.assertIn("신원 보증보험 가입", out)   # 띄어쓰기가 달라도 찾는다
+        self.assertLessEqual(len(out), 700)
+
+    def test_short_text_or_no_key_is_unchanged_front(self):
+        self.assertEqual(cand_window("짧은 조문", ["말"]), "짧은 조문")
+        self.assertEqual(cand_window("가" * 900, ["없음"], n=700), "가" * 700)
 
 
 if __name__ == "__main__":

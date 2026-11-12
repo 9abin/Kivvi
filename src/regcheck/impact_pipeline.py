@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Callable
 
 from .cand_state import GRAPH_ONLY_EDGES, GRAPH_PREFIXES, RAG_PATHS, CandState, build_states, by_route, found_by
-from .evidence import card
+from .evidence import card, change_keys
 from .final_view import RULE_TH, decide_inputs
 from .luna_rerank import change_block, rank_list
 
@@ -175,7 +175,8 @@ def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=Non
     # 1. 규칙 후보: 판단 모델
     if callable(lv):
         rule_c = [_cand(s) for s in by_route(states, "decide")]
-        lv = lv(decide_inputs(rule_c, cq.kind, amendment, ctx.unit_text.get(start, ""), ctx.unit_text))
+        lv = lv(decide_inputs(rule_c, cq.kind, amendment, ctx.unit_text.get(start, ""), ctx.unit_text,
+                              keys_for=lambda cid: change_keys(cq, ctx.nodes, cid)))
     apply_decide(states, lv, rule_th, cq.kind)
     rule_evidence(states, cq, ctx.nodes, ctx.unit_text)
 

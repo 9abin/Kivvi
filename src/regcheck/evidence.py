@@ -88,6 +88,11 @@ def _change_keys(cq: ChangeQuery, nodes: dict, cand_id: str) -> list[str]:
     return [k for k in dict.fromkeys(re.sub(r"\s+", "", k) for k in keys) if len(k) >= 3]
 
 
+def change_keys(cq: ChangeQuery, nodes: dict, cand_id: str) -> list[str]:
+    """바뀌는 말(고쳐지는 조 제목 · 바뀌기 전 말 · 지워진 말 · 용어 · 다른 규정이면 규정 이름). 판단 모델 입력 자르기에도 쓴다(final_view.cand_window)."""
+    return _change_keys(cq, nodes, cand_id)
+
+
 def _contains(sents: list[str], keys: list[str]) -> str | None:
     return _first(sents, lambda s: any(k in re.sub(r"\s+", "", s) for k in keys)) if keys else None
 
