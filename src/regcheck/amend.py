@@ -197,6 +197,39 @@ def parse_amendment(text: str) -> list[Op]:
     return ops
 
 
+def article_edit_amendment(article: dict, edited: str) -> str:
+    """한 본문 조항의 편집 내용을 기존 개정문 입력 형식으로 변환한다."""
+    from .parse import RE_ARTICLE, parse
+
+    edited = edited.strip()
+    if not edited or article.get("deleted"):
+        raise AmendError("편집할 현행 조항과 수정 본문이 필요합니다.")
+    if edited == article["text"].strip():
+        raise AmendError("현행 조항과 비교해 달라진 제목이나 본문이 없습니다.")
+    lines = edited.splitlines()
+    if not RE_ARTICLE.match(lines[0]):
+        raise AmendError("첫 줄에 선택한 조 번호와 제목을 유지해 주세요.")
+    parsed = parse(lines)
+    if (len(parsed.articles) != 1 or parsed.articles[0].label != article["label"]
+            or parsed.preamble or parsed.addenda or parsed.appendices
+            or parsed.articles[0].chapter or parsed.articles[0].deleted):
+        raise AmendError("선택한 조 번호와 제목 형식을 유지하고 해당 조항만 수정해 주세요.")
+    amendment = f"{article['label']}를 다음과 같이 한다.\n{edited}"
+    ops = parse_amendment(amendment)
+    if len(ops) != 1 or ops[0].kind != "rewrite":
+        raise AmendError("선택한 조항의 수정 본문만 입력해 주세요.")
+    revised = _parse_body(ops[0].body, ops[0].unit.jo, ops[0].unit.br)
+
+    def content(a: dict) -> tuple:
+        return a["title"], [(it["path"], it["norm"], it["deleted"]) for it in a["items"]]
+
+    if content(revised) == content(article):
+        raise AmendError("현행 조항과 비교해 달라진 제목이나 본문이 없습니다.")
+    if not revised["items"]:
+        raise AmendError("수정할 본문을 입력해 주세요.")
+    return amendment
+
+
 # ---------------------------------------------------------------- 적용
 
 def _key(a: dict) -> tuple[int, int]:

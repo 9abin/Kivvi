@@ -44,6 +44,22 @@ uv sync                                    # 패키지 설치 (처음 한 번)
 6. 보정 검증: 대상 조문과 치환 글자가 실제로 있는지 확인 (없으면 `경고:` 출력)
 7. 산출물 저장
 
+### 개정안 검토 화면
+
+```powershell
+uv run python scripts/parse_regs.py --all
+uv run python scripts/extract_edges.py --all
+uv run python scripts/build_kg.py
+uv run --extra db python app/web_server.py --review-only
+```
+
+`http://127.0.0.1:8765/`에서 규정과 본문 조항을 선택하고 수정한 뒤 **수정 완료**를 누르면 현재 화면의 팝업에 영향 분석 결과가 표시됩니다.
+기존 규정 도우미 웹 화면을 사용 중이라면 조항을 연 뒤 **이 조항 직접 편집**으로 들어갈 수 있습니다.
+초안은 `out/changes/`에 저장되며, 분석은 조항 ID로 규칙 그래프와 `ontology-search/data/ontology.db`를 조회합니다.
+현행 원문과 온톨로지 DB는 읽기 전용입니다.
+
+검토 초안을 저장하면 사용 가능한 분석 단계가 자동으로 실행됩니다. 의미 검색에는 `out/vector/` 색인이 필요합니다. Ollama에 `bge-m3`가 설치돼 있으면 `uv run python scripts/build_vectors.py --ollama bge-m3`로 색인을 만들 수 있습니다. `.env` 또는 서버 환경에 `OPENAI_API_KEY`가 있으면 Luna 선별과 문장 생성을 사용하며, 이때 개정 내용과 후보 조항은 외부 API로 전송됩니다. 규칙 판단 모델을 사용하려면 서버 환경에 `IMPACT_DECIDE_PYTHON`(모델 환경의 Python 실행 파일)과 `IMPACT_DECIDE_MODEL`(모델 경로)을 설정합니다.
+
 ## 3. 산출물 (`out/`)
 
 | 파일 | 내용 |

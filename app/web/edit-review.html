@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>조항 직접 편집 · KIVVI</title>
+  <link rel="icon" href="img/kiwi-64.png">
+  <link rel="stylesheet" href="edit-review.css?v=impact-visual">
+  <script defer src="edit-review.js?v=impact-visual"></script>
+</head>
+<body>
+  <header class="top">
+    <div><img src="img/kiwi-64.png" alt="" width="34" height="34"><strong>KIVVI</strong><span>내부규정 도우미</span></div>
+  </header>
+  <main id="home" aria-labelledby="home-heading">
+    <section class="panel start-panel">
+      <h1 id="home-heading">내부규정 개정안 검토</h1>
+      <p class="muted">규정 전문을 열고, 수정할 조항을 골라 영향 분석을 시작하세요.</p>
+      <button type="button" id="start-review">시작하기</button>
+      <p class="muted" id="home-status" role="status"></p>
+    </section>
+  </main>
+  <div class="workspace" id="workspace" hidden>
+    <aside class="documents" aria-labelledby="documents-heading">
+      <h2 id="documents-heading">규정 문서</h2>
+      <button type="button" id="home-button">홈으로</button>
+      <input type="search" id="document-search" aria-label="규정명 검색" placeholder="규정명 검색">
+      <nav id="documents" aria-label="규정 문서 목록"></nav>
+    </aside>
+    <main>
+    <section id="reader" class="panel">
+      <h1 id="document-title" aria-live="polite">규정 문서를 선택하세요</h1>
+      <div id="document-body"></div>
+    </section>
+    <form id="editor" class="panel" hidden>
+      <h2 id="editor-heading">조항 편집</h2>
+      <p><a href="#reader" id="return-to-article">문서의 조항으로 돌아가기</a></p>
+      <div hidden>
+        <label>규정<select id="regulation" required disabled></select></label>
+        <label>조항<select id="article" required disabled></select></label>
+      </div>
+      <div class="edit-field">
+        <label>개정안<textarea id="edited" required disabled rows="11" aria-describedby="edit-help"></textarea></label>
+      </div>
+      <p id="edit-help" class="muted">조 번호를 유지하고 제목 또는 본문을 수정하세요. 저장하면 초안이 생성됩니다.</p>
+      <p class="muted">저장하면 사용 가능한 검색·검토 단계를 자동으로 실행합니다. 서버에 Luna가 설정돼 있으면 개정 내용과 후보 조항이 외부 API로 전송됩니다.</p>
+      <div class="actions">
+        <button id="submit" disabled type="submit">수정 완료</button>
+        <span id="status" role="status"></span>
+      </div>
+    </form>
+    </main>
+  </div>
+  <dialog id="result-dialog" aria-labelledby="result-heading">
+    <section id="results" tabindex="-1" aria-labelledby="result-heading" class="panel">
+      <button type="button" id="close-result">닫기</button>
+      <h2 id="result-heading">검토 결과</h2>
+      <p id="result-status" role="status"></p>
+      <p id="result-meta" class="muted"></p>
+      <ul id="analysis-notices" class="muted" hidden></ul>
+      <div role="group" aria-label="검토 결과 보기" class="switch" id="result-switch">
+        <button type="button" data-panel="impacts" aria-controls="impacts" aria-pressed="true">확인할 사항</button>
+        <button type="button" data-panel="comparison" aria-controls="comparison" aria-pressed="false">신·구조문대비표</button>
+      </div>
+      <div id="comparison"></div>
+      <div id="impacts" hidden></div>
+    </section>
+  </dialog>
+</body>
+</html>

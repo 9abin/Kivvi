@@ -42,6 +42,7 @@ from psycopg.rows import dict_row  # noqa: E402
 
 from regcheck.change_check import basis_of  # noqa: E402
 from regcheck.db import load_env  # noqa: E402
+import web_edit  # noqa: E402
 
 IMPACT_LABEL = {"breaks": ("break", "깨짐"), "resolved": ("resolved", "충돌 해소"), "law_check": ("law", "법령 대조"),
                 "review": ("review", "확인 필요"), "undeterminable": ("review", "판단 불가"), "info": ("topic", "참고")}
@@ -377,6 +378,7 @@ def regulation(reg_id: str) -> dict:
 
 
 ROUTES = {
+    "/api/edit/catalog": lambda p: web_edit.catalog(p.get("reg", "")),
     "/api/status": lambda p: status(),
     "/api/find": lambda p: find(p.get("q", "")),
     "/api/article": lambda p: article(p.get("chunk", "")),
@@ -408,6 +410,7 @@ def with_open_changes(res: dict) -> dict:
 
 
 POSTS = {
+    "/api/edit/review": lambda b: allowed(b, "draft") or web_edit.submit(b),
     "/api/ask": lambda b: with_open_changes(web_chat.ask(b.get("q", ""), b.get("history") or [])),
     "/api/draft": lambda b: allowed(b, "draft") or web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
     "/api/decide": lambda b: allowed(b, "decide") or web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
@@ -456,6 +459,8 @@ import web_watch  # noqa: E402
 
 
 class Handler(SimpleHTTPRequestHandler):
+    review_only = False
+
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(WEB), **kw)
 
@@ -470,6 +475,13 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         u = urlparse(self.path)
+        if self.review_only and u.path == "/":
+            self.send_response(302)
+            self.send_header("Location", "/edit-review.html")
+            self.end_headers()
+            return
+        if self.review_only and u.path.startswith("/api/") and u.path != "/api/edit/catalog":
+            return self._json({"error": "없는 주소"}, 404)
         params = {k: v[0] for k, v in parse_qs(u.query).items()}
         if u.path == "/api/package":   # 개정 패키지 HTML 내려받기
             cid = re.sub(r"[^A-Za-z0-9_-]", "", params.get("id", ""))
@@ -494,14 +506,21 @@ class Handler(SimpleHTTPRequestHandler):
         self._json(body, code)
 
     def do_POST(self):  # noqa: N802
-        route = POSTS.get(urlparse(self.path).path)
+        path = urlparse(self.path).path
+        if self.review_only and path != "/api/edit/review":
+            return self._json({"error": "없는 주소"}, 404)
+        route = POSTS.get(path)
         if not route:
             return self._json({"error": "없는 주소"}, 404)
         try:
+            if path == "/api/edit/review" and self.headers.get_content_type() != "application/json":
+                return self._json({"error": "JSON 요청이 필요합니다."}, 415)
             n = int(self.headers.get("Content-Length") or 0)
-            if n > 20000:
+            if not 0 <= n <= (256_000 if path == "/api/edit/review" else 20_000):
                 return self._json({"error": "요청이 너무 큽니다"}, 413)
             body = json.loads(self.rfile.read(n) or b"{}")
+            if not isinstance(body, dict):
+                return self._json({"error": "JSON 객체를 보내 주세요."}, 400)
             out = route(body)
             self._json(out, 400 if isinstance(out, dict) and out.get("error") else 200)
         except Exception as e:
@@ -516,12 +535,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="127.0.0.1", help="같은 와이파이 팀원에게 보이려면 0.0.0.0 (방화벽 규칙 필요)")
+    ap.add_argument("--review-only", action="store_true", help="조항 직접 편집 화면만 실행")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
-    web_law.init(lawdb())  # 법률 DB를 시작할 때 한 번 읽음 (첫 요청이 느려지지 않게, SQLite는 이 스레드에서만)
-    web_agent.corpus()
-    web_chat.warmup()  # 가빈 검색 모델(GPU)을 뒤에서 미리 올림
-    print(f"규정 도우미 화면: http://{a.host}:{a.port}/  (DB 상태: /api/status)")
+    Handler.review_only = a.review_only
+    if not a.review_only:
+        web_law.init(lawdb())  # SQLite는 시작 스레드에서만 사용한다.
+        web_agent.corpus()
+        web_chat.warmup()
+    print(f"규정 도우미 화면: http://{a.host}:{a.port}/")
     ThreadingHTTPServer((a.host, a.port), Handler).serve_forever()
 
 

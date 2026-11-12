@@ -143,7 +143,8 @@ def final_list(states: list[CandState]) -> dict:
 
 def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=None, graph=None,
                  lv: dict | Callable[[dict], dict] | None = None, luna: Callable | None = None, writer: Callable | None = None,
-                 n_rag: int | None = 50, n_graph: int | None = 10, orders: int = 2, seed: int = 0, rule_th: float = DECIDE_TH) -> dict:
+                 n_rag: int | None = 50, n_graph: int | None = 10, orders: int = 2, seed: int = 0, rule_th: float = DECIDE_TH,
+                 on_luna_error: Callable[[Exception], None] | None = None) -> dict:
     from .impact_view import run
 
     res = run(ctx, regs, reg_id, amendment, cid, rag=rag, graph=graph)
@@ -165,10 +166,17 @@ def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=Non
     usage: list[dict] = []
     picked = pick_for_luna(states, n_rag, n_graph)
     if luna is not None and picked:
-        out = rank_list(change_text, luna_items(picked, ctx.nodes, ctx.unit_text), luna, orders=orders, seed=seed)
-        apply_luna(picked, out)
-        usage = out["usage"]
-    else:
+        try:
+            out = rank_list(change_text, luna_items(picked, ctx.nodes, ctx.unit_text), luna, orders=orders, seed=seed)
+        except Exception as exc:
+            if on_luna_error is None:
+                raise
+            on_luna_error(exc)
+            luna = writer = None
+        else:
+            apply_luna(picked, out)
+            usage = out["usage"]
+    if luna is None:
         for s in picked:
             s.rerank = {"by": "skipped", "kept": True, "rank": s.order}
             s.log.append("luna 건너뜀: 검색 순서 그대로 보임")
