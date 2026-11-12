@@ -93,7 +93,8 @@ def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag, domain, 
     changed_items = [it for it in article["items"] if not it.get("deleted")
                      and new_items.get(tuple(it["path"])) != it["norm"]]
     source = "\n".join(it["norm"] for it in changed_items) or article["norm"][:700]
-    query = f"{reg_name} {article['label']} {article['title']}\n{' '.join(cq.removed)} → {' '.join(cq.added)}\n{source}"[:1200]
+    number_change = f"{article['label']} → {revised['label']}\n" if article["label"] != revised["label"] else ""
+    query = f"{reg_name} {article['label']} {article['title']}\n{number_change}{' '.join(cq.removed)} → {' '.join(cq.added)}\n{source}"[:1200]
     ids = sorted(corpus)
     texts = tuple(f"{ctx.nodes[aid].get('label', '')} {ctx.unit_text[aid]}" for aid in ids)
     lex = dict(zip(ids, lexical_index(texts).scores(query).tolist()))
@@ -107,7 +108,9 @@ def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag, domain, 
             graph_ids = [aid for aid in graph_ids if aid in corpus and aid not in excluded]
         except Exception:
             notices["도메인 그래프"] = "그래프 탐색에 실패해 검색 후보로 계속 분석했습니다."
-    ranked = fuse(fuse(dense, keyword), graph_ids)
+    citing = {edge["src"] for edge in ctx.kg.inb.get(("CITES", article["id"]), [])} & corpus.keys() - excluded
+    graph_rank = list(dict.fromkeys([*sorted(citing, key=lambda aid: (-lex[aid], aid)), *graph_ids])) if number_change else graph_ids
+    ranked = fuse(fuse(dense, keyword), graph_rank)
     picked = []
     for order, aid in enumerate(ranked[:REVIEW_LIMIT]):
         paths = []
@@ -118,7 +121,7 @@ def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag, domain, 
         if aid in graph_ids[:100]:
             paths.append("GRAPH_CONCEPT")
         # 직접 인용은 합쳐진 후보에 발견 근거로만 표시한다.
-        if any(edge["src"] == aid for edge in ctx.kg.inb.get(("CITES", article["id"]), [])):
+        if aid in citing:
             paths.append("CITES_in")
         picked.append(CandState(aid, "graph" if "GRAPH_CONCEPT" in paths else "rag", "luna", paths, "참고", order))
     return picked, len(ranked)
@@ -199,10 +202,10 @@ def submit(body):
         edited = body.get("edited")
         if not isinstance(edited, str):
             raise AmendError("수정 문안을 입력해 주세요.")
-        amendment = article_edit_amendment(article, edited)
+        amendment = article_edit_amendment(article, edited, reg=reg)
         cid = f"edit-{uuid4().hex}"
         draft, revised_reg = build_changeset(reg, amendment, cid, title=f"{article['label']} 직접 편집")
-        revised = next(a for a in revised_reg["articles"] if a["label"] == article["label"])
+        revised = next(a for a in revised_reg["articles"] if a["_origin"] == article["id"])
     except AmendError as exc:
         return {"error": str(exc)}
 
@@ -248,7 +251,9 @@ def submit(body):
     except Exception as exc:
         return {"error": f"영향 분석을 완료하지 못했습니다 ({type(exc).__name__}). 색인과 모델 설정을 확인해 주세요."}
     response = {
-        "id": cid, "regulation": reg["name"], "article": article["label"], "amendment": amendment, "rows": draft["rows"],
+        "id": cid, "regulation": reg["name"],
+        "article": f"{article['label']} → {revised['label']}" if revised["label"] != article["label"] else article["label"],
+        "amendment": amendment, "rows": draft["rows"],
         "kind": cq.kind, "change_evidence": cq.evidence, "retrieved": retrieved, "rerank_input": min(retrieved, REVIEW_LIMIT),
         "candidates": [_candidate(s, ctx, regs) for s in candidates],
         "options": {"BM25": True, "도메인 그래프": domain is not None and "도메인 그래프" not in notices,

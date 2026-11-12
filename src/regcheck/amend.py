@@ -197,7 +197,7 @@ def parse_amendment(text: str) -> list[Op]:
     return ops
 
 
-def article_edit_amendment(article: dict, edited: str) -> str:
+def article_edit_amendment(article: dict, edited: str, *, reg: dict | None = None) -> str:
     """한 본문 조항의 편집 내용을 기존 개정문 입력 형식으로 변환한다."""
     from .parse import RE_ARTICLE, parse
 
@@ -208,13 +208,19 @@ def article_edit_amendment(article: dict, edited: str) -> str:
         raise AmendError("현행 조항과 비교해 달라진 제목이나 본문이 없습니다.")
     lines = edited.splitlines()
     if not RE_ARTICLE.match(lines[0]):
-        raise AmendError("첫 줄에 선택한 조 번호와 제목을 유지해 주세요.")
+        raise AmendError("첫 줄을 제19조(제목) 형식으로 입력해 주세요.")
     parsed = parse(lines)
-    if (len(parsed.articles) != 1 or parsed.articles[0].label != article["label"]
-            or parsed.preamble or parsed.addenda or parsed.appendices
+    if (len(parsed.articles) != 1 or parsed.preamble or parsed.addenda or parsed.appendices
             or parsed.articles[0].chapter or parsed.articles[0].deleted):
-        raise AmendError("선택한 조 번호와 제목 형식을 유지하고 해당 조항만 수정해 주세요.")
-    amendment = f"{article['label']}를 다음과 같이 한다.\n{edited}"
+        raise AmendError("해당 조항 하나만 입력해 주세요.")
+    new_label = parsed.articles[0].label
+    moving = new_label != article["label"]
+    if moving:
+        if reg is None:
+            raise AmendError("이 편집 화면에서는 선택한 조 번호를 유지해 주세요.")
+        if any(a["label"] == new_label and a["id"] != article["id"] for a in reg["articles"]):
+            raise AmendError(f"{new_label}가 이미 있습니다. 기존 조항은 덮어쓸 수 없으니 비어 있는 조 번호를 입력해 주세요.")
+    amendment = f"{new_label}를 다음과 같이 한다.\n{edited}"
     ops = parse_amendment(amendment)
     if len(ops) != 1 or ops[0].kind != "rewrite":
         raise AmendError("선택한 조항의 수정 본문만 입력해 주세요.")
@@ -224,9 +230,13 @@ def article_edit_amendment(article: dict, edited: str) -> str:
         return a["title"], [(it["path"], it["norm"], it["deleted"]) for it in a["items"]]
 
     if content(revised) == content(article):
+        if moving:
+            return f"{article['label']}를 {new_label}로 한다."
         raise AmendError("현행 조항과 비교해 달라진 제목이나 본문이 없습니다.")
     if not revised["items"]:
         raise AmendError("수정할 본문을 입력해 주세요.")
+    if moving:
+        return f"{article['label']}를 {new_label}로 한다.\n{amendment}"
     return amendment
 
 
