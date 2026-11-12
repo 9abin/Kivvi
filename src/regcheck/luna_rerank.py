@@ -79,12 +79,21 @@ def change_block(reg: dict, amendment: str, start_id: str | None, max_old: int =
         return "\n".join(lines)
     lines.append(f"개정 전 원문: {name} {(old_a.get('norm') or _art_text(old_a))[:max_old]}")
     try:
-        new_a = next((x for x in apply(reg, parse_amendment(amendment))[0]["articles"] if x["label"] == old_a["label"]), None)
+        # 개정 후 조는 원래 id로 찾는다. 번호로 찾으면 번호 이동을 「조 전체 삭제」로 잘못 보인다(261112, 리포트 96)
+        arts = apply(reg, parse_amendment(amendment))[0]["articles"]
     except AmendError:
         return "\n".join(lines)
+    new_a = next((x for x in arts if x.get("_origin", x.get("id")) == old_a["id"]), None)
     if new_a is None or new_a.get("deleted"):
         lines.append("바뀌는 부분: (조 전체 삭제)")
         return "\n".join(lines)
+    if new_a["label"] != old_a["label"]:
+        lines.append(f"번호 이동: {old_a['label']} → {new_a['label']}")
+        # 신설하면서 뒤 조를 미는 개정: 새 조 내용을 따로 보인다 (예전에는 옛 조와 새 조를 같은 조의 내용 변경으로 보였다)
+        for x in arts:
+            if "_origin" in x and x["_origin"] is None and not x.get("deleted"):
+                head = f"{x['label']}({x['title']})" if x.get("title") else x["label"]
+                lines.append(f"새로 들어가는 조: {name} {head} {(x.get('norm') or _art_text(x))[:max_old]}")
     live = lambda a: [it.get("norm", "") for it in (a.get("items") or []) if not it.get("deleted")]  # noqa: E731
     oi, ni = live(old_a), live(new_a)
     before = [t for t in oi if t not in ni]

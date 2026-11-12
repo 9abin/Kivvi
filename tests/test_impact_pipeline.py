@@ -113,6 +113,21 @@ class LunaTest(unittest.TestCase):
         self.assertIn("(조 전체 삭제)", t)
         self.assertNotIn("(없음)", t)
 
+    def test_renumber_is_not_shown_as_deletion(self):
+        # 261112 Codex 지적: 개정 후 조를 옛 번호로 찾아 번호 이동이 「조 전체 삭제」로 보였다
+        r = reg()
+        r["articles"] = [a for a in r["articles"] if a["id"] == "R:3"]
+        t = change_block(r, "제3조를 제4조로 한다.", "R:3")
+        self.assertNotIn("조 전체 삭제", t)
+        self.assertIn("번호 이동: 제3조 → 제4조", t)
+
+    def test_insert_with_shift_shows_new_article_separately(self):
+        # 신설하면서 뒤 조를 밀면, 옛 조와 새 조를 같은 조의 내용 변경으로 보이지 않는다
+        t = change_block(reg(), "제4조 이하를 각각 한 조씩 뒤로 하고, 제3조의 다음에 제4조를 다음과 같이 신설한다.\n제4조(접수) 부서는 신청을 접수한다.", "R:4")
+        self.assertIn("번호 이동: 제4조 → 제5조", t)
+        self.assertIn("새로 들어가는 조: 가 지침 제4조(접수)", t)
+        self.assertNotIn("바뀌는 부분 (개정 전)", t)
+
 
 class GraphAndAnswerTest(unittest.TestCase):
     def test_add_graph_merges_paths(self):
