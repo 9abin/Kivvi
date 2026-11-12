@@ -5,6 +5,8 @@
   out["states"]  # 후보마다 CandState (출처 · 경로 · 각 단계 결과 · 기록)
   out["rule"]    # 보이는 규칙 후보 (수집 순서 그대로)
   out["other"]   # 보이는 그래프 · RAG 후보 (luna 순서)
+  out["first"]   # 첫 화면: rule + other 순서로 FIRST_N개, 그 밖의 확정급은 덧붙임 (길이 가변)
+  out["more"]    # 「더 보기」: 나머지 (지우지 않는다)
 
 출처별로 할 일이 고정이다.
 | 출처        | 거르기 · 순위                         | 근거                                   | 답변 (writer)                   |
@@ -143,6 +145,20 @@ def final_list(states: list[CandState]) -> dict:
     return {"rule": rule, "other": other, "hidden": len(states) - len(rule) - len(other)}
 
 
+# 첫 화면에 보일 개수. 문항의 85%는 목록이 10개 이하이고, 15%(삭제 · 번호 이동처럼 인용하는 조가 많은 개정)는 최대 30개다(261112).
+# 고정 상한으로 자르면 그 문항들의 정답을 잃으므로, 넘는 것은 지우지 않고 「더 보기」로 둔다.
+FIRST_N = 10
+
+
+def screen(rule: list[CandState], other: list[CandState], n: int = FIRST_N) -> dict:
+    """첫 화면 / 더 보기. 순서는 합친 순서(규칙 먼저) 그대로 n개, n 밖의 확정급은 첫 화면 끝에 덧붙인다
+    (순서를 바꾸지 않는 것은 리포트 93: 확정급 먼저로 바꿔도 상위 10이 나아지지 않음)."""
+    ordered = rule + other
+    first = ordered[:n] + [s for s in ordered[n:] if s.tier == "확정급"]
+    keep = {id(s) for s in first}
+    return {"first": first, "more": [s for s in ordered if id(s) not in keep]}
+
+
 def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=None, graph=None,
                  lv: dict | Callable[[dict], dict] | None = None, luna: Callable | None = None, writer: Callable | None = None,
                  n_rag: int | None = 50, n_graph: int | None = 10, orders: int = 2, seed: int = 0, rule_th: float = DECIDE_TH) -> dict:
@@ -151,7 +167,7 @@ def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=Non
     res = run(ctx, regs, reg_id, amendment, cid, rag=rag, graph=graph)
     cq = res["cq"]
     if res["error"]:
-        return {"cq": cq, "states": [], "rule": [], "other": [], "hidden": 0, "error": res["error"], "usage": []}
+        return {"cq": cq, "states": [], "rule": [], "other": [], "first": [], "more": [], "hidden": 0, "error": res["error"], "usage": []}
     states = build_states(res["view"]["all"])
     start = cq.starts[0] if cq.starts else None
     change_text = change_block(regs[reg_id], amendment, start)
@@ -180,7 +196,7 @@ def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=Non
     if writer is not None:
         from .answer_writer import write_answers
         write_answers(view["rule"] + view["other"], amendment, change_text, ctx.nodes, writer)
-    return {"cq": cq, "states": states, **view, "error": "", "usage": usage, "change_text": change_text}
+    return {"cq": cq, "states": states, **view, **screen(view["rule"], view["other"]), "error": "", "usage": usage, "change_text": change_text}
 
 
 def _cand(s: CandState):

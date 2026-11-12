@@ -4,6 +4,8 @@
   python eval/relabel_v2/metrics.py kappa <bm|val> <검색 후보 pool.json>    # B1 · B2 Cohen's kappa
 
 순위 지표 (정답 = gold.jsonl의 id, 이진 관련도)
+- 첫 화면 재현율: 첫 화면(합친 순서로 10개 + 10위 밖의 확정급, impact_pipeline.screen) 안의 정답 / 전체 정답. 나머지는 「더 보기」
+- 전체 재현율: 첫 화면 + 더 보기(보인 목록 전부) 안의 정답 / 전체 정답
 - Recall@k: 상위 k 안의 정답 수 / 전체 정답 수 (정답 단위로 모아 계산, micro)
 - Hit@k (Success@k): 상위 k에 정답이 하나라도 있는 문항 비율 (정답 있는 문항만)
 - MRR: 첫 정답 순위의 역수 평균 (정답 있는 문항만, 목록에 없으면 0)
@@ -33,10 +35,12 @@ def gold(d):
     return {f"{d}:{r['id']}": {e["id"] for e in r["영향"] if e.get("id")} for r in jl(ROOT / f"eval/relabel_v2/{d}/gold.jsonl")}
 
 
-def per_q(L, g, ks=(5, 10)):
-    """문항 하나의 값들. g가 비면 정답 단위 지표에만 0으로 들어간다."""
+def per_q(L, g, ks=(5, 10), first=None):
+    """문항 하나의 값들. g가 비면 정답 단위 지표에만 0으로 들어간다. first = 첫 화면 id 집합(없으면 상위 10)."""
     hits = [1 if x in g else 0 for x in L]
     out = {f"r@{k}": sum(hits[:k]) for k in ks}
+    out["first"] = len(g & set(L[:10] if first is None else first))
+    out["all"] = sum(hits)
     out["n"] = len(g)
     if not g:
         return out
@@ -59,19 +63,27 @@ def agg(rows):
     T = sum(r["n"] for r in rows) or 1
     w = [r for r in rows if r["n"]]
     m = lambda k: sum(r[k] for r in w) / max(len(w), 1)  # noqa: E731
-    return {"Recall@5": sum(r["r@5"] for r in rows) / T, "Recall@10": sum(r["r@10"] for r in rows) / T,
+    return {"첫 화면 재현율": sum(r["first"] for r in rows) / T, "전체 재현율": sum(r["all"] for r in rows) / T,
+            "Recall@5": sum(r["r@5"] for r in rows) / T, "Recall@10": sum(r["r@10"] for r in rows) / T,
             "Hit@5": m("hit@5"), "MRR": m("rr"), "MAP": m("ap"), "nDCG@10": m("ndcg@10")}
+
+
+def first_screen(rule, other, n=10):
+    """impact_pipeline.screen과 같은 규칙(261112): 합친 순서로 n개 + n 밖의 확정급. 나머지는 「더 보기」."""
+    ordered = rule + other
+    return [s["id"] for s in ordered[:n]] + [s["id"] for s in ordered[n:] if s.get("tier") == "확정급"]
 
 
 def rank(d, files):
     G = gold(d)
     print(f"## {d} 순위 지표 (정답 {sum(map(len, G.values()))}, 정답 있는 문항 {sum(1 for v in G.values() if v)})")
-    names = ["Recall@5", "Recall@10", "Hit@5", "MRR", "MAP", "nDCG@10"]
-    print("| 실행 | 문항당 | " + " | ".join(names) + " |\n|---|---|" + "---|" * len(names))
+    names = ["첫 화면 재현율", "전체 재현율", "Recall@5", "Recall@10", "Hit@5", "MRR", "MAP", "nDCG@10"]
+    print("| 실행 | 문항당 (첫 화면 / 전체) | " + " | ".join(names) + " |\n|---|---|" + "---|" * len(names))
     for f in files:
         R = {r["q"]: r for r in jl(f)}
         L = {q: [s["id"] for s in r["rule"]] + [s["id"] for s in r["other"]] for q, r in R.items()}
-        rows = [per_q(L[q], G[q]) for q in sorted(R)]
+        F = {q: first_screen(r["rule"], r["other"]) for q, r in R.items()}
+        rows = [per_q(L[q], G[q], first=F[q]) for q in sorted(R)]
         val = agg(rows)
         random.seed(0)
         bs = [agg([random.choice(rows) for _ in rows]) for _ in range(5000)]
@@ -79,7 +91,7 @@ def rank(d, files):
         for k in names:
             xs = sorted(b[k] for b in bs)
             cells.append(f"{val[k]:.3f} ({xs[125]:.3f}~{xs[4874]:.3f})")
-        print(f"| {Path(f).name} | {sum(map(len, L.values()))/len(L):.1f} | " + " | ".join(cells) + " |")
+        print(f"| {Path(f).name} | {sum(map(len, F.values()))/len(F):.1f} / {sum(map(len, L.values()))/len(L):.1f} | " + " | ".join(cells) + " |")
 
 
 def kappa(d, pool_file):

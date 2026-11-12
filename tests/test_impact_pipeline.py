@@ -7,7 +7,7 @@ from regcheck.answer_writer import write_answers  # noqa: E402
 from regcheck.cand_state import build_states, source_of  # noqa: E402
 from regcheck.collect import Candidate  # noqa: E402
 from regcheck.graph_source import add_graph  # noqa: E402
-from regcheck.impact_pipeline import apply_decide, apply_luna, final_list, pick_for_luna  # noqa: E402
+from regcheck.impact_pipeline import apply_decide, apply_luna, final_list, pick_for_luna, screen  # noqa: E402
 from regcheck.luna_rerank import change_block, merge, rank_list  # noqa: E402
 
 
@@ -59,6 +59,15 @@ class StateTest(unittest.TestCase):
         apply_decide(st, {"B": 0.1, "C": 0.1}, 0.7, "정의 변경")
         self.assertEqual([s.rerank["kept"] for s in st], [True, False])
         self.assertEqual(st[0].rerank["by"], "bypass_uses_term")
+
+    def test_first_screen_keeps_order_and_appends_confirmed_beyond_n(self):
+        # 261112: 첫 화면은 합친 순서로 n개 + n 밖의 확정급, 나머지는 「더 보기」(지우지 않음)
+        rule = build_states([cand("A", "확인 권장", "CO_MENTION"), cand("B", "참고", "CO_MENTION"), cand("C", "확정급", "CITES_in")])
+        other = build_states([cand("D", "참고", "RAG"), cand("E", "참고", "RAG")])
+        v = screen(rule, other, n=2)
+        self.assertEqual([s.id for s in v["first"]], ["A", "B", "C"])
+        self.assertEqual([s.id for s in v["more"]], ["D", "E"])
+        self.assertEqual([s.id for s in screen(rule, other, n=10)["first"]], ["A", "B", "C", "D", "E"])
 
 
 class LunaTest(unittest.TestCase):
