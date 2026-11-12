@@ -3,18 +3,20 @@
 import hashlib
 import json
 import os
-import subprocess
-import tempfile
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
 
 from regcheck.amend import AmendError, article_edit_amendment, build_changeset
-from regcheck.cand_state import found_by
+from regcheck.cand_state import CandState, found_by
 from regcheck.db import load_env
+from regcheck.rank_fusion import fuse
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "ontology-search"))
+REVIEW_LIMIT = 10
 
 
 def _reg(reg_id):
@@ -47,9 +49,9 @@ def catalog(reg_id=""):
 
 @lru_cache(maxsize=1)
 def graph():
-    from regcheck.graph_source import GraphSource
+    from ontology_search.validated_graph import DomainGraph
 
-    return GraphSource.load(ROOT)
+    return DomainGraph(ROOT / "ontology-search" / "data" / "ontology.db")
 
 
 @lru_cache(maxsize=1)
@@ -66,26 +68,60 @@ def rag_backend():
     return make_rag(encoder, Index(path))
 
 
-def decide_scorer(reg, amendment, cid):
-    python, model = os.environ.get("IMPACT_DECIDE_PYTHON"), os.environ.get("IMPACT_DECIDE_MODEL")
-    if not (python and model):
-        return None
-    from regcheck.change_query import analyze
+@lru_cache(maxsize=1)
+def lexical_index(texts):
+    from ontology_search.bm25 import BM25
 
-    kind = analyze(reg, amendment, cid).kind
+    return BM25(texts)
 
-    def score(inputs):
-        if not inputs:
-            return {}
-        with tempfile.TemporaryDirectory() as tmp:
-            pairs, scores = Path(tmp) / "pairs.json", Path(tmp) / "scores.json"
-            pairs.write_text(json.dumps({"pairs": [{"key": k, "kind": kind, "state": v}
-                                                     for k, v in inputs.items()]}, ensure_ascii=False), encoding="utf-8")
-            subprocess.run([python, str(ROOT / "scripts" / "decide_score_pairs.py"), model, str(pairs), str(scores)],
-                           cwd=ROOT, check=True, capture_output=True, timeout=8)
-            return {k: v["lv"] for k, v in json.loads(scores.read_text(encoding="utf-8")).items()}
 
-    return score
+def review_corpus(regs, ctx):
+    corpus = {}
+    for reg in regs.values():
+        units = list(reg["articles"]) + list(reg.get("appendices", []))
+        for addendum in reg.get("addenda", []):
+            units.extend(addendum["articles"])
+        for unit in units:
+            if not unit.get("deleted") and unit["id"] in ctx.unit_text and unit["id"] in ctx.nodes:
+                corpus[unit["id"]] = unit
+    return corpus
+
+
+def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag, domain, notices):
+    # 평가의 focus_queries와 같이 변경 문구를 앞에 두고 변경된 항을 그래프의 시작점으로 쓴다.
+    new_items = {tuple(it["path"]): it["norm"] for it in revised["items"] if not it.get("deleted")}
+    changed_items = [it for it in article["items"] if not it.get("deleted")
+                     and new_items.get(tuple(it["path"])) != it["norm"]]
+    source = "\n".join(it["norm"] for it in changed_items) or article["norm"][:700]
+    query = f"{reg_name} {article['label']} {article['title']}\n{' '.join(cq.removed)} → {' '.join(cq.added)}\n{source}"[:1200]
+    ids = sorted(corpus)
+    texts = tuple(f"{ctx.nodes[aid].get('label', '')} {ctx.unit_text[aid]}" for aid in ids)
+    lex = dict(zip(ids, lexical_index(texts).scores(query).tolist()))
+    excluded = {article["id"]}
+    keyword = sorted((aid for aid in ids if aid not in excluded and lex[aid] > 0), key=lambda aid: (-lex[aid], aid))[:200]
+    dense = [aid for aid in (rag(query, 200) if rag else []) if aid in corpus and aid not in excluded]
+    graph_ids = []
+    if domain is not None:
+        try:
+            graph_ids, _ = domain.rank(corpus, [article], query, lex, [it["id"] for it in changed_items])
+            graph_ids = [aid for aid in graph_ids if aid in corpus and aid not in excluded]
+        except Exception:
+            notices["도메인 그래프"] = "그래프 탐색에 실패해 검색 후보로 계속 분석했습니다."
+    ranked = fuse(fuse(dense, keyword), graph_ids)
+    picked = []
+    for order, aid in enumerate(ranked[:REVIEW_LIMIT]):
+        paths = []
+        if aid in dense[:100]:
+            paths.append("VECTOR")
+        if aid in keyword[:100]:
+            paths.append("BM25")
+        if aid in graph_ids[:100]:
+            paths.append("GRAPH_CONCEPT")
+        # 직접 인용은 합쳐진 후보에 발견 근거로만 표시한다.
+        if any(edge["src"] == aid for edge in ctx.kg.inb.get(("CITES", article["id"]), [])):
+            paths.append("CITES_in")
+        picked.append(CandState(aid, "graph" if "GRAPH_CONCEPT" in paths else "rag", "luna", paths, "참고", order))
+    return picked, len(ranked)
 
 
 def _candidate(state, ctx, regs):
@@ -96,7 +132,7 @@ def _candidate(state, ctx, regs):
             "text": ctx.unit_text.get(state.id, "")}
 
 
-def analysis_backends(reg, amendment, cid):
+def analysis_backends():
     notices = {}
 
     def optional(name, run, fallback):
@@ -123,7 +159,6 @@ def analysis_backends(reg, amendment, cid):
         rag = None
         notices["의미 검색"] = "의미 검색 색인이나 임베딩 모델을 불러오지 못했습니다."
 
-    lv = optional("규칙 판단 모델", decide_scorer(reg, amendment, cid), {})
     luna = writer = None
     if not load_env().get("OPENAI_API_KEY", "").strip().strip('"\"'):
         notices["Luna"] = "OPENAI_API_KEY가 설정되지 않아 Luna 선별과 검토 문장 생성을 건너뛰었습니다."
@@ -145,12 +180,14 @@ def analysis_backends(reg, amendment, cid):
         except Exception:
             notices["Luna"] = "Luna 클라이언트를 준비하지 못했습니다."
 
-    return rag, lv, luna, writer, notices
+    return rag, luna, writer, notices
 
 
 def submit(body):
-    from regcheck.impact_pipeline import run_pipeline
+    from regcheck.change_query import analyze
+    from regcheck.impact_pipeline import apply_luna, luna_items
     from regcheck.impact_view import load_context
+    from regcheck.luna_rerank import change_block, rank_list
 
     try:
         reg = _reg(body.get("reg_id"))
@@ -164,7 +201,8 @@ def submit(body):
             raise AmendError("수정 문안을 입력해 주세요.")
         amendment = article_edit_amendment(article, edited)
         cid = f"edit-{uuid4().hex}"
-        draft, _ = build_changeset(reg, amendment, cid, title=f"{article['label']} 직접 편집")
+        draft, revised_reg = build_changeset(reg, amendment, cid, title=f"{article['label']} 직접 편집")
+        revised = next(a for a in revised_reg["articles"] if a["label"] == article["label"])
     except AmendError as exc:
         return {"error": str(exc)}
 
@@ -172,44 +210,50 @@ def submit(body):
     regs[reg["reg_id"]] = reg
     ctx = load_context(ROOT, regs)
     if ctx is None:
-        return {"error": "규칙 그래프가 없습니다. scripts/build_kg.py로 생성해 주세요."}
+        return {"error": "조항 검색 메타데이터가 없습니다. scripts/build_kg.py로 생성해 주세요."}
     try:
-        domain = graph()
-        rag, lv, luna, writer, notices = analysis_backends(reg, amendment, cid)
-
-        def luna_error(_exc):
-            notices["Luna"] = "Luna 선별이 제한 시간 안에 완료되지 않았거나 호출에 실패해 검색 순서로 후보를 표시했습니다."
-
-        result = run_pipeline(ctx, regs, reg["reg_id"], amendment, cid, rag=rag, graph=domain, lv=lv, luna=luna,
-                              on_luna_error=luna_error)
-        if not result["error"] and writer and "Luna" not in notices:
+        rag, luna, writer, notices = analysis_backends()
+        try:
+            domain = graph()
+        except Exception:
+            domain = None
+            notices["도메인 그래프"] = "도메인 그래프를 불러오지 못해 검색 후보로 계속 분석했습니다."
+        cq = analyze(reg, amendment, cid)
+        if cq.kind == "분석 실패":
+            return {"error": cq.error or "개정문을 분석하지 못했습니다."}
+        candidates, retrieved = review_candidates(ctx, review_corpus(regs, ctx), article, revised, reg["name"], cq, rag, domain, notices)
+        change_text = change_block(reg, amendment, article["id"])
+        reranked = False
+        if luna and candidates:
+            try:
+                result = rank_list(change_text, luna_items(candidates, ctx.nodes, ctx.unit_text), luna)
+                apply_luna(candidates, result)
+                by_id = {candidate.id: candidate for candidate in candidates}
+                candidates = [by_id[aid] for aid in result["order"]]
+                reranked = True
+            except Exception:
+                notices["Luna"] = "Luna 선별이 제한 시간 안에 완료되지 않았거나 호출에 실패해 검색 순서로 후보를 표시했습니다."
+        if reranked and writer and candidates:
             from regcheck.answer_writer import write_answers
 
-            candidates = result["rule"] + result["other"]
-            if candidates:
-                def write_candidate(candidate):
-                    write_answers([candidate], amendment, result["change_text"], ctx.nodes, writer)
+            def write_candidate(candidate):
+                write_answers([candidate], amendment, change_text, ctx.nodes, writer)
 
-                with ThreadPoolExecutor(max_workers=3) as pool:
-                    list(pool.map(write_candidate, candidates[:3]))
-                if any(s.answer.get("error") for s in candidates[:3]):
-                    notices["검토 문장 생성"] = "일부 검토 문장을 생성하지 못해 후보의 발견 경로와 근거를 표시했습니다."
-                elif len(candidates) > 3:
-                    notices["검토 문장 생성"] = "상위 3개 후보에만 검토 문장을 생성하며, 나머지 후보는 발견 경로와 근거를 표시합니다."
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                list(pool.map(write_candidate, candidates[:3]))
+            if any(s.answer.get("error") for s in candidates[:3]):
+                notices["검토 문장 생성"] = "일부 검토 문장을 생성하지 못해 후보의 발견 경로와 근거를 표시했습니다."
+            elif len(candidates) > 3:
+                notices["검토 문장 생성"] = "상위 3개 후보에만 검토 문장을 생성하며, 나머지 후보는 발견 경로와 근거를 표시합니다."
     except Exception as exc:
         return {"error": f"영향 분석을 완료하지 못했습니다 ({type(exc).__name__}). 색인과 모델 설정을 확인해 주세요."}
-    if result["error"]:
-        return {"error": result["error"]}
-
     response = {
         "id": cid, "regulation": reg["name"], "article": article["label"], "amendment": amendment, "rows": draft["rows"],
-        "kind": result["cq"].kind, "change_evidence": result["cq"].evidence, "hidden": result["hidden"],
-        "rule": [_candidate(s, ctx, regs) for s in result["rule"]],
-        "other": [_candidate(s, ctx, regs) for s in result["other"]],
-        "options": {"도메인 그래프": domain is not None, "의미 검색": rag is not None and "의미 검색" not in notices,
-                    "규칙 판단 모델": lv is not None and "규칙 판단 모델" not in notices,
-                    "Luna 선별": bool(result["usage"]),
-                    "검토 문장 생성": any(s.answer.get("checked") for s in result["rule"] + result["other"])},
+        "kind": cq.kind, "change_evidence": cq.evidence, "retrieved": retrieved, "rerank_input": min(retrieved, REVIEW_LIMIT),
+        "candidates": [_candidate(s, ctx, regs) for s in candidates],
+        "options": {"BM25": True, "도메인 그래프": domain is not None and "도메인 그래프" not in notices,
+                    "의미 검색": rag is not None and "의미 검색" not in notices,
+                    "Luna 리랭킹": reranked, "검토 문장 생성": any(s.answer.get("checked") for s in candidates)},
         "notices": list(notices.values()),
     }
     folder = ROOT / "out" / "changes" / cid

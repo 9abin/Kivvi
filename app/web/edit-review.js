@@ -246,51 +246,50 @@ function originalExcerpt(text, quote) {
 
 function impactList(result) {
   const section = resultField("impacts");
-  const total = result.rule.length + result.other.length;
-  section.replaceChildren(changePreview(result.rows), element("p", `검토 후보 ${total}개 · 선별에서 제외 ${result.hidden}개`));
+  const total = result.candidates.length;
+  const counts = result.options["Luna 리랭킹"]
+    ? `검색 후보 ${result.retrieved}개 → 리랭킹 입력 ${result.rerank_input}개 → 표시 ${total}개`
+    : `검색 후보 ${result.retrieved}개 · 검색 순서로 ${total}개 표시`;
+  section.replaceChildren(changePreview(result.rows), element("p", counts));
   if (!total) section.append(element("p", "검토할 영향 후보가 없습니다."));
-  for (const [name, items] of [["규칙 후보", result.rule], ["의미 검색 · 도메인 그래프 후보", result.other]]) {
-    if (!items.length) continue;
-    section.append(element("h3", `${name} (${items.length})`));
-    for (const [index, item] of items.entries()) {
-      const details = element("details");
-      details.className = "candidate";
-      details.open = index === 0;
-      const title = [item.regulation, item.label, item.title].filter(Boolean).join(" ");
-      const summary = element("summary");
-      const tier = element("span", item.tier);
-      tier.className = "impact-tier";
-      summary.append(element("span", title), tier);
-      details.append(summary);
-      const evidence = item.evidence;
-      const body = element("div");
-      body.className = "candidate-body";
-      const reason = item.answer || evidence.reason;
-      if (reason) {
-        const why = element("div");
-        why.className = "impact-reason";
-        why.append(element("strong", "왜 확인해야 하나요?"), element("p", reason));
-        body.append(why);
-      }
-      const connection = element("div");
-      connection.className = "impact-connection";
-      const arrow = element("span", "→");
-      arrow.setAttribute("aria-hidden", "true");
-      connection.append(evidenceBlock("수정한 조항", `${result.regulation} ${result.article}`, evidence.source_quote),
-        arrow, evidenceBlock("함께 확인할 조항", title, evidence.quote));
-      body.append(connection);
-      if (evidence.replacement) {
-        body.append(element("p", `참고 수정안 · ${evidence.replacement.before} → ${evidence.replacement.after}`));
-      }
-      const paths = element("ul");
-      paths.className = "impact-paths";
-      paths.setAttribute("aria-label", "발견 경로");
-      for (const path of item.paths) paths.append(element("li", path));
-      if (paths.childElementCount) body.append(paths);
-      if (item.text) body.append(originalExcerpt(item.text, evidence.quote));
-      details.append(body);
-      section.append(details);
+  for (const [index, item] of result.candidates.entries()) {
+    const details = element("details");
+    details.className = "candidate";
+    details.open = index === 0;
+    const title = [item.regulation, item.label, item.title].filter(Boolean).join(" ");
+    const summary = element("summary");
+    const tier = element("span", `${index + 1}위`);
+    tier.className = "impact-tier";
+    summary.append(element("span", title), tier);
+    details.append(summary);
+    const evidence = item.evidence;
+    const body = element("div");
+    body.className = "candidate-body";
+    const reason = item.answer || evidence.reason;
+    if (reason) {
+      const why = element("div");
+      why.className = "impact-reason";
+      why.append(element("strong", "왜 확인해야 하나요?"), element("p", reason));
+      body.append(why);
     }
+    const connection = element("div");
+    connection.className = "impact-connection";
+    const arrow = element("span", "→");
+    arrow.setAttribute("aria-hidden", "true");
+    connection.append(evidenceBlock("수정한 조항", `${result.regulation} ${result.article}`, evidence.source_quote),
+      arrow, evidenceBlock("함께 확인할 조항", title, evidence.quote));
+    body.append(connection);
+    if (evidence.replacement) {
+      body.append(element("p", `참고 수정안 · ${evidence.replacement.before} → ${evidence.replacement.after}`));
+    }
+    const paths = element("ul");
+    paths.className = "impact-paths";
+    paths.setAttribute("aria-label", "발견 경로");
+    for (const path of item.paths) paths.append(element("li", path));
+    if (paths.childElementCount) body.append(paths);
+    if (item.text) body.append(originalExcerpt(item.text, evidence.quote));
+    details.append(body);
+    section.append(details);
   }
 }
 
@@ -366,7 +365,7 @@ $("editor").addEventListener("submit", async (event) => {
     });
     resultField("result-heading").textContent = `${result.regulation} ${result.article} 검토 결과`;
     const used = Object.entries(result.options).filter(([, on]) => on).map(([name]) => name);
-    resultField("result-meta").textContent = [result.kind, result.change_evidence, "규칙 그래프", ...used].filter(Boolean).join(" · ");
+    resultField("result-meta").textContent = [result.kind, result.change_evidence, ...used].filter(Boolean).join(" · ");
     const notices = resultField("analysis-notices");
     notices.replaceChildren(...(result.notices ?? []).map((message) => element("li", message)));
     notices.hidden = !notices.childElementCount;
