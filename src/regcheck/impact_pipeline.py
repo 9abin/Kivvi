@@ -1,7 +1,8 @@
 """영향 후보 파이프라인: 수집 -> state -> 출처별 거르기 · 순위 -> 근거 -> 답변 (리포트 93).
 
-  out = run_pipeline(ctx, regs, reg_id, amendment, cid, rag=rag, graph=graph,
-                     lv=lv, luna=luna_call(), writer=None)   # 기본 n_rag=50, n_graph=10(위임 · 언급 연결만), orders=2 (261111 val)
+  out = run_pipeline(ctx, regs, reg_id, amendment, cid, rag=rag,
+                     lv=lv, luna=luna_call(), writer=None)   # 기본 n_rag=50, orders=2 (261111 val)
+  # 261112: 도메인 그래프(graph=GraphSource)는 넘기지 않는다(리포트 98). 넘기면 예전처럼 그래프 후보도 luna 쪽으로 간다
   out["states"]  # 후보마다 CandState (출처 · 경로 · 각 단계 결과 · 기록)
   out["rule"]    # 보이는 규칙 후보 (수집 순서 그대로)
   out["other"]   # 보이는 그래프 · RAG 후보 (luna 순서)

@@ -42,9 +42,9 @@ def pool(d):
     import eval_recall_all as era
     from regcheck import kg as K
     from regcheck.cand_state import source_of
-    from regcheck.graph_source import GraphSource
     from regcheck.impact_view import load_context, run
-    regs = load_regs(); ctx = load_context(ROOT, regs); rag0 = era.build_rag(ctx); g = GraphSource.load(ROOT)
+    regs = load_regs(); ctx = load_context(ROOT, regs); rag0 = era.build_rag(ctx)
+    # 261112: 도메인 그래프(graph_source)는 쓰지 않는다. 검색 재현율 개발 0.989 → 0.978(잃는 정답 B096은 원래 luna 입력 전에 잘림) · 시험 0.940 그대로, 후보는 문항당 약 90 → 63개 (리포트 98)
     by = {r["name"]: k for k, r in regs.items()}
     base = copy.deepcopy(K.ONTOLOGY["change_paths"])
     K.ONTOLOGY["change_paths"] = {k: list(v) for k, v in base.items()}
@@ -52,7 +52,7 @@ def pool(d):
     out = []
     for m in changes(d):
         s = m["수정"]
-        r = run(ctx, regs, by[s["규정"]], s["개정문"], m["id"], rag=rag0, graph=g); cq = r["cq"]
+        r = run(ctx, regs, by[s["규정"]], s["개정문"], m["id"], rag=rag0); cq = r["cq"]
         cands = r["view"]["all"] if not r["error"] else []
         out.append({"q": f"{d}:{m['id']}", "d": d, "kind": cq.kind,
                     "cands": [{"id": c.id, "tier": c.tier, "paths": c.paths, "score": c.score, "src": source_of(c.paths)} for c in cands]})
