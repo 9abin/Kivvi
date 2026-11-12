@@ -56,7 +56,7 @@ th, td { padding: 10px; text-align: left; border: 1px solid #dce3ed; vertical-al
 th { background: #f1f5fb; }
 mark { background: #fff0a6; color: inherit; }
 .candidate { margin: 9px 0; border: 1px solid #dce3ed; border-radius: 8px; padding: 10px 13px; overflow-wrap: anywhere; }
-.candidate > summary { padding: 4px 0; }
+.candidate > summary { padding: 8px 0; color: #173d72; font-size: 1.05rem; font-weight: 750; }
 .impact-tier { display: inline-block; margin-left: .65em; padding: .1em .6em; border-radius: 999px; background: #ebf1fa; color: #25436c; font-size: .8em; }
 .change-preview { margin-top: 16px; padding: 14px; border-radius: 10px; background: #f4f6fa; }
 .change-preview h3 { margin: 0 0 10px; }
@@ -76,10 +76,11 @@ mark { background: #fff0a6; color: inherit; }
 .evidence-block small, .evidence-block strong { display: block; }
 .evidence-block small { color: #506179; margin-bottom: 2px; }
 .evidence-block blockquote { margin: 8px 0 0; padding-left: 8px; border-left: 2px solid #b7cae3; font-size: .95em; }
-.impact-paths { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; padding: 0; margin: 8px 0; }
-.impact-paths li { border: 1px solid #d2ddeb; border-radius: 6px; padding: 2px 7px; color: #405573; font-size: .8em; }
-.candidate-original { margin-top: 10px; }
+.candidate-original { margin-top: 12px; }
+.original-toggle { padding: 5px 10px; border-color: #cad4e1; background: #f5f7fa; color: #405573; font-size: .85rem; font-weight: 500; }
+.original-toggle:hover { background: #eaf0f7; }
 .candidate pre, #comparison pre { white-space: pre-wrap; font: inherit; background: #f5f7fa; padding: 10px; max-height: 240px; overflow: auto; }
+.candidate-original pre { border-left: 3px solid #c6d1df; margin: 8px 0 0; font-size: .92rem; }
 [hidden] { display: none !important; }
 @media (max-width: 660px) {
   .workspace, .grid { grid-template-columns: 1fr; }

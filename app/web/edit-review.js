@@ -230,27 +230,35 @@ function evidenceBlock(label, title, quote) {
   return block;
 }
 
-function originalExcerpt(text, quote) {
-  const original = element("details");
+function originalExcerpt(text, quote, index) {
+  const original = element("div");
   original.className = "candidate-original";
-  original.append(element("summary", "후보 조항 전문 보기"));
+  const toggle = element("button", "조항 전문 보기");
+  toggle.type = "button";
+  toggle.className = "original-toggle";
   const excerpt = element("pre");
+  excerpt.id = `candidate-original-${index}`;
+  excerpt.hidden = true;
+  toggle.setAttribute("aria-controls", excerpt.id);
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.addEventListener("click", () => {
+    excerpt.hidden = !excerpt.hidden;
+    toggle.setAttribute("aria-expanded", String(!excerpt.hidden));
+    toggle.textContent = excerpt.hidden ? "조항 전문 보기" : "조항 전문 접기";
+  });
   const terms = quote?.trim().split(/\s+/).filter(Boolean) ?? [];
   const escaped = terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const match = escaped.length ? new RegExp(escaped.join("\\s+"), "u").exec(text) : null;
   if (match) excerpt.append(text.slice(0, match.index), element("mark", match[0]), text.slice(match.index + match[0].length));
   else excerpt.textContent = text;
-  original.append(excerpt);
+  original.append(toggle, excerpt);
   return original;
 }
 
 function impactList(result) {
   const section = resultField("impacts");
   const total = result.candidates.length;
-  const counts = result.options["Luna 리랭킹"]
-    ? `검색 후보 ${result.retrieved}개 → 리랭킹 입력 ${result.rerank_input}개 → 표시 ${total}개`
-    : `검색 후보 ${result.retrieved}개 · 검색 순서로 ${total}개 표시`;
-  section.replaceChildren(changePreview(result.rows), element("p", counts));
+  section.replaceChildren(changePreview(result.rows), element("h3", `함께 확인할 조항 ${total}개`));
   if (!total) section.append(element("p", "검토할 영향 후보가 없습니다."));
   for (const [index, item] of result.candidates.entries()) {
     const details = element("details");
@@ -282,12 +290,7 @@ function impactList(result) {
     if (evidence.replacement) {
       body.append(element("p", `참고 수정안 · ${evidence.replacement.before} → ${evidence.replacement.after}`));
     }
-    const paths = element("ul");
-    paths.className = "impact-paths";
-    paths.setAttribute("aria-label", "발견 경로");
-    for (const path of item.paths) paths.append(element("li", path));
-    if (paths.childElementCount) body.append(paths);
-    if (item.text) body.append(originalExcerpt(item.text, evidence.quote));
+    if (item.text) body.append(originalExcerpt(item.text, evidence.quote, index));
     details.append(body);
     section.append(details);
   }
@@ -364,11 +367,11 @@ $("editor").addEventListener("submit", async (event) => {
       edited: edited.value,
     });
     resultField("result-heading").textContent = `${result.regulation} ${result.article} 검토 결과`;
-    const used = Object.entries(result.options).filter(([, on]) => on).map(([name]) => name);
-    resultField("result-meta").textContent = [result.kind, result.change_evidence, ...used].filter(Boolean).join(" · ");
+    resultField("result-meta").textContent = result.kind;
     const notices = resultField("analysis-notices");
-    notices.replaceChildren(...(result.notices ?? []).map((message) => element("li", message)));
-    notices.hidden = !notices.childElementCount;
+    const showSearchOrder = result.candidates.length > 0 && !result.options["Luna 리랭킹"];
+    notices.textContent = showSearchOrder ? "관련 조항을 검색 순서로 표시했습니다. 영향 여부는 원문을 확인해 주세요." : "";
+    notices.hidden = !showSearchOrder;
     comparison(result);
     impactList(result);
     showPanel("impacts");
