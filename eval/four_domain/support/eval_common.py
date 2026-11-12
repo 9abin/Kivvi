@@ -26,6 +26,7 @@ from regcheck.citations import Registry, extract_edges
 from regcheck.kg import KG, build as build_kg
 from regcheck.collect import collect
 from regcheck.change_query import ChangeQuery
+from regcheck.rank_fusion import fuse
 from .openai_client import OpenAIClient
 
 METHODS=['rag','pr_graph_rag','domain_graph_rag']
@@ -102,12 +103,6 @@ def to_regs(corpus):
     for reg in regs.values():
         reg['articles'].sort(key=lambda a:tuple(int(x) for x in re.findall(r'\d+',a['label'])))
     return regs
-
-def fuse(*rankings):
-    scores=collections.defaultdict(float)
-    for ranking in rankings:
-        for rank,aid in enumerate(ranking[:100],1): scores[aid]+=1/(60+rank)
-    return sorted(scores,key=lambda x:(-scores[x],x))
 
 def changed_logical(q):
     return sorted({op.get('logical_article_id') or op.get('logical_unit_id') or logical_article(op['logical_item_id']) for op in q['amendment_ops']})

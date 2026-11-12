@@ -1,7 +1,8 @@
 import pytest
 
-from regcheck.amend import AmendError, apply, compare_table, label_map, parse_amendment, to_text
+from regcheck.amend import AmendError, apply, article_edit_amendment, build_changeset, compare_table, label_map, parse_amendment, to_text
 from regcheck.build import to_records
+from regcheck.luna_rerank import change_block
 from regcheck.parse import parse
 
 TEXT = """시험규정
@@ -64,6 +65,33 @@ def test_renumber_and_insert_with_body():
 def test_insert_on_existing_number_stops():
     with pytest.raises(AmendError, match="이미 있는 번호"):
         run("제2조의 다음에 제3조를 다음과 같이 신설한다.\n제3조(복직) 복직한다.")
+
+
+@pytest.mark.parametrize("edit_body", [False, True])
+def test_direct_edit_moves_article_to_unused_number(edit_body):
+    r = reg()
+    article = r["articles"][1]
+    edited = article["text"].replace("제2조(", "제19조(", 1)
+    if edit_body:
+        edited = edited.replace("2회", "3회")
+    amendment = article_edit_amendment(article, edited, reg=r)
+    assert amendment.startswith("제2조를 제19조로 한다.")
+    cs, revised = build_changeset(r, amendment, "edit")
+    assert cs["label_map"] == {"9:2": "제19조"}
+    assert [op["op"] for op in cs["changes"][0]["ops"]] == (["renumber", "rewrite"] if edit_body else ["renumber"])
+    moved = next(a for a in revised["articles"] if a["id"] == article["id"])
+    assert moved["items"][0]["norm"] == ("휴직은 3회까지 한다." if edit_body else "휴직은 2회까지 한다.")
+    assert article["label"] == "제2조"
+    context = change_block(r, amendment, article["id"])
+    assert "번호 이동: 제2조 → 제19조" in context
+    assert "조 전체 삭제" not in context
+
+
+def test_direct_edit_rejects_occupied_number():
+    r = reg()
+    article = r["articles"][1]
+    with pytest.raises(AmendError, match="제3조가 이미 있습니다"):
+        article_edit_amendment(article, article["text"].replace("제2조(", "제3조(", 1), reg=r)
 
 
 def test_title_and_rewrite():

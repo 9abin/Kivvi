@@ -15,6 +15,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from regcheck.build import build_all  # noqa: E402
 
 DATA = ROOT / "data" / "한국벤처투자_내부규정"
+if not DATA.is_dir():
+    DATA = ROOT / "한국벤처투자_내부규정"
 OUT = ROOT / "out" / "parsed"
 
 # 1주차 담당 범위: 폴더 가나다순 「직장 내 괴롭힘 예방 운영지침」~「휴직자 복무관리 지침」

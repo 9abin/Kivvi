@@ -568,6 +568,11 @@
     meta.append(el("span", "tag pos", "현행"), art.revision || "");
     h.append(el("h2", null, art.reg), meta);
     P.append(h, el("h3", "art-title", art.label));
+    if (LIVE && isEditor() && art.article_id) {
+      const edit = el("a", "btn", "이 조항 직접 편집");
+      edit.href = "edit-review.html?" + new URLSearchParams({ reg: art.reg_id, article: art.article_id });
+      P.append(edit);
+    }
     art.paras.forEach((p, i) => P.append(el("p", "para" + (i === art.highlight ? " hl" : "") + (p.status === "삭제" ? " del" : ""), p.text)));
     if (art.paras.length > 1 && art.highlight != null && art.highlight >= 0) {
       const n = el("p", "hl-note"); n.append(icon("info"), "노란 표시 부분이 답변 · 요청이 가리킨 항입니다."); P.append(n);

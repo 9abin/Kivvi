@@ -27,7 +27,7 @@ def load_env(path: Path = ROOT / ".env") -> dict[str, str]:
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
                 env[k.strip()] = v.strip()
-    return {**env, **{k: v for k, v in os.environ.items() if k.startswith("PG_")}}
+    return {**env, **{k: v for k, v in os.environ.items() if k.startswith("PG_") or k == "OPENAI_API_KEY"}}
 
 
 def connect(write: bool = False):

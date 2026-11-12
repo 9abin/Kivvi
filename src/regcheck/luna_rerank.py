@@ -190,17 +190,18 @@ def rank_list(change_text: str, items: list[dict], call: Callable[[str], tuple[d
     return {"order": order, "picks": picks, "runs": runs, "usage": usage}
 
 
-def luna_call(model: str = "gpt-5.6-luna", effort: str = "low", timeout: int = 300) -> Callable[[str], tuple[dict, dict]]:
+def luna_call(model: str = "gpt-5.6-luna", effort: str = "low", timeout: int = 300, *,
+              attempts: int = 3, max_retries: int = 2) -> Callable[[str], tuple[dict, dict]]:
     """OpenAI Responses API 호출 함수 (json_schema 고정, 저장 안 함). 사용량(토큰)을 함께 돌려준다."""
     from openai import OpenAI
 
     from .db import load_env
 
-    client = OpenAI(api_key=load_env().get("OPENAI_API_KEY", "").strip('"'), timeout=timeout)
+    client = OpenAI(api_key=load_env().get("OPENAI_API_KEY", "").strip('"'), timeout=timeout, max_retries=max_retries)
 
     def call(prompt: str) -> tuple[dict, dict]:
         err = None
-        for _ in range(3):
+        for _ in range(attempts):
             try:
                 r = client.responses.create(model=model, input=prompt, store=False, reasoning={"effort": effort}, max_output_tokens=8000,
                                             text={"format": {"type": "json_schema", "name": "pick", "strict": True, "schema": SCHEMA}})

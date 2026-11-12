@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from uuid import uuid4
 
 import pandas as pd
 import streamlit as st
@@ -21,7 +25,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from regcheck.amend import AmendError, build_changeset, to_html  # noqa: E402
+from regcheck.amend import AmendError, article_edit_amendment, build_changeset, to_html  # noqa: E402
+from regcheck.cand_state import found_by  # noqa: E402
 from regcheck.review import STATES, ReviewLog, key_baseline, key_impact, key_row  # noqa: E402
 
 st.set_page_config(page_title="조항 점검 검토", layout="wide")
@@ -81,7 +86,6 @@ def load_changes() -> dict[str, dict]:
 
 @st.cache_resource
 def vector_backend():
-    import os
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
     from regcheck.vectors import Index, load_encoder
     emb_dir = {"q4b": "qwen3-embedding-4b-q8_0"}.get(os.environ.get("IMPACT_EMB", ""), "BAAI__bge-m3")   # 영향 점검 색인: 기본 bge-m3, IMPACT_EMB=q4b면 Qwen3-Embedding-4B
@@ -94,6 +98,69 @@ def impact_context():
     """영향 후보 탭용 그래프 · 문구 색인. out/kg가 없으면 None (scripts/build_kg.py)."""
     from regcheck.impact_view import load_context
     return load_context(ROOT, load_static()[0])
+
+
+@st.cache_resource
+def domain_graph():
+    from regcheck.graph_source import GraphSource
+
+    return GraphSource.load(ROOT)
+
+
+def decide_scorer(reg: dict, amendment: str, cid: str):
+    python = os.environ.get("IMPACT_DECIDE_PYTHON")
+    model = os.environ.get("IMPACT_DECIDE_MODEL")
+    if not (python and model):
+        return None
+
+    from regcheck.change_query import analyze
+
+    kind = analyze(reg, amendment, cid).kind
+
+    def score(inputs: dict) -> dict:
+        if not inputs:
+            return {}
+        with tempfile.TemporaryDirectory() as tmp:
+            pairs, scores = Path(tmp) / "pairs.json", Path(tmp) / "scores.json"
+            pairs.write_text(json.dumps({"pairs": [{"key": k, "kind": kind, "state": v}
+                                                     for k, v in inputs.items()]}, ensure_ascii=False), encoding="utf-8")
+            subprocess.run([python, str(ROOT / "scripts" / "decide_score_pairs.py"), model, str(pairs), str(scores)],
+                           cwd=ROOT, check=True, capture_output=True, timeout=300)
+            return {k: v["lv"] for k, v in json.loads(scores.read_text(encoding="utf-8")).items()}
+
+    return score
+
+
+def analyze_draft(cs: dict, use_rag: bool, use_luna: bool) -> None:
+    from regcheck.impact_pipeline import run_pipeline
+
+    cid, reg_id, amendment = cs["id"], cs["reg_id"], cs["amendment"]
+    key = (cid, amendment)
+    try:
+        with st.spinner("관련 조항과 검토 근거를 찾고 있습니다…"):
+            ctx = impact_context()
+            if ctx is None:
+                raise ValueError("규칙 그래프가 없습니다. scripts/build_kg.py로 생성해 주세요.")
+            graph = domain_graph()
+            rag = luna = writer = None
+            if use_rag:
+                from regcheck.impact_view import make_rag
+
+                rag = make_rag(*vector_backend())
+            if use_luna:
+                from regcheck.answer_writer import make_writer
+                from regcheck.luna_rerank import luna_call
+
+                luna, writer = luna_call(), make_writer("gpt-5.6-luna")
+            lv = decide_scorer(regs[reg_id], amendment, cid)
+            res = run_pipeline(ctx, regs, reg_id, amendment, cid, rag=rag, graph=graph, lv=lv, luna=luna, writer=writer)
+            res["options"] = {"도메인 그래프": graph is not None, "의미 검색": use_rag,
+                              "규칙 판단 모델": lv is not None, "Luna 및 답변 생성": use_luna}
+    except (FileNotFoundError, ValueError) as exc:
+        res = {"error": str(exc)}
+    except Exception as exc:
+        res = {"error": f"분석을 완료하지 못했습니다 ({type(exc).__name__}). 모델 및 색인 설정을 확인하고 다시 실행해 주세요."}
+    st.session_state.setdefault("impact_results", {})[key] = res
 
 
 regs, found, rels, edges = load_static()
@@ -251,6 +318,47 @@ if page == "기준선 이슈":
 elif page == "개정안 검토":
     st.subheader("개정안 검토")
     st.caption("개정문을 규정 사본에 적용한 참고 초안입니다. 승인은 개정이 아니며, 규정은 공포된 개정본의 시행일에만 바뀝니다.")
+    if not regs:
+        st.info("편집할 규정 데이터가 없습니다. scripts/parse_regs.py --all로 생성해 주세요.")
+        st.stop()
+    with st.expander("영향 분석 옵션"):
+        pipeline_rag = st.checkbox("의미 검색 사용", value=False)
+        pipeline_luna = st.checkbox("Luna 선별 및 검토 문장 생성", value=False,
+                                    help="선택하면 개정 내용과 후보 조항이 외부 API로 전송됩니다.")
+    with st.expander("현행 조항에서 개정안 만들기", expanded=True):
+        edit_reg_id = st.selectbox("편집할 규정", sorted(regs, key=lambda i: names[i]),
+                                   format_func=names.__getitem__)
+        edit_reg = regs[edit_reg_id]
+        editable = {a["id"]: a for a in edit_reg["articles"] if not a.get("deleted")}
+        if not editable:
+            st.info("편집할 본문 조항이 없습니다.")
+        else:
+            article_id = st.selectbox("편집할 조항", list(editable),
+                                      format_func=lambda i: f"{editable[i]['label']} {editable[i]['title']}",
+                                      key=f"edit_article_{edit_reg_id}")
+            article = editable[article_id]
+            with st.form(f"edit_{article_id}"):
+                before, after = st.columns(2)
+                with before:
+                    st.text_area("현행", article["text"], height=260, disabled=True)
+                with after:
+                    edited = st.text_area("개정안", article["text"], height=260,
+                                          help="조 번호는 유지하고 제목이나 본문을 수정하세요.")
+                submit_edit = st.form_submit_button("검토 초안 저장하고 영향 분석", type="primary")
+            if submit_edit:
+                try:
+                    amendment = article_edit_amendment(article, edited)
+                    draft_id = f"edit-{uuid4().hex[:12]}"
+                    draft, _ = build_changeset(edit_reg, amendment, draft_id, title=f"{article['label']} 직접 편집")
+                    cdir = ROOT / "out" / "changes" / draft_id
+                    cdir.mkdir(parents=True, exist_ok=False)
+                    (cdir / "changeset.json").write_text(json.dumps(draft, ensure_ascii=False, indent=1), encoding="utf-8")
+                except (AmendError, OSError) as exc:
+                    st.error(f"검토 초안을 저장하지 못했습니다. {exc}")
+                else:
+                    st.session_state["change"] = draft_id
+                    st.success(f"{article['label']} 검토 초안을 저장했습니다. 아래에서 대비표와 영향 후보를 확인할 수 있습니다.")
+                    analyze_draft(draft, pipeline_rag, pipeline_luna)
     with st.expander("새 개정안 넣기"):
         rname = st.selectbox("규정", sorted(names.values()))
         cid = st.text_input("개정안 ID", value="draft")
@@ -280,7 +388,9 @@ elif page == "개정안 검토":
         st.info("개정안이 없습니다. 위에서 넣거나 scripts/amend.py 로 만드세요.")
         st.stop()
     ids = list(changes)
-    cur_id = st.selectbox("개정안", ids, index=ids.index(st.session_state.get("change", ids[0])) if st.session_state.get("change") in ids else 0,
+    if st.session_state.get("change") not in changes:
+        st.session_state["change"] = ids[0]
+    cur_id = st.selectbox("개정안", ids, key="change",
                           format_func=lambda i: f"{i} · {changes[i]['reg_name']}" + (f" · {changes[i]['title']}" if changes[i].get("title") else ""))
     cs = changes[cur_id]
     with st.expander(f"개정문 ({len(cs['sentences'])}문장)"):
@@ -342,56 +452,60 @@ elif page == "개정안 검토":
                                                     "article": x.get("article"), "quote": x.get("quote")}, reviewer, f"if_{k}")
 
     with tab3:
-        st.caption("후보를 확정하거나 충돌을 판정하지 않습니다. 단계는 경로별로 잰 정밀도로 나눈 것이고, 결정은 담당자가 합니다. 라벨 기준 평가는 탐색적 결과입니다(리포트 78).")
-        ctx = impact_context()
-        if ctx is None:
-            st.info("그래프가 없습니다: uv run python scripts/build_kg.py")
+        key = (cur_id, cs["amendment"])
+        result = st.session_state.get("impact_results", {}).get(key)
+        if st.button("영향 분석 다시 실행" if result else "영향 분석 실행", key=f"impact_run_{cur_id}"):
+            analyze_draft(cs, pipeline_rag, pipeline_luna)
+            result = st.session_state["impact_results"][key]
+        if result is None:
+            st.info("영향 분석을 실행하면 함께 검토할 조항과 근거가 표시됩니다.")
+        elif result["error"]:
+            st.warning(result["error"])
         else:
-            use_rag = st.checkbox("의미 유사 후보도 찾기 (모델 로드, 처음 10~20초)", value=False, key=f"rag_{cur_id}")
-            from regcheck.impact_view import make_rag, run as impact_run
-            rag = None
-            if use_rag:
-                model, index = vector_backend()
-                rag = make_rag(model, index)
-            res = impact_run(ctx, regs, cs["reg_id"], cs["amendment"], cur_id, rag=rag)
-            if res["error"]:
-                st.warning(f"개정문을 분석하지 못했습니다: {res['error']}")
-            else:
-                cq = res["cq"]
-                view = res["view"]
-                st.markdown(f"**수정 종류** {cq.kind} · {cq.evidence}")
-                show_all = st.checkbox(f"전체 후보 보기 (소음이 많은 경로 후보 {view['hidden']}개 포함)", value=False, key=f"all_{cur_id}")
-                if show_all:
-                    from regcheck.evidence import card as make_card
-                    cards = [make_card(c, cq, ctx.nodes, ctx.unit_text) for c in view["all"]]
-                else:
-                    cards = res["cards"]
-                st.caption(f"후보 {len(cards)}개 (기본 화면: 의미 검색 30 + 쓸모 있는 경로의 그래프 후보 20까지). 숨긴 후보 {0 if show_all else view['hidden']}개.")
-                for tier in ("확정급", "확인 권장", "참고"):
-                    group = [c for c in cards if c["tier"] == tier]
-                    if not group:
-                        continue
-                    st.markdown(f"##### {tier} ({len(group)})")
-                    for c in group:
-                        art = ctx.nodes.get(c["id"], {})
-                        x = {"category": "graph:" + tier, "reg_id": art.get("reg", ""), "unit": None, "article": art.get("label", c["id"]), "para": None, "quote": c["quote"] or c["id"]}
-                        k = key_impact(cur_id, x)
-                        state = log.state(k, "impact")
-                        with st.expander(f"[{state}] {names.get(art.get('reg', ''), '')} {c['target']} · {' / '.join(c['reasons'][:2])}"):
-                            if c["quote"]:
-                                st.markdown(f"**근거 문장** 「{c['quote']}」")
-                            else:
-                                st.markdown("**근거 문장** 없음 (규칙으로 뽑지 못함. 직접 확인)")
-                            if c["replacement"]:
-                                st.markdown(f"**참고 수정안** 「{c['replacement']['before']}」 → 「{c['replacement']['after']}」")
-                            st.markdown("**경로** " + ", ".join(c["paths"]))
-                            if c["needs_check"]:
-                                st.caption("확인 필요: 확정급이 아니거나 근거 문장이 없습니다.")
-                            a = article_of(art.get("reg", ""), art.get("label", ""))
-                            if a:
-                                st.markdown(art_html(a, 0, c["quote"] or ""), unsafe_allow_html=True)
-                            decision_form(k, "impact", {"change": cur_id, "category": x["category"], "reg_id": x["reg_id"], "article": x["article"], "quote": c["quote"]},
-                                          reviewer, f"gf_{k}")
+            cq = result["cq"]
+            st.markdown(f"**변경 유형** {cq.kind} · {cq.evidence}")
+            options = " · ".join(f"{name} {'사용' if on else '미사용'}" for name, on in result["options"].items())
+            st.caption(options)
+            st.caption(f"검토 후보 {len(result['rule']) + len(result['other'])}개 · 선별에서 제외된 후보 {result['hidden']}개")
+            if not (result["rule"] or result["other"]):
+                st.info("검토 후보가 없습니다.")
+            ctx = impact_context()
+            for group, candidates in (("규칙 후보", result["rule"]), ("의미 검색 · 도메인 그래프 후보", result["other"])):
+                if not candidates:
+                    continue
+                st.markdown(f"##### {group} ({len(candidates)})")
+                for candidate in candidates:
+                    node = ctx.nodes.get(candidate.id, {})
+                    reg_id = node.get("reg", "")
+                    label = node.get("label", candidate.id)
+                    where = f"{names.get(reg_id, '')} {label} {node.get('title', '')}".strip()
+                    evidence = candidate.evidence
+                    quote = evidence.get("quote", "")
+                    x = {"category": "pipeline", "reg_id": reg_id, "article": label, "quote": candidate.id}
+                    k = key_impact(cur_id, x)
+                    with st.expander(f"[{log.state(k, 'impact')}] {where} · {candidate.tier}"):
+                        if candidate.answer.get("checked"):
+                            st.write(candidate.answer["text"])
+                        if evidence.get("source_quote"):
+                            st.write(f"**개정 근거** {evidence['source_quote']}")
+                        if quote:
+                            st.write(f"**후보 원문 근거** {quote}")
+                        if evidence.get("reason"):
+                            st.write(f"**검토 이유** {evidence['reason']}")
+                        if not quote:
+                            st.caption("원문 인용이 없습니다. 아래 원문에서 확인해 주세요.")
+                        replacement = evidence.get("replacement")
+                        if replacement:
+                            st.write(f"**참고 수정안** {replacement['before']} → {replacement['after']}")
+                        st.write("**발견 경로** " + " · ".join(found_by(candidate.paths)))
+                        original = ctx.unit_text.get(candidate.id)
+                        a = article_of(reg_id, label) if node.get("type") == "Article" else None
+                        if a:
+                            st.markdown(art_html(a, quote=quote), unsafe_allow_html=True)
+                        elif original:
+                            st.markdown(unit_html(candidate.id, quote, original), unsafe_allow_html=True)
+                        decision_form(k, "impact", {**x, "change": cur_id, "quote": quote, "candidate": candidate.id},
+                                      reviewer, f"pipeline_{k}")
 
 
 # ---------------------------------------------------------------- 검토 현황
