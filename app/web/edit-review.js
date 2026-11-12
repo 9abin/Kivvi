@@ -329,6 +329,7 @@ $("document-search").addEventListener("input", renderDocuments);
 function showWorkspace(open) {
   home.hidden = open;
   workspace.hidden = !open;
+  $("home-button").hidden = !open;
   window.scrollTo(0, 0);
 }
 

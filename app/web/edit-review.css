@@ -15,7 +15,8 @@ main { min-width: 0; }
 .documents input { width: 100%; margin: 10px 0; padding: 8px; font: inherit; }
 #documents { display: grid; gap: 5px; max-height: 70vh; overflow: auto; padding: 3px; }
 #documents button { text-align: left; }
-#home-button { display: block; width: 100%; text-align: left; margin-top: 12px; }
+.top #home-button { margin-left: 5px; padding: 4px 10px; border-color: #dce3ed; border-radius: 6px; background: #f4f6fa; color: #25436c; font-size: .85rem; font-weight: 650; white-space: nowrap; }
+.top #home-button:hover { background: #eaf0f7; }
 #home { max-width: 980px; margin: auto; padding: clamp(32px, 10vh, 100px) 24px 60px; }
 .start-panel { margin: 0; padding: clamp(28px, 8vw, 72px); text-align: center; }
 .start-panel h1 { font-size: clamp(28px, 5vw, 46px); }
@@ -34,6 +35,7 @@ h1 { font-size: clamp(26px, 4vw, 36px); }
 .selectors { margin-bottom: 18px; }
 .grid label { display: grid; gap: 6px; font-weight: 650; }
 .edit-field label { display: grid; gap: 6px; font-weight: 650; }
+.edit-field + .actions { margin-top: 14px; }
 #result-dialog { width: min(880px, 95vw); max-height: 90vh; padding: 0; border: 0; border-radius: 14px; }
 #result-dialog::backdrop { background: #17284280; }
 #results { margin: 0; }
