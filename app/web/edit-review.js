@@ -367,7 +367,7 @@ function pageHome() {
   return el("section", { class: "page home" },
     el("div", { class: "hero fade" },
       el("div", { class: "hero-text" },
-        el("h1", null, "한 조항을 바꿀 때,", el("br"), "함께 확인할 규정까지."),
+        el("h1", null, "한 조항을 바꿀 때,", el("br"), "함께 확인할 규정까지"),
         el("p", { text: "고치려는 규정을 찾으면, 영향이 갈 수 있는 조항을 근거와 함께 보여 드려요." }),
         homeSearch(),
         S.regsError && el("p", { class: "notice error", text: S.regsError })),
