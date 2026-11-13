@@ -380,10 +380,16 @@ function pageHome() {
       el("h2", null, "최근 검토", el("button", { type: "button", class: "link-btn", onclick: () => go("history") }, "전체 보기")), recent));
 }
 
+// 이미 고른 규정을 다시 누르면 선택을 푼다(안내 화면으로 돌아감)
+function clearRegSelection() {
+  S.regId = ""; S.regName = ""; S.cat = null; S.catError = ""; S.articleId = ""; S.edited = ""; S.editing = false; S.result = null; S.review = {};
+}
+
 /* ---------- 규정 탐색(읽기 전용) ---------- */
 function pageBrowse() {
   const reader = el("section", { class: "panel reader" });
   const picker = regPicker(async (reg) => {
+    if (S.regId === reg.id) { clearRegSelection(); picker.redraw(); drawReader(); return; }
     S.regId = reg.id; S.regName = reg.name; S.cat = null; S.catError = ""; S.articleId = ""; S.edited = ""; S.editing = false; S.result = null; S.review = {};
     picker.redraw();
     drawReader();
@@ -393,7 +399,7 @@ function pageBrowse() {
   const drawReader = () => fillDocument(reader);
   drawReader();
   if (S.regId && !S.cat) loadCatalog(S.regId).then((cat) => { S.cat = cat; drawReader(); }).catch((error) => { S.catError = error.message; drawReader(); });
-  return el("section", { class: "page" }, ...pageHead("규정 탐색", `${S.regs.length || 90}건의 내부규정을 읽어 볼 수 있어요.`),
+  return el("section", { class: "page browse" }, ...pageHead("규정 탐색", `${S.regs.length || 90}건의 내부규정을 읽어 볼 수 있어요.`),
     el("div", { class: "split" }, el("div", null, picker.node), reader));
 }
 
@@ -403,6 +409,7 @@ function pageStep1() {
   let next;
   const drawPreview = () => fillDocument(preview);
   const picker = regPicker(async (reg) => {
+    if (S.regId === reg.id) { clearRegSelection(); picker.redraw(); drawPreview(); next.next.disabled = true; return; }
     if (S.regId !== reg.id) { S.articleId = ""; S.edited = ""; S.editing = false; S.result = null; S.review = {}; }
     S.regId = reg.id; S.regName = reg.name; S.cat = null; S.catError = "";
     picker.redraw(); drawPreview(); next.next.disabled = true;
@@ -412,7 +419,7 @@ function pageStep1() {
   next = actionBar({ next: { label: "다음 단계로 이동", disabled: !(S.regId && S.cat), onclick: () => { S.editing = Boolean(S.articleId && S.editing); go("analyze/2"); } } });
   if (S.regId && !S.cat) loadCatalog(S.regId).then((cat) => { S.cat = cat; drawPreview(); next.next.disabled = false; }).catch((error) => { S.catError = error.message; drawPreview(); });
   drawPreview();
-  return el("section", { class: "page" }, progress(1), ...pageHead("수정할 규정 문서를 선택해주세요", `${S.regs.length || 90}건의 규정 문서 중에서 개정할 문서를 찾아 선택하세요.`),
+  return el("section", { class: "page pick" }, progress(1), ...pageHead("수정할 규정 문서를 선택해주세요", `${S.regs.length || 90}건의 규정 문서 중에서 개정할 문서를 찾아 선택하세요.`),
     el("div", { class: "split" }, el("div", null, picker.node), preview), next.node);
 }
 

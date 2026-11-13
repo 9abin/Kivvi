@@ -390,3 +390,17 @@ dialog.confirm .row { display: flex; justify-content: flex-end; gap: 10px; }
 
 /* 스크롤바가 생겼다 없어져도 화면 폭이 변하지 않게 스크롤바 자리를 항상 비워 둔다(종 · 프로필 위치가 흔들리던 문제) */
 html { scrollbar-gutter: stable; }
+
+/* 규정 탐색: 아래 버튼 줄이 없어서, 목록과 본문 패널이 같은 높이로 화면 아래까지 이어지게 하고 목록 끝은 서서히 흐리게 한다 */
+.page.browse { padding-bottom: 28px; }
+.page.browse .split { align-items: stretch; }
+.page.browse .panel.reader { min-height: calc(100vh - 273px); }
+.doc-list { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); padding-bottom: 28px; }
+
+.page.browse .empty-state { min-height: calc(100vh - 273px - 54px); }   /* 패널이 화면 아래까지 늘어났으니 안의 그림도 패널의 세로 가운데에 오게 */
+
+/* 영향 분석 1단계: 오른쪽 패널과 왼쪽 목록이 아래 버튼 줄 바로 위(여백 24px)에서 같이 끝나게 한다 */
+.page.pick .split { align-items: stretch; }
+.page.pick .panel.reader { min-height: calc(100vh - 353px); max-height: calc(100vh - 353px); }
+.page.pick .empty-state { min-height: calc(100vh - 353px - 54px); }
+.page.pick .doc-list { max-height: calc(100vh - 459px); }
