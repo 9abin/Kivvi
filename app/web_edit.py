@@ -7,7 +7,9 @@
 import hashlib
 import json
 import os
+import re
 import sys
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
@@ -44,7 +46,7 @@ def catalog(reg_id=""):
                      for a in reg.get("appendices", [])]
         return {"name": reg["name"], "preamble": reg.get("preamble") or [],
                 "articles": [{k: a[k] for k in ("id", "label", "title", "text", "deleted")} |
-                             {"version": _version(a)} for a in reg["articles"]],
+                             {"version": _version(a), "chapter": a.get("chapter") or ""} for a in reg["articles"]],
                 "sections": sections}
     regs = [_reg(p.stem) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json")]
     return {"regulations": [{"id": r["reg_id"], "name": r["name"]} for r in sorted(regs, key=lambda r: r["name"])]}
@@ -215,3 +217,64 @@ def submit(body):
     folder.mkdir(parents=True)
     (folder / "changeset.json").write_text(json.dumps(draft, ensure_ascii=False, indent=1), encoding="utf-8")
     return response
+
+
+# ---- 검토 저장 · 검토 내역 -------------------------------------------------------------
+# 규정 원문 DB는 건드리지 않는다. 분석할 때 만든 초안 폴더(out/changes/<id>/)에 review.json을 한 개 더 둔다.
+# (실제 배포에서는 이 기록을 DB 표로 옮긴다. 화면이 부르는 주소와 JSON 모양은 그대로 쓸 수 있게 만들었다.)
+CHANGES = ROOT / "out" / "changes"
+_CID = re.compile(r"edit-[0-9a-f]{32}")
+
+
+def _text(value, limit):
+    return value[:limit] if isinstance(value, str) else ""
+
+
+def save_review(body):
+    cid = body.get("id")
+    if not isinstance(cid, str) or not _CID.fullmatch(cid):
+        return {"error": "검토 번호가 올바르지 않습니다."}
+    folder = CHANGES / cid
+    if not (folder / "changeset.json").is_file():
+        return {"error": "분석 결과를 찾지 못했습니다. 영향 분석을 다시 실행해 주세요."}
+    items = body.get("items")
+    if not isinstance(items, list) or len(items) > 300:
+        return {"error": "저장할 검토 항목이 올바르지 않습니다."}
+    clean = [{"id": _text(it.get("id"), 80), "regulation": _text(it.get("regulation"), 100), "label": _text(it.get("label"), 60),
+              "title": _text(it.get("title"), 100), "reason": _text(it.get("reason"), 2000), "done": bool(it.get("done")),
+              "note": _text(it.get("note"), 500), "badge": _text(it.get("badge"), 100), "quote": _text(it.get("quote"), 600),
+              "text": _text(it.get("text"), 3200)} for it in items if isinstance(it, dict)]
+    record = {"id": cid, "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+              "regulation": _text(body.get("regulation"), 100), "article": _text(body.get("article"), 100),
+              "before": _text(body.get("before"), 20000), "after": _text(body.get("after"), 20000),
+              "total": len(clean), "done": sum(1 for it in clean if it["done"]), "items": clean}
+    (folder / "review.json").write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"ok": True, "saved_at": record["saved_at"], "total": record["total"], "done": record["done"]}
+
+
+def history(cid=""):
+    if cid:
+        if not _CID.fullmatch(cid):
+            return {"error": "검토 번호가 올바르지 않습니다."}
+        path = CHANGES / cid / "review.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"error": "저장된 검토가 없습니다."}
+    rows = []
+    for path in CHANGES.glob("edit-*/review.json"):
+        try:
+            r = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        rows.append({k: r.get(k) for k in ("id", "saved_at", "regulation", "article", "total", "done")})
+    return {"items": sorted(rows, key=lambda r: r.get("saved_at") or "", reverse=True)}
+
+
+def delete_review(body):
+    """저장한 검토(review.json)만 지운다. 분석 초안(changeset.json)은 그대로 둔다."""
+    cid = body.get("id")
+    if not isinstance(cid, str) or not _CID.fullmatch(cid):
+        return {"error": "검토 번호가 올바르지 않습니다."}
+    path = CHANGES / cid / "review.json"
+    if not path.is_file():
+        return {"error": "저장된 검토가 없습니다."}
+    path.unlink()
+    return {"ok": True}

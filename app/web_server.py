@@ -379,6 +379,7 @@ def regulation(reg_id: str) -> dict:
 
 ROUTES = {
     "/api/edit/catalog": lambda p: web_edit.catalog(p.get("reg", "")),
+    "/api/edit/history": lambda p: web_edit.history(p.get("id", "")),
     "/api/status": lambda p: status(),
     "/api/find": lambda p: find(p.get("q", "")),
     "/api/article": lambda p: article(p.get("chunk", "")),
@@ -411,6 +412,8 @@ def with_open_changes(res: dict) -> dict:
 
 POSTS = {
     "/api/edit/review": lambda b: allowed(b, "draft") or web_edit.submit(b),
+    "/api/edit/save": lambda b: allowed(b, "draft") or web_edit.save_review(b),
+    "/api/edit/delete": lambda b: allowed(b, "draft") or web_edit.delete_review(b),
     "/api/ask": lambda b: with_open_changes(web_chat.ask(b.get("q", ""), b.get("history") or [])),
     "/api/draft": lambda b: allowed(b, "draft") or web_agent.draft(b.get("chunk", ""), b.get("request", ""), b.get("user", "web")),
     "/api/decide": lambda b: allowed(b, "decide") or web_agent.decide(b.get("id", ""), b.get("key", ""), b.get("state", ""), b.get("user", "web")),
@@ -480,7 +483,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Location", "/edit-review.html")
             self.end_headers()
             return
-        if self.review_only and u.path.startswith("/api/") and u.path != "/api/edit/catalog":
+        if self.review_only and u.path.startswith("/api/") and u.path not in ("/api/edit/catalog", "/api/edit/history"):
             return self._json({"error": "없는 주소"}, 404)
         params = {k: v[0] for k, v in parse_qs(u.query).items()}
         if u.path == "/api/package":   # 개정 패키지 HTML 내려받기
@@ -507,16 +510,16 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802
         path = urlparse(self.path).path
-        if self.review_only and path != "/api/edit/review":
+        if self.review_only and path not in ("/api/edit/review", "/api/edit/save", "/api/edit/delete"):
             return self._json({"error": "없는 주소"}, 404)
         route = POSTS.get(path)
         if not route:
             return self._json({"error": "없는 주소"}, 404)
         try:
-            if path == "/api/edit/review" and self.headers.get_content_type() != "application/json":
+            if path in ("/api/edit/review", "/api/edit/save", "/api/edit/delete") and self.headers.get_content_type() != "application/json":
                 return self._json({"error": "JSON 요청이 필요합니다."}, 415)
             n = int(self.headers.get("Content-Length") or 0)
-            if not 0 <= n <= (256_000 if path == "/api/edit/review" else 20_000):
+            if not 0 <= n <= (1_000_000 if path == "/api/edit/save" else 256_000 if path == "/api/edit/review" else 20_000):
                 return self._json({"error": "요청이 너무 큽니다"}, 413)
             body = json.loads(self.rfile.read(n) or b"{}")
             if not isinstance(body, dict):
