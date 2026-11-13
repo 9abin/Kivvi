@@ -44,21 +44,47 @@ uv sync                                    # 패키지 설치 (처음 한 번)
 6. 보정 검증: 대상 조문과 치환 글자가 실제로 있는지 확인 (없으면 `경고:` 출력)
 7. 산출물 저장
 
-### 개정안 검토 화면
+### 개정안 검토 화면 (Kivvi)
+
+**처음 한 번 준비** (생성물 `out/`은 git에 올라가지 않아 각자 만듭니다. 규정 원문 폴더 `한국벤처투자_내부규정/`가 저장소 옆에 있어야 합니다)
 
 ```powershell
-uv run python scripts/parse_regs.py --all
-uv run python scripts/extract_edges.py --all
-uv run python scripts/build_kg.py
+uv sync
+uv run python scripts/parse_regs.py --all        # 규정 90건 → out/parsed/
+uv run python scripts/extract_edges.py --all     # 조항 연결 추출
+uv run python scripts/build_kg.py                # 지식 그래프 → out/kg/
+```
+
+**서버 켜기**
+
+```powershell
 uv run --extra db python app/web_server.py --review-only
 ```
 
-`http://127.0.0.1:8765/`에서 규정과 본문 조항을 선택하고 수정한 뒤 **수정 완료**를 누르면 현재 화면의 팝업에 영향 분석 결과가 표시됩니다.
-기존 규정 도우미 웹 화면을 사용 중이라면 조항을 연 뒤 **이 조항 직접 편집**으로 들어갈 수 있습니다.
-초안은 `out/changes/`에 저장됩니다. 웹 편집기는 평가와 같은 순위 병합(RRF)을 사용합니다. BM25와 벡터 검색 결과를 합치고(조 번호만 바꾸는 개정은 옛 번호를 인용하는 조도 더해), 중복을 제거한 상위 10개를 Luna에 넘깁니다. 도메인 그래프는 쓰지 않습니다(리포트 98). 화면에는 Luna가 선택한 후보를 한 목록으로 표시합니다.
-현행 원문과 온톨로지 DB는 읽기 전용입니다.
+`http://127.0.0.1:8765/edit-review.html`을 엽니다. 화면은 다섯 가지입니다.
 
-검토 초안을 저장하면 사용 가능한 분석 단계가 자동으로 실행됩니다. 벡터 검색에는 `out/vector/` 색인이 필요합니다. Ollama에 `bge-m3`가 설치돼 있으면 `uv run python scripts/build_vectors.py --ollama bge-m3`로 색인을 만들 수 있습니다. `.env` 또는 서버 환경에 `OPENAI_API_KEY`가 있으면 Luna 선별과 문장 생성을 사용하며, 이때 개정 내용과 후보 조항은 외부 API로 전송됩니다. Luna를 쓸 수 없으면 합쳐진 검색 순서를 표시합니다.
+| 메뉴 | 하는 일 |
+|---|---|
+| 홈 | 규정 검색, 진행 안내, 최근 검토 |
+| 규정 탐색 | 규정 90건 본문 읽기(읽기 전용) |
+| 영향 분석 | 1 규정 선택 → 2 조항 선택·수정안 작성 → 3 수정 전·후 비교 → 4 영향 확인·검토 |
+| 검토 내역 | 저장한 검토를 다시 열어 체크·의견을 고치거나 삭제 |
+| 설정, 알림, 프로필 | 아직 연결된 기능이 없습니다(눌러도 안내만 뜹니다) |
+
+- 영향 분석은 개정 영향 온톨로지 경로와 개정문 낱말 일치(판단 모델로 거름), 의미 검색(Luna가 고름)으로 후보를 찾아 첫 화면에 10개(확정급은 10개를 넘어도 포함)를 보이고 나머지는 「더 보기」에 둡니다.
+- 규정 원문 DB와 온톨로지 DB는 읽기 전용입니다. 분석 초안은 `out/changes/<id>/changeset.json`, 4단계에서 「검토 저장」을 누른 검토는 같은 폴더의 `review.json`에 저장됩니다(git 제외). 검토 삭제는 `review.json`만 지웁니다.
+- 서버 주소: 조항 목록 `GET /api/edit/catalog`, 영향 분석 `POST /api/edit/review`, 검토 저장 `POST /api/edit/save`, 검토 삭제 `POST /api/edit/delete`, 검토 내역 `GET /api/edit/history`.
+
+**위 준비만 하면 되는 것과 아닌 것**
+
+- 홈, 규정 탐색, 조항 수정, 수정 전·후 비교, 검토 내역은 위 준비만으로 동작합니다.
+- 영향 분석 결과는 아래 세 가지가 없으면 일부만 나옵니다. 꺼진 단계가 있으면 4단계 위에 안내 문구가 뜨고, 판단 모델이 꺼지면 규칙 후보를 거르지 않고 모두 보여 줍니다.
+  - **의미 검색 색인**: `uv run --extra vector python scripts/build_vectors.py`로 `out/vector/`를 만듭니다. Ollama에 `bge-m3`가 있으면 `uv run python scripts/build_vectors.py --ollama bge-m3`도 됩니다.
+  - **Luna**: `.env` 또는 서버 환경에 `OPENAI_API_KEY`를 둡니다. 이때 개정 내용과 후보 조항이 외부 API로 전송됩니다.
+  - **판단 모델**: 서버를 켜기 전에 환경변수 `IMPACT_DECIDE_PYTHON`(판단 모델용 Python 실행 파일)과 `IMPACT_DECIDE_MODEL`(모델 폴더)을 지정합니다. 설정 예와 주의점은 리포트 99(`docs/reports/261113-1700-99-web-run-pipeline.md`)에 있습니다.
+- **글꼴**: Pretendard 파일(`app/web/fonts/PretendardVariable.woff2`)은 저장소에 없습니다. 받는 방법은 `app/web/fonts/README.md`에 있고, 없으면 맑은 고딕으로 보입니다.
+
+기존 규정 도우미 웹 화면(`index.html`)을 사용 중이라면 조항을 연 뒤 **이 조항 직접 편집**으로 새 화면에 들어갈 수 있습니다.
 
 ## 3. 산출물 (`out/`)
 
