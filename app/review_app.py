@@ -461,7 +461,7 @@ elif page == "개정안 검토":
                             st.write(f"**개정 근거** {evidence['source_quote']}")
                         if quote:
                             st.write(f"**후보 원문 근거** {quote}")
-                        if evidence.get("reason"):
+                        if evidence.get("reason") and evidence.get("reason") != candidate.answer.get("text"):
                             st.write(f"**검토 이유** {evidence['reason']}")
                         if not quote:
                             st.caption("원문 인용이 없습니다. 아래 원문에서 확인해 주세요.")

@@ -104,6 +104,12 @@ def luna_items(states: list[CandState], nodes: dict, unit_text: dict[str, str]) 
     return [{"id": s.id, "name": name(s.id), "found_by": found_by(s.paths), "text": unit_text.get(s.id, "")} for s in states]
 
 
+# luna가 고른 후보인데 후보 조문에서 근거 구절을 확인하지 못한 경우(대조 실패 · 인용 없음) 보여 줄 문구.
+# luna가 여러 후보를 한 번에 보며 쓴 이유는 다른 후보의 내용이 섞이는 일이 많아(261113 표본: luna 답변 오류 9개 중 7개가 인용 없음)
+# 화면에 사실처럼 보이지 않고, 원래 이유는 evidence.luna_reason에만 남긴다. 후보는 지우지 않는다(작업 규칙 §3).
+UNVERIFIED_REASON = "원문에서 근거 문장을 확인하지 못했습니다. 조문을 직접 보고 관련 여부를 확인해 주세요(담당자 확인 필요)."
+
+
 def apply_luna(states: list[CandState], res: dict) -> None:
     picks, order = res["picks"], {cid: k for k, cid in enumerate(res["order"])}
     for s in states:
@@ -113,7 +119,8 @@ def apply_luna(states: list[CandState], res: dict) -> None:
             s.evidence = {"by": "luna", "relation": p["relation"],
                           "quote": p["candidate_quote"] if p["candidate_quote_ok"] else "", "quote_verified": p["candidate_quote_ok"],
                           "source_quote": p["source_quote"] if p["source_quote_ok"] else "", "source_quote_verified": p["source_quote_ok"],
-                          "reason": p["reason"]}
+                          "reason": p["reason"] if p["candidate_quote_ok"] else UNVERIFIED_REASON,
+                          "luna_reason": p["reason"], "unverified": not p["candidate_quote_ok"]}
             s.log.append(f"luna: {order[s.id] + 1}번째로 고름 ({p['relation']}), 후보 인용 {'일치' if p['candidate_quote_ok'] else '불일치(버림)'}")
         else:
             s.rerank = {"by": "luna", "kept": False}

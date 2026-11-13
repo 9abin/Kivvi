@@ -6,6 +6,7 @@
 출처별로 입력이 다르다 (state.evidence.by).
 - code (규칙 후보): 원인(수정 종류 · 고쳐지는 조 · 바뀌는 말 · 찾은 경로)과 결과(대상 조 · 원문 인용)를 읽고 근거를 쓴다.
 - luna (그래프 · RAG): luna가 고를 때 남긴 근거 중 원문 대조를 통과한 구절과 이유만 다듬는다. 새 사실을 더하지 않는다.
+  후보 조문의 구절을 확인하지 못한 것(evidence.unverified)은 모델을 부르지 않고 「확인 필요」 문구를 그대로 쓴다(261113).
 검사(explain.valid): 200자 안팎 · 단정 표현 없음 · 입력에 없는 조 번호 · 숫자 없음. 통과 못 하면 answer.text를 비우고 화면은 근거 칸을 그대로 쓴다.
 판정하지 않는다. 결정은 사람이 한다.
 """
@@ -76,6 +77,11 @@ def prompt_for(s, amendment: str, change_text: str, nodes: dict) -> str:
 
 def write_answers(states: list, amendment: str, change_text: str, nodes: dict, writer: Callable[[str], str]) -> None:
     for s in states:
+        ev = s.evidence or {}
+        if ev.get("by") == "luna" and ev.get("unverified"):
+            s.answer = {"by": "code", "text": ev.get("reason", ""), "checked": True, "unverified": True}
+            s.log.append("답변: 원문 근거 확인 못함 → 확인 필요 문구")
+            continue
         p = prompt_for(s, amendment, change_text, nodes)
         try:
             text = (writer(p) or "").strip()

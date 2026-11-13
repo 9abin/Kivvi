@@ -7,7 +7,7 @@ from regcheck.answer_writer import write_answers  # noqa: E402
 from regcheck.cand_state import build_states, source_of  # noqa: E402
 from regcheck.collect import Candidate  # noqa: E402
 from regcheck.graph_source import add_graph  # noqa: E402
-from regcheck.impact_pipeline import apply_decide, apply_luna, final_list, pick_for_luna, screen  # noqa: E402
+from regcheck.impact_pipeline import UNVERIFIED_REASON, apply_decide, apply_luna, final_list, pick_for_luna, screen  # noqa: E402
 from regcheck.luna_rerank import change_block, merge, rank_list  # noqa: E402
 
 
@@ -154,6 +154,22 @@ class GraphAndAnswerTest(unittest.TestCase):
         write_answers(st, "제3조를 삭제한다.", "개정문: 가 지침 제3조를 삭제한다.", nodes, lambda p: "제17조 때문에 반드시 고쳐야 한다.")
         self.assertFalse(st[0].answer["checked"])
         self.assertEqual(st[0].answer["text"], "")
+
+    def test_unverified_luna_pick_says_check_needed(self):
+        st = build_states([cand("R:4", "참고", "RAG"), cand("R:5", "참고", "RAG")])
+        pick = lambda ok: {"relation": "같은 사항", "candidate_quote": "제3조에 따른 신청은", "candidate_quote_ok": ok,
+                           "source_quote": "", "source_quote_ok": False, "reason": "콘도 이용 절차가 바뀐다."}
+        apply_luna(st, {"picks": {"R:4": pick(True), "R:5": pick(False)}, "order": ["R:4", "R:5"]})
+        self.assertEqual(st[0].evidence["reason"], "콘도 이용 절차가 바뀐다.")
+        self.assertEqual(st[1].evidence["reason"], UNVERIFIED_REASON)
+        self.assertEqual(st[1].evidence["luna_reason"], "콘도 이용 절차가 바뀐다.")
+        self.assertTrue(st[1].rerank["kept"])                      # 후보는 그대로 남는다
+        nodes = {"R": {"name": "가 지침"}, "R:4": {"reg": "R", "label": "제4조", "title": "처리"}, "R:5": {"reg": "R", "label": "제5조", "title": "기타"}}
+        called = []
+        write_answers(st, "제3조를 삭제한다.", "개정문", nodes, lambda p: called.append(p) or "제4조는 제3조에 따른 신청을 다루므로 확인해 볼 만하다.")
+        self.assertEqual(len(called), 1)                           # 확인 못 한 후보는 모델을 부르지 않는다
+        self.assertEqual(st[1].answer["text"], UNVERIFIED_REASON)
+        self.assertNotIn("콘도", st[1].answer["text"])
 
 
 if __name__ == "__main__":

@@ -3,12 +3,18 @@
   python eval/relabel_v2/judge_solar.py adjudicate <bm|val> <실행 결과.jsonl> <출력.jsonl>
   python eval/relabel_v2/judge_solar.py faith      <bm|val> <실행 결과.jsonl> <출력.jsonl>
   python eval/relabel_v2/judge_solar.py report     <bm|val> <실행 결과.jsonl> <판정.jsonl> <충실도.jsonl>
+  python eval/relabel_v2/judge_solar.py faith2     <bm|test> <luna 답변 실행.jsonl> <규칙 답변 실행.jsonl> <출력.jsonl>
+  python eval/relabel_v2/judge_solar.py report2    <충실도2.jsonl> [권고 속 사실.jsonl]
+  python eval/relabel_v2/judge_solar.py faith2b    <충실도2.jsonl> <출력.jsonl>   # 「권고」로 분류된 문장 속 사실 전제를 따로 판정
 
 adjudicate (판정 보완, pooling): 보여 준 후보마다 라벨 지시서(v2.1)와 같은 기준으로 「함께 살펴볼 조인가」를 판정한다.
   정답(gold)도 판정해서 판정 모델이 라벨과 얼마나 맞는지(정답에 「예」라고 한 비율)를 함께 본다.
   근거문장은 후보 원문과 글자 대조(띄어쓰기 · 가운뎃점 무시)를 통과해야 「예」로 센다.
 faith (RAGAS Faithfulness 방식): 답변을 주장 문장으로 나누고, 답변 모델이 본 입력(answer_writer.prompt_for)으로
   뒷받침되는지 문장마다 판정한다. Faithfulness = 뒷받침되는 문장 / 전체 문장. Hallucination rate = 뒷받침 안 되는 문장이 하나라도 있는 답변 비율.
+faith2 (261113, 리포트 96 지적 1 · 2 반영): 판정 근거를 원문만으로 한다(개정문 · 개정 전 조문 · 바뀌는 부분 + 후보 조 원문).
+  luna 이유 · 관계 판단 · 찾은 경로 이름은 넣지 않는다. 판정 모델이 주장마다 「사실 / 권고」를 직접 표시하고 사실만 센다
+  (이전 faith는 권고 어미 문장을 정규식으로 통째로 빼서 그 안의 사실도 빠졌다).
 Answer Relevancy(RAGAS)는 재지 않는다: 질문이 「이 개정 때문에 이 조를 왜 봐야 하나」로 고정이라 질문 생성 · 유사도 방식이 의미가 없다.
 """
 import json
@@ -59,6 +65,35 @@ FAITH = """아래 [입력]만 보고, [답변]에 담긴 사실 주장이 [입�
 
 [답변]
 {answer}
+
+JSON 한 줄만 출력한다: {{"주장": [{{"문장": "...", "뒷받침": true 또는 false}}]}}"""
+
+
+FAITH2 = """아래 [원문]만 보고, [답변]의 사실 주장이 [원문]으로 뒷받침되는지 판정하라. 상식이나 외부 지식으로 판단하지 않는다.
+1) [답변]을 짧은 주장으로 나눈다. 주장마다 종류를 붙인다.
+   - 사실: 무엇이 바뀌는지, 후보 조가 무엇을 정하거나 쓰는지, 둘이 어떻게 이어지는지 같은 내용
+   - 권고: 「~를 확인해 볼 만하다」 「함께 살펴볼 필요가 있다」 같은 제안 부분
+   한 문장에 둘이 섞이면 나눈다. 예) "제5조가 숙박비를 공제 대상으로 정해 함께 확인해 볼 만하다" → 사실 "제5조는 숙박비를 공제 대상으로 정한다" + 권고 "함께 확인해 볼 만하다"
+2) 사실 주장만 판정한다. [원문]에 같은 내용이 있거나(말을 바꿔 써도 됨) 원문에서 바로 따라 나오면 true, 원문에 없는 내용(새 사실 · 새 숫자 · 다른 조 번호 · 원문과 다른 관계)이 들어 있으면 false. 권고의 뒷받침은 null.
+
+[원문]
+{context}
+
+[답변]
+{answer}
+
+JSON 한 줄만 출력한다: {{"주장": [{{"문장": "...", "종류": "사실" 또는 "권고", "뒷받침": true 또는 false 또는 null}}]}}"""
+
+
+FAITH2B = """아래 [권고 문장]들은 「~를 확인해 볼 만하다」 같은 제안이지만, 그 안에 사실 전제(조 번호, 후보 조가 무엇을 정하는지, 무엇이 바뀌는지, 둘의 관계)가 들어 있을 수 있다.
+각 문장에서 사실 전제만 뽑아 짧은 주장으로 쓰고, [원문]으로 뒷받침되는지 판정하라. 사실 전제가 없는 순수 제안이면 아무것도 내지 않는다.
+판정 기준: [원문]에 같은 내용이 있거나(말을 바꿔 써도 됨) 원문에서 바로 따라 나오면 true, 원문에 없는 내용이 들어 있으면 false. 상식이나 외부 지식으로 판단하지 않는다.
+
+[원문]
+{context}
+
+[권고 문장]
+{recs}
 
 JSON 한 줄만 출력한다: {{"주장": [{{"문장": "...", "뒷받침": true 또는 false}}]}}"""
 
@@ -195,6 +230,69 @@ def report(d, run, adj_f, faith_f):
     print(f"- 전체 {na}개: Faithfulness {s_/max(t,1):.3f}, Hallucination rate {bad/max(na,1):.3f}")
 
 
+def faith2(d, luna_run, rule_run, out):
+    """luna 답변은 luna_run의 other, 규칙 답변은 rule_run의 rule(근거 보강 후 다시 쓴 것)을 판정한다."""
+    import glob
+    from regcheck.change_query import analyze
+    from regcheck.final_view import cand_window
+    from regcheck.luna_rerank import change_block
+    ctx = context()
+    regs = {r["reg_id"]: r for r in (json.loads(Path(p).read_text(encoding="utf-8")) for p in glob.glob(str(ROOT / "out/parsed/[0-9]*.json")))}
+    by = {r["name"]: k for k, r in regs.items()}
+    ch = {m["id"]: m for m in jl(ROOT / f"eval/relabel_v2/{d}/changes.jsonl")}
+    change = {}
+    for q in {r["q"] for r in jl(luna_run)}:
+        s0 = ch[q.split(":")[1]]["수정"]; reg = regs[by[s0["규정"]]]
+        cq = analyze(reg, s0["개정문"], q.split(":")[1])
+        change[q] = change_block(reg, s0["개정문"], cq.starts[0] if cq.starts else None)   # 지금 코드로(번호 이동 설명 버그 수정 반영)
+    jobs = []
+    for route, f, key in (("luna", luna_run, "other"), ("decide", rule_run, "rule")):
+        for r in jl(f):
+            for st in r[key]:
+                a = (st.get("answer") or {}).get("text") or ""
+                if not a:
+                    continue
+                nd = ctx.nodes.get(st["id"], {})
+                name = f"{ctx.nodes.get(nd.get('reg', ''), {}).get('name', '')} {nd.get('label', st['id'])}({nd.get('title', '')})"
+                quote = (st.get("evidence") or {}).get("quote") or ""
+                text = cand_window(ctx.unit_text.get(st["id"], ""), [quote] if quote else [], n=1500)
+                jobs.append({"key": f"{r['q']}|{st['id']}|{route}", "q": r["q"], "id": st["id"], "route": route, "answer": a,
+                             "context": f"[개정]\n{change[r['q']]}\n\n[확인 대상 조] {name}\n{text}"})
+
+    def fn(j):
+        o = call(FAITH2.format(context=j["context"], answer=j["answer"])) or {}
+        return {"claims": [c for c in o.get("주장") or [] if isinstance(c, dict)], "ok": bool(o)}
+    run_jobs(jobs, fn, out)
+
+
+def report2(f, fb=None):
+    F = jl(f)
+    if fb:   # 권고 문장 속 사실 전제를 사실 주장으로 더한다
+        B = {x["key"]: x for x in jl(fb)}
+        for x in F:
+            x["claims"] = x["claims"] + [{**c, "종류": "사실"} for c in B.get(x["key"], {}).get("claims", [])]
+    for route in ("luna", "decide", None):
+        xs = [x for x in F if route is None or x["route"] == route]
+        facts = [[c for c in x["claims"] if c.get("종류") == "사실"] for x in xs]
+        with_fact = [fs for fs in facts if fs]
+        sup = sum(c.get("뒷받침") is True for fs in facts for c in fs); tot = sum(len(fs) for fs in facts)
+        bad = sum(any(c.get("뒷받침") is not True for c in fs) for fs in with_fact)
+        name = {"luna": "luna 답변", "decide": "규칙 답변", None: "전체"}[route]
+        print(f"- {name} {len(xs)}개 (판정 실패 {sum(not x['ok'] for x in xs)}, 사실 주장 없는 답변 {len(xs) - len(with_fact)}): "
+              f"Faithfulness {sup / max(tot, 1):.3f} (사실 주장 {tot}), Hallucination rate {bad / max(len(with_fact), 1):.3f}")
+
+
+def faith2b(f, out):
+    jobs = [{"key": x["key"], "route": x["route"], "context": x["context"],
+             "recs": [c["문장"] for c in x["claims"] if c.get("종류") == "권고" and c.get("문장")]} for x in jl(f)]
+    jobs = [j for j in jobs if j["recs"]]
+
+    def fn(j):
+        o = call(FAITH2B.format(context=j["context"], recs="\n".join(f"- {r}" for r in j["recs"]))) or {}
+        return {"claims": [c for c in o.get("주장") or [] if isinstance(c, dict)], "ok": bool(o)}
+    run_jobs(jobs, fn, out)
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1]
     if cmd == "adjudicate":
@@ -203,5 +301,11 @@ if __name__ == "__main__":
         faith(*sys.argv[2:5])
     elif cmd == "report":
         report(*sys.argv[2:6])
+    elif cmd == "faith2":
+        faith2(*sys.argv[2:6])
+    elif cmd == "report2":
+        report2(*sys.argv[2:4])
+    elif cmd == "faith2b":
+        faith2b(*sys.argv[2:4])
     else:
         sys.exit(__doc__)
