@@ -373,8 +373,8 @@ function pageHome() {
         S.regsError && el("p", { class: "notice error", text: S.regsError })),
       el("img", { class: "hero-art", src: "img/document-search.png", alt: "", width: 350, height: 220 })),
     el("div", { class: "home-cards fade", style: "--d: .08s" },
-      card("analyze", "영향 분석 시작하기", "규정을 고치고, 영향받는 조항을 확인해요.", "analyze/1"),
-      card("search", "규정 탐색", "규정 90건의 내용을 읽어 볼 수 있어요.", "browse")),
+      card("search", "규정 탐색", "규정 90건의 내용을 읽어 볼 수 있어요.", "browse"),
+      card("analyze", "영향 분석 시작하기", "규정을 고치고, 영향받는 조항을 확인해요.", "analyze/1")),
     el("section", { class: "home-block fade", style: "--d: .16s" }, el("h2", { text: "이렇게 진행돼요" }), el("ol", { class: "hsteps" }, stepNodes)),
     el("section", { class: "home-block fade", style: "--d: .24s" },
       el("h2", null, "최근 검토", el("button", { type: "button", class: "link-btn", onclick: () => go("history") }, "전체 보기")), recent));

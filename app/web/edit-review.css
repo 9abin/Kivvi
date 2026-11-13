@@ -287,7 +287,7 @@ details.more > summary { cursor: pointer; padding: 10px 4px; color: var(--primar
 .chip[title] { cursor: help; }
 
 /* 검토 내역 */
-.history-list { display: grid; gap: 10px; max-width: 860px; }
+.history-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 14px; }   /* 화면 폭만큼 카드를 여러 줄로 채운다 */
 .history-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 18px 22px; border: 1px solid #edf0f7; border-radius: 18px; background: #fff; text-align: left; box-shadow: var(--shadow); }
 .history-row:hover { border-color: #b9cdf2; }
 .history-row .body { flex: 1; min-width: 0; }
