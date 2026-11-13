@@ -72,11 +72,11 @@ def preamble_chunks(r: dict) -> list[dict]:
     return out
 
 
-def load_model(name: str = DEFAULT_MODEL):
+def load_model(name: str = DEFAULT_MODEL, device: str | None = None):
     import torch
     from sentence_transformers import SentenceTransformer
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model = SentenceTransformer(name, device=device)
     if device == "cuda":
         model.half()
@@ -108,12 +108,12 @@ class OllamaEncoder:
         return v / np.linalg.norm(v, axis=1, keepdims=True) if normalize_embeddings else v
 
 
-def load_encoder(index_dir: Path):
-    """색인 폴더의 meta.json이 ollama 백엔드면 OllamaEncoder(영향 점검 질의 지시문), 아니면 SentenceTransformer."""
+def load_encoder(index_dir: Path, device: str | None = None):
+    """색인 폴더의 meta.json이 ollama 백엔드면 OllamaEncoder(영향 점검 질의 지시문), 아니면 SentenceTransformer(device 기본: GPU가 있으면 GPU)."""
     meta = json.loads((index_dir / "meta.json").read_text(encoding="utf-8"))
     if meta.get("backend") == "ollama":
         return OllamaEncoder(meta["model"], meta.get("impact_query_instruction", IMPACT_QUERY_INSTRUCT))
-    return load_model(meta["model"])
+    return load_model(meta["model"], device)
 
 
 def embed(model, texts: list[str], batch_size: int = 32) -> np.ndarray:

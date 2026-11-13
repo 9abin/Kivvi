@@ -115,3 +115,14 @@ def test_appendix_target_missing_is_reported_not_crashed():
     from regcheck.change_query import analyze
     q = analyze(_reg_with_appendix(), '별지 제9호 서식 중 "매월 25일"을 "매월 20일"로 한다.', "T")
     assert q.kind == "분석 실패"
+
+
+def test_rewrite_recovers_old_phrase_like_replace_form():
+    # 261113: 웹 편집기는 「제N조를 다음과 같이 한다」(조 전체 교체)로 개정문을 만든다. 바뀌기 전 문구를 옛 조문에서 되살려
+    # 「중 A를 B로 한다」 형태와 같은 old_phrases를 낸다(같은 문구를 그대로 쓴 다른 조를 찾는 경로)
+    from regcheck.change_query import _old_phrase_spans
+    old = "④ 매체의 파기에 관해서는 본 지침 '제36조(개인정보의 파기)'를 따른다.\n⑤ 회의비는 매월 25일에 지급한다.\n⑥ 제12조(보안 점검 절차)에 따른다."
+    assert _old_phrase_spans(old, ["36조"]) == ["제36조(개인정보의 파기)"]   # 따옴표 안 전체
+    assert _old_phrase_spans(old, ["25일"]) == ["매월 25일"]                 # 짧으면 앞 낱말까지
+    assert _old_phrase_spans(old, ["12조"]) == ["제12조(보안 점검 절차)"]     # 괄호가 닫힐 때까지
+    assert _old_phrase_spans(old, ["없는말"]) == []

@@ -158,3 +158,15 @@ class GraphAndAnswerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DecideAmendmentTest(unittest.TestCase):
+    def test_rewrite_form_gets_change_summary_and_replace_form_is_unchanged(self):
+        # 261113: 조 전체 교체 개정문은 판단 모델 입력(700자)에 바뀐 부분이 안 보여 요약을 앞에 둔다
+        from types import SimpleNamespace
+        from regcheck.impact_pipeline import decide_amendment
+        cq = SimpleNamespace(old_phrases=["제36조(개인정보의 파기)"], removed=["36조"], added=["37조"])
+        out = decide_amendment("제38조를 다음과 같이 한다.\n제38조(노출 방지) ...", cq)
+        self.assertTrue(out.startswith("제38조를 다음과 같이 한다. 바뀌는 부분: 「제36조(개인정보의 파기)」 → 37조\n"))
+        replace = '제38조제2항제4호 중 "제36조"를 "제37조"로 한다.'
+        self.assertEqual(decide_amendment(replace, cq), replace)

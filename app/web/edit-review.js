@@ -30,13 +30,16 @@ function status(message, error = false) {
   $("status").classList.toggle("error", error);
 }
 
+// 판단 모델(별도 환경 · 하위 프로세스)과 luna를 거치므로 영향 분석은 오래 걸릴 수 있다(261113)
+const REVIEW_TIMEOUT_MS = 300000;   // 서버 단계 제한(판단 모델 90초 + luna 60초 × 2 + 검토 문장)보다 길게
+
 async function api(path, body) {
   const options = body ? {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   } : {};
-  const response = await fetch(path, { ...options, signal: AbortSignal.timeout(body ? 70000 : 12000) });
+  const response = await fetch(path, { ...options, signal: AbortSignal.timeout(body ? REVIEW_TIMEOUT_MS : 12000) });
   const data = await response.json();
   if (!response.ok || data.error) throw new Error(data.error || "요청을 처리하지 못했습니다.");
   return data;
@@ -255,44 +258,58 @@ function originalExcerpt(text, quote, index) {
   return original;
 }
 
+function candidateCard(result, item, index) {
+  const details = element("details");
+  details.className = "candidate";
+  details.open = index === 0;
+  const title = [item.regulation, item.label, item.title].filter(Boolean).join(" ");
+  const summary = element("summary");
+  const tier = element("span", `${index + 1}위`);
+  tier.className = "impact-tier";
+  summary.append(element("span", title), tier);
+  details.append(summary);
+  const evidence = item.evidence || {};
+  const body = element("div");
+  body.className = "candidate-body";
+  const reason = item.answer || evidence.reason;
+  if (reason) {
+    const why = element("div");
+    why.className = "impact-reason";
+    why.append(element("strong", "왜 확인해야 하나요?"), element("p", reason));
+    body.append(why);
+  }
+  if (item.paths && item.paths.length) body.append(element("p", `${item.group} · 찾은 경로: ${item.paths.join(", ")}`));
+  const connection = element("div");
+  connection.className = "impact-connection";
+  const arrow = element("span", "→");
+  arrow.setAttribute("aria-hidden", "true");
+  connection.append(evidenceBlock("수정한 조항", `${result.regulation} ${result.article}`, evidence.source_quote),
+    arrow, evidenceBlock("함께 확인할 조항", title, evidence.quote));
+  body.append(connection);
+  if (evidence.replacement) {
+    body.append(element("p", `참고 수정안 · ${evidence.replacement.before} → ${evidence.replacement.after}`));
+  }
+  if (item.text) body.append(originalExcerpt(item.text, evidence.quote, index));
+  details.append(body);
+  return details;
+}
+
 function impactList(result) {
+  // 첫 화면(합친 순서 10개 + 10위 밖 확정급)은 펼쳐 두고, 나머지는 지우지 않고 「더 보기」로 접는다(impact_pipeline.screen)
   const section = resultField("impacts");
   const total = result.candidates.length;
-  section.replaceChildren(changePreview(result.rows), element("h3", `함께 확인할 조항 ${total}개`));
+  const firstN = Number.isInteger(result.first_n) ? result.first_n : total;
+  const rest = total - firstN;
+  section.replaceChildren(changePreview(result.rows),
+    element("h3", `함께 확인할 조항 ${firstN}개` + (rest > 0 ? ` · 더 보기 ${rest}개` : "")));
   if (!total) section.append(element("p", "검토할 영향 후보가 없습니다."));
-  for (const [index, item] of result.candidates.entries()) {
-    const details = element("details");
-    details.className = "candidate";
-    details.open = index === 0;
-    const title = [item.regulation, item.label, item.title].filter(Boolean).join(" ");
-    const summary = element("summary");
-    const tier = element("span", `${index + 1}위`);
-    tier.className = "impact-tier";
-    summary.append(element("span", title), tier);
-    details.append(summary);
-    const evidence = item.evidence;
-    const body = element("div");
-    body.className = "candidate-body";
-    const reason = item.answer || evidence.reason;
-    if (reason) {
-      const why = element("div");
-      why.className = "impact-reason";
-      why.append(element("strong", "왜 확인해야 하나요?"), element("p", reason));
-      body.append(why);
-    }
-    const connection = element("div");
-    connection.className = "impact-connection";
-    const arrow = element("span", "→");
-    arrow.setAttribute("aria-hidden", "true");
-    connection.append(evidenceBlock("수정한 조항", `${result.regulation} ${result.article}`, evidence.source_quote),
-      arrow, evidenceBlock("함께 확인할 조항", title, evidence.quote));
-    body.append(connection);
-    if (evidence.replacement) {
-      body.append(element("p", `참고 수정안 · ${evidence.replacement.before} → ${evidence.replacement.after}`));
-    }
-    if (item.text) body.append(originalExcerpt(item.text, evidence.quote, index));
-    details.append(body);
-    section.append(details);
+  for (const [index, item] of result.candidates.slice(0, firstN).entries()) section.append(candidateCard(result, item, index));
+  if (rest > 0) {
+    const more = element("details");
+    more.className = "more-candidates";
+    more.append(element("summary", `더 보기 (${rest}개)`));
+    for (const [offset, item] of result.candidates.slice(firstN).entries()) more.append(candidateCard(result, item, firstN + offset));
+    section.append(more);
   }
 }
 
@@ -371,8 +388,10 @@ $("editor").addEventListener("submit", async (event) => {
     resultField("result-meta").textContent = result.kind;
     const notices = resultField("analysis-notices");
     const showSearchOrder = result.candidates.length > 0 && !result.options["Luna 리랭킹"];
-    notices.textContent = showSearchOrder ? "관련 조항을 검색 순서로 표시했습니다. 영향 여부는 원문을 확인해 주세요." : "";
-    notices.hidden = !showSearchOrder;
+    // 서버 알림(판단 모델 · Luna · 검토 문장 실패 등)을 함께 보인다(261113 Codex 리뷰)
+    const messages = [...(result.notices || []), ...(showSearchOrder ? ["관련 조항을 검색 순서로 표시했습니다. 영향 여부는 원문을 확인해 주세요."] : [])];
+    notices.textContent = messages.join(" ");
+    notices.hidden = messages.length === 0;
     comparison(result);
     impactList(result);
     showPanel("impacts");
@@ -381,7 +400,7 @@ $("editor").addEventListener("submit", async (event) => {
     results.focus();
     status("검토 초안을 저장했습니다. 결과 창에서 확인하세요.");
   } catch (error) {
-    const message = error.name === "TimeoutError" ? "70초 안에 응답을 받지 못했습니다. 서버의 처리 완료 여부를 확인할 수 없습니다." : error.message;
+    const message = error.name === "TimeoutError" ? `${REVIEW_TIMEOUT_MS / 1000}초 안에 응답을 받지 못했습니다. 서버의 처리 완료 여부를 확인할 수 없습니다.` : error.message;
     resultField("result-status").classList.add("error");
     resultField("result-status").textContent = message;
     status(message, true);

@@ -160,6 +160,17 @@ def screen(rule: list[CandState], other: list[CandState], n: int = FIRST_N) -> d
     return {"first": first, "more": [s for s in ordered if id(s) not in keep]}
 
 
+def decide_amendment(amendment: str, cq) -> str:
+    """판단 모델에 줄 개정 내용. 「제N조를 다음과 같이 한다」(조 전체 교체, 웹 편집기)는 뒤에 조문 전체가 붙어 무엇이 바뀌었는지 안 보이므로
+    바뀐 부분 요약을 앞에 둔다(261113: 웹에서 같은 인용을 가진 제13조가 평가와 달리 걸러졌다). 「중 A를 B로 한다」는 그대로."""
+    first = amendment.strip().splitlines()[0] if amendment.strip() else ""
+    if "다음과 같이 한다" not in first or not (cq.old_phrases or cq.removed or cq.added):
+        return amendment
+    before = ", ".join(f"「{x}」" for x in (cq.old_phrases or cq.removed)[:3])
+    after = ", ".join(cq.added[:3])
+    return f"{first} 바뀌는 부분: {before} → {after}\n{amendment}"
+
+
 def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=None, graph=None,
                  lv: dict | Callable[[dict], dict] | None = None, luna: Callable | None = None, writer: Callable | None = None,
                  n_rag: int | None = 50, n_graph: int | None = 10, orders: int = 2, seed: int = 0, rule_th: float = DECIDE_TH,
@@ -177,7 +188,7 @@ def run_pipeline(ctx, regs: dict, reg_id: str, amendment: str, cid: str, rag=Non
     # 1. 규칙 후보: 판단 모델
     if callable(lv):
         rule_c = [_cand(s) for s in by_route(states, "decide")]
-        lv = lv(decide_inputs(rule_c, cq.kind, amendment, ctx.unit_text.get(start, ""), ctx.unit_text,
+        lv = lv(decide_inputs(rule_c, cq.kind, decide_amendment(amendment, cq), ctx.unit_text.get(start, ""), ctx.unit_text,
                               keys_for=lambda cid: change_keys(cq, ctx.nodes, cid)))
     apply_decide(states, lv, rule_th, cq.kind)
     rule_evidence(states, cq, ctx.nodes, ctx.unit_text)

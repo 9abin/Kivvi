@@ -109,6 +109,48 @@ def _diff_segments(old: str, new: str) -> tuple[list[str], list[str]]:
     return rem, add
 
 
+QUOTES = "'\"‘’“”「」『』"
+
+
+def _old_phrase_spans(old: str, removed: list[str]) -> list[str]:
+    """다시 쓴 조(「제N조를 다음과 같이 한다」)에서 바뀌기 전 문구를 옛 조문에서 되살린다(261113, 웹 편집기).
+    지워진 낱말을 감싼 단위를 넓힌다: 따옴표 안이면 따옴표 안 전체, 아니면 띄어쓰기 단위, 괄호가 열려 있으면 닫힐 때까지.
+    「중 A를 B로 한다」 개정문의 A(old_phrases)와 같은 쓰임이라, 같은 문구를 그대로 쓴 다른 단위를 찾는 데 쓴다."""
+    out: list[str] = []
+    for r in removed:
+        toks = SEG_TOKEN.findall(r)
+        if not toks:
+            continue
+        m = re.search(r"\s*".join(map(re.escape, toks)), old)
+        if not m:
+            continue
+        i, j = m.start(), m.end()
+        left = max(old.rfind(q, 0, i) for q in QUOTES)
+        right_q = [k for k in (old.find(q, j) for q in QUOTES) if k >= 0]
+        if left >= 0 and right_q and "\n" not in old[left:min(right_q)] and min(right_q) - left <= 60:
+            i, j = left + 1, min(right_q)          # 따옴표 안 전체
+        else:
+            while i > 0 and not old[i - 1].isspace() and old[i - 1] not in QUOTES:
+                i -= 1
+            while j < len(old) and not old[j].isspace() and old[j] not in QUOTES:
+                j += 1
+            if old[i:j].count("(") > old[i:j].count(")"):
+                k = old.find(")", j)
+                if 0 <= k - j <= 30:
+                    j = k + 1
+            if len(_norm(old[i:j])) < 5:   # 「25일」처럼 짧으면 앞 낱말까지 (「매월 25일」)
+                k = i - 1
+                while k > 0 and old[k - 1].isspace():
+                    k -= 1
+                while k > 0 and not old[k - 1].isspace() and old[k - 1] not in QUOTES:
+                    k -= 1
+                i = max(k, 0)
+        phrase = _strip_particle(old[i:j].strip().strip(QUOTES))
+        if len(_norm(phrase)) >= 5 and phrase not in out:
+            out.append(phrase)
+    return out
+
+
 def _similar_to_gone(t: str, gone: set[str]) -> bool:
     """지워진 낱말과 거의 같은 낱말(관리하다 -> 관리한다)은 새 말이 아니다."""
     return any(difflib.SequenceMatcher(None, t, g, autojunk=False).ratio() >= 0.75 for g in gone)
@@ -263,9 +305,11 @@ def analyze(reg: dict, amendment: str, cid: str = "") -> ChangeQuery:
         else:   # rewrite: 낡은 조와 새 조를 비교
             old_a = old_arts[origin]
             new_a = new_by_label.get(c["new_label"]) or {}
-            rem, add = _diff_segments(_art_text(old_a), _art_text(new_a))
+            old_text = _art_text(old_a)
+            rem, add = _diff_segments(old_text, _art_text(new_a))
             q.removed += rem
             q.added += add
+            q.old_phrases += [x for x in _old_phrase_spans(old_text, rem) if x not in q.old_phrases]
     q.removed = [r for r in q.removed if r]
     q.added = [a for a in q.added if a]
     if not (q.old_values or q.new_values):   # 다시 쓰기: 낡은 · 새 문구 전체에서

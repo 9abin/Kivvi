@@ -12,9 +12,7 @@ import html
 import json
 import os
 import re
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from uuid import uuid4
 
@@ -101,27 +99,8 @@ def impact_context():
 
 
 def decide_scorer(reg: dict, amendment: str, cid: str):
-    python = os.environ.get("IMPACT_DECIDE_PYTHON")
-    model = os.environ.get("IMPACT_DECIDE_MODEL")
-    if not (python and model):
-        return None
-
-    from regcheck.change_query import analyze
-
-    kind = analyze(reg, amendment, cid).kind
-
-    def score(inputs: dict) -> dict:
-        if not inputs:
-            return {}
-        with tempfile.TemporaryDirectory() as tmp:
-            pairs, scores = Path(tmp) / "pairs.json", Path(tmp) / "scores.json"
-            pairs.write_text(json.dumps({"pairs": [{"key": k, "kind": kind, "state": v}
-                                                     for k, v in inputs.items()]}, ensure_ascii=False), encoding="utf-8")
-            subprocess.run([python, str(ROOT / "scripts" / "decide_score_pairs.py"), model, str(pairs), str(scores)],
-                           cwd=ROOT, check=True, capture_output=True, timeout=300)
-            return {k: v["lv"] for k, v in json.loads(scores.read_text(encoding="utf-8")).items()}
-
-    return score
+    from regcheck.decide_runner import subprocess_scorer
+    return subprocess_scorer(ROOT, reg, amendment, cid)
 
 
 def analyze_draft(cs: dict, use_rag: bool, use_luna: bool) -> None:
