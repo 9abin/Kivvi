@@ -48,13 +48,6 @@ def catalog(reg_id=""):
 
 
 @lru_cache(maxsize=1)
-def graph():
-    from ontology_search.validated_graph import DomainGraph
-
-    return DomainGraph(ROOT / "ontology-search" / "data" / "ontology.db")
-
-
-@lru_cache(maxsize=1)
 def rag_backend():
     from regcheck.impact_view import make_rag
     from regcheck.vectors import Index, OllamaEncoder, load_encoder
@@ -87,8 +80,8 @@ def review_corpus(regs, ctx):
     return corpus
 
 
-def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag, domain, notices):
-    # 평가의 focus_queries와 같이 변경 문구를 앞에 두고 변경된 항을 그래프의 시작점으로 쓴다.
+def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag):
+    # 평가의 focus_queries와 같이 변경 문구를 앞에 둔다.
     new_items = {tuple(it["path"]): it["norm"] for it in revised["items"] if not it.get("deleted")}
     changed_items = [it for it in article["items"] if not it.get("deleted")
                      and new_items.get(tuple(it["path"])) != it["norm"]]
@@ -101,16 +94,9 @@ def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag, domain, 
     excluded = {article["id"]}
     keyword = sorted((aid for aid in ids if aid not in excluded and lex[aid] > 0), key=lambda aid: (-lex[aid], aid))[:200]
     dense = [aid for aid in (rag(query, 200) if rag else []) if aid in corpus and aid not in excluded]
-    graph_ids = []
-    if domain is not None:
-        try:
-            graph_ids, _ = domain.rank(corpus, [article], query, lex, [it["id"] for it in changed_items])
-            graph_ids = [aid for aid in graph_ids if aid in corpus and aid not in excluded]
-        except Exception:
-            notices["도메인 그래프"] = "그래프 탐색에 실패해 검색 후보로 계속 분석했습니다."
     citing = {edge["src"] for edge in ctx.kg.inb.get(("CITES", article["id"]), [])} & corpus.keys() - excluded
-    graph_rank = list(dict.fromkeys([*sorted(citing, key=lambda aid: (-lex[aid], aid)), *graph_ids])) if number_change else graph_ids
-    ranked = fuse(fuse(dense, keyword), graph_rank)
+    citing_rank = sorted(citing, key=lambda aid: (-lex[aid], aid)) if number_change else []
+    ranked = fuse(fuse(dense, keyword), citing_rank)
     picked = []
     for order, aid in enumerate(ranked[:REVIEW_LIMIT]):
         paths = []
@@ -118,12 +104,10 @@ def review_candidates(ctx, corpus, article, revised, reg_name, cq, rag, domain, 
             paths.append("VECTOR")
         if aid in keyword[:100]:
             paths.append("BM25")
-        if aid in graph_ids[:100]:
-            paths.append("GRAPH_CONCEPT")
         # 직접 인용은 합쳐진 후보에 발견 근거로만 표시한다.
         if aid in citing:
             paths.append("CITES_in")
-        picked.append(CandState(aid, "graph" if "GRAPH_CONCEPT" in paths else "rag", "luna", paths, "참고", order))
+        picked.append(CandState(aid, "rag", "luna", paths, "참고", order))
     return picked, len(ranked)
 
 
@@ -216,15 +200,10 @@ def submit(body):
         return {"error": "조항 검색 메타데이터가 없습니다. scripts/build_kg.py로 생성해 주세요."}
     try:
         rag, luna, writer, notices = analysis_backends()
-        try:
-            domain = graph()
-        except Exception:
-            domain = None
-            notices["도메인 그래프"] = "도메인 그래프를 불러오지 못해 검색 후보로 계속 분석했습니다."
         cq = analyze(reg, amendment, cid)
         if cq.kind == "분석 실패":
             return {"error": cq.error or "개정문을 분석하지 못했습니다."}
-        candidates, retrieved = review_candidates(ctx, review_corpus(regs, ctx), article, revised, reg["name"], cq, rag, domain, notices)
+        candidates, retrieved = review_candidates(ctx, review_corpus(regs, ctx), article, revised, reg["name"], cq, rag)
         change_text = change_block(reg, amendment, article["id"])
         reranked = False
         if luna and candidates:
@@ -256,7 +235,7 @@ def submit(body):
         "amendment": amendment, "rows": draft["rows"],
         "kind": cq.kind, "change_evidence": cq.evidence, "retrieved": retrieved, "rerank_input": min(retrieved, REVIEW_LIMIT),
         "candidates": [_candidate(s, ctx, regs) for s in candidates],
-        "options": {"BM25": True, "도메인 그래프": domain is not None and "도메인 그래프" not in notices,
+        "options": {"BM25": True,
                     "의미 검색": rag is not None and "의미 검색" not in notices,
                     "Luna 리랭킹": reranked, "검토 문장 생성": any(s.answer.get("checked") for s in candidates)},
         "notices": list(notices.values()),

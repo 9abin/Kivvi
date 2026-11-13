@@ -100,13 +100,6 @@ def impact_context():
     return load_context(ROOT, load_static()[0])
 
 
-@st.cache_resource
-def domain_graph():
-    from regcheck.graph_source import GraphSource
-
-    return GraphSource.load(ROOT)
-
-
 def decide_scorer(reg: dict, amendment: str, cid: str):
     python = os.environ.get("IMPACT_DECIDE_PYTHON")
     model = os.environ.get("IMPACT_DECIDE_MODEL")
@@ -141,7 +134,6 @@ def analyze_draft(cs: dict, use_rag: bool, use_luna: bool) -> None:
             ctx = impact_context()
             if ctx is None:
                 raise ValueError("규칙 그래프가 없습니다. scripts/build_kg.py로 생성해 주세요.")
-            graph = domain_graph()
             rag = luna = writer = None
             if use_rag:
                 from regcheck.impact_view import make_rag
@@ -153,8 +145,8 @@ def analyze_draft(cs: dict, use_rag: bool, use_luna: bool) -> None:
 
                 luna, writer = luna_call(), make_writer("gpt-5.6-luna")
             lv = decide_scorer(regs[reg_id], amendment, cid)
-            res = run_pipeline(ctx, regs, reg_id, amendment, cid, rag=rag, graph=graph, lv=lv, luna=luna, writer=writer)
-            res["options"] = {"도메인 그래프": graph is not None, "의미 검색": use_rag,
+            res = run_pipeline(ctx, regs, reg_id, amendment, cid, rag=rag, lv=lv, luna=luna, writer=writer)
+            res["options"] = {"의미 검색": use_rag,
                               "규칙 판단 모델": lv is not None, "Luna 및 답변 생성": use_luna}
     except (FileNotFoundError, ValueError) as exc:
         res = {"error": str(exc)}
@@ -470,7 +462,7 @@ elif page == "개정안 검토":
             if not (result["rule"] or result["other"]):
                 st.info("검토 후보가 없습니다.")
             ctx = impact_context()
-            for group, candidates in (("규칙 후보", result["rule"]), ("의미 검색 · 도메인 그래프 후보", result["other"])):
+            for group, candidates in (("규칙 후보", result["rule"]), ("의미 검색 후보", result["other"])):
                 if not candidates:
                     continue
                 st.markdown(f"##### {group} ({len(candidates)})")
