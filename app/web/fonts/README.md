@@ -7,3 +7,7 @@
 3. 파일이 없으면 화면은 맑은 고딕(Windows 기본)으로 보인다. 기능에는 영향이 없다.
 
 글꼴 파일은 저장소에 넣지 않는다 (`.gitignore`의 `*.woff2`).
+
+## 새 화면(edit-review)
+
+`edit-review.html`은 Pretendard(일반판)를 쓴다. `PretendardVariable.woff2`를 이 폴더에 같은 이름으로 넣는다(npm `pretendard` 패키지의 `dist/web/variable/woff2/PretendardVariable.woff2`, SIL OFL). 없으면 맑은 고딕으로 보인다.

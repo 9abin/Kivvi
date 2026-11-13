@@ -3,65 +3,37 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>조항 직접 편집 · KIVVI</title>
+  <title>Kivvi · 내부규정 도우미</title>
   <link rel="icon" href="img/kiwi-64.png">
-  <link rel="stylesheet" href="edit-review.css?v=review-spacing">
-  <script defer src="edit-review.js?v=review-header"></script>
+  <link rel="stylesheet" href="edit-review.css?v=kivvi-48">
+  <script defer src="edit-review.js?v=kivvi-48"></script>
 </head>
 <body>
-  <header class="top">
-    <div><img src="img/kiwi-64.png" alt="" width="34" height="34"><strong>KIVVI</strong><span>내부규정 도우미</span><button type="button" id="home-button" hidden>홈으로</button></div>
-  </header>
-  <main id="home" aria-labelledby="home-heading">
-    <section class="panel start-panel">
-      <h1 id="home-heading">내부규정 개정안 검토</h1>
-      <p class="muted">한 조항을 바꿀 때, 함께 확인할 규정까지.</p>
-      <button type="button" id="start-review">시작하기</button>
-      <p class="muted" id="home-status" role="status"></p>
-    </section>
-  </main>
-  <div class="workspace" id="workspace" hidden>
-    <aside class="documents" aria-labelledby="documents-heading">
-      <h2 id="documents-heading">규정 문서</h2>
-      <input type="search" id="document-search" aria-label="규정명 검색" placeholder="규정명 검색">
-      <nav id="documents" aria-label="규정 문서 목록"></nav>
+  <a class="skip" href="#view">본문 바로가기</a>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><img src="img/kiwi-64.png" alt="" width="34" height="34"><span>Kivvi</span></div>
+      <nav aria-label="주 메뉴">
+        <ul class="menu" id="menu">
+          <li><button type="button" data-route="home" data-icon="home">홈</button></li>
+          <li><button type="button" data-route="browse" data-icon="search">규정 탐색</button></li>
+          <li><button type="button" data-route="analyze/1" data-icon="analyze">영향 분석</button></li>
+          <li><button type="button" data-route="history" data-icon="history">검토 내역</button></li>
+        </ul>
+      </nav>
+      <button type="button" class="side-settings" id="settings">설정</button>
     </aside>
-    <main>
-    <section id="reader" class="panel">
-      <h1 id="document-title" aria-live="polite">규정 문서를 선택하세요</h1>
-      <div id="document-body"></div>
-    </section>
-    <form id="editor" class="panel" hidden>
-      <h2 id="editor-heading">조항 편집</h2>
-      <p><a href="#reader" id="return-to-article">문서의 조항으로 돌아가기</a></p>
-      <div hidden>
-        <label>규정<select id="regulation" required disabled></select></label>
-        <label>조항<select id="article" required disabled></select></label>
-      </div>
-      <div class="edit-field">
-        <label>개정안<textarea id="edited" required disabled rows="11"></textarea></label>
-      </div>
-      <div class="actions">
-        <button id="submit" disabled type="submit">수정 완료</button>
-        <span id="status" role="status"></span>
-      </div>
-    </form>
-    </main>
+    <div class="shell">
+      <header class="topbar">
+        <button type="button" class="back" id="back" hidden></button>
+        <div class="top-actions">
+          <button type="button" class="icon-btn" id="bell" aria-label="알림"></button>
+          <button type="button" class="avatar-btn" id="me" aria-label="프로필"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="14" r="6" fill="currentColor"/><path d="M5 36c0-7.5 5.8-11.5 13-11.5S31 28.500 31 36z" fill="currentColor"/></svg></button>
+        </div>
+      </header>
+      <main id="view" tabindex="-1"></main>
+      <div id="actions" hidden></div>
+    </div>
   </div>
-  <dialog id="result-dialog" aria-labelledby="result-heading">
-    <section id="results" tabindex="-1" aria-labelledby="result-heading" class="panel">
-      <button type="button" id="close-result">닫기</button>
-      <h2 id="result-heading">검토 결과</h2>
-      <p id="result-status" role="status"></p>
-      <p id="result-meta" class="muted"></p>
-      <p id="analysis-notices" class="muted" hidden></p>
-      <div role="group" aria-label="검토 결과 보기" class="switch" id="result-switch">
-        <button type="button" data-panel="impacts" aria-controls="impacts" aria-pressed="true">확인할 사항</button>
-        <button type="button" data-panel="comparison" aria-controls="comparison" aria-pressed="false">신·구조문대비표</button>
-      </div>
-      <div id="comparison"></div>
-      <div id="impacts" hidden></div>
-    </section>
-  </dialog>
 </body>
 </html>
