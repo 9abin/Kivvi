@@ -134,6 +134,82 @@
 - LLM(RAG 후보 필터링 · 근거 작성): gpt-5.6-luna (OpenAI API)
 - 비교 실험: bge-reranker-v2-m3, Qwen3-Reranker-4B, Qwen3-Embedding-0.6B, Gemma 4 12B-it, Qwen3 30B-A3B, Qwen3.5 9B, Solar
 
+### 데이터 구조 (ERD)
+
+- 규정 원문 DB: `documents`, `chunks`
+- 규정 관계 DB: `kg_node`, `kg_edge`, `changeset`, `impact`
+- 법령 DB: `law_documents`, `law_chunks`
+
+```mermaid
+erDiagram
+    documents ||--o{ chunks : "조 단위 청크"
+    documents ||--o{ kg_node : "소속"
+    kg_node ||--o{ kg_edge : "시작"
+    kg_node ||--o{ kg_edge : "도착"
+    documents ||--o{ changeset : "수정 대상"
+    changeset ||--o{ impact : "영향 후보"
+    documents ||--o{ impact : "영향받는 규정"
+    law_documents ||--o{ law_chunks : "조문"
+
+    documents {
+        string doc_id PK "고유번호"
+        string title "규정명"
+        string tier "위계"
+        string revision "개정표기"
+    }
+    chunks {
+        string chunk_id PK "청크 ID"
+        string doc_id FK "규정"
+        string article "조"
+        string section "장·절"
+        string status "정상/삭제"
+        text body "본문"
+    }
+    kg_node {
+        string id PK "노드 ID"
+        string type "노드 종류"
+        string name "이름"
+        string reg FK "소속 규정"
+        string label "조 번호"
+        string title "조 제목"
+    }
+    kg_edge {
+        string src FK "시작 노드"
+        string dst FK "도착 노드"
+        string type "관계 종류"
+        string method "만든 규칙"
+        text evidence "근거 문구"
+    }
+    changeset {
+        string id PK "개정안 ID"
+        string reg_id FK "수정한 규정"
+        text amendment "개정문"
+        string status "초안/검토/승인"
+        datetime created_at "작성 시각"
+    }
+    impact {
+        string changeset_id FK "개정안"
+        string review_key PK "후보 키"
+        string reg_id FK "영향받는 규정"
+        string article "영향받는 조"
+        string category "영향 분류"
+        string path "찾은 경로"
+        text reason "근거 문장"
+    }
+    law_documents {
+        string id PK "법령 ID"
+        string requested_title "법령명"
+        string effective_date "시행일"
+        string current_status "현행 여부"
+    }
+    law_chunks {
+        int id PK "조문 ID"
+        string document_id FK "법령"
+        string path "조·항 위치"
+        text content "조문 본문"
+    }
+```
+
 온톨로지 스키마, 평가셋, 성능 결과는 [온톨로지와 평가셋 상세](docs/온톨로지와_평가셋.md)에 있습니다.
 
 </br>
