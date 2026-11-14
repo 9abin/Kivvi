@@ -293,7 +293,7 @@ uv run --extra db python app/web_server.py --review-only
 ### 폴더 구조
 
 ```
-kvic-internal-regulations-review/
+Kivvi/
 │
 ├── 📂 app/                       # 웹 서버와 화면
 │   └── web/                      # Kivvi 화면 (edit-review.html · css · js)
