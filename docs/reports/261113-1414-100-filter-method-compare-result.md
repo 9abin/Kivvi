@@ -1,6 +1,6 @@
 # 261113-1414 후보 거르기 방법 비교 결과 (개발 100, seed 0)
 
-- 관련: [99 비교 계획](261113-1110-99-filter-method-compare-plan.md), [93 후보 state 파이프라인](../docs/reports/261111-1500-93-candidate-state-pipeline.md), [94 평가 지표](../docs/reports/261111-2100-94-eval-metrics.md), [98 개정 영향 온톨로지](../docs/reports/261112-2330-98-impact-ontology-domain-graph.md)
+- 관련: [99 비교 계획](261113-1110-99-filter-method-compare-plan.md), [93 후보 state 파이프라인](261111-1500-93-candidate-state-pipeline.md), [94 평가 지표](261111-2100-94-eval-metrics.md), [98 개정 영향 온톨로지](261112-2330-98-impact-ontology-domain-graph.md)
 - 변경 범위: `eval/relabel_v2/compare_methods.py`(새). 결과 `out/relabel_v2/compare_bm/`(git 제외).
 - 상태: seed 0 한 번. 로컬 LLM 4 · 6번 모두 기재했다.
 

@@ -25,8 +25,7 @@ data/manual/           사람이 정한 보정 목록
 configs/               실험 설정
 docs/                  현재 유지하는 설명 문서
 docs/reports/          작업 기록(날짜·번호순)
-docs/archive/          지난 계획서·실험 안내·챗봇 연동 기록(현재와 다를 수 있음)
-archive/               작업 중 만든 임시 파일(실행에 쓰지 않음)
+docs/archive/          지난 계획서·실험 안내·챗봇 연동 기록·작업 중 만든 임시 파일(현재와 다를 수 있음)
 ontology-search/       온톨로지 검색만 떼어 낸 독립 실행 폴더
 한국벤처투자_내부규정/     규정 원본 90건
 config.py, run.py      경로·설정, 전처리 실행 진입점

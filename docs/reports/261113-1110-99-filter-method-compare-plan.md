@@ -1,6 +1,6 @@
 # 261113-1110 후보 거르기 방법 비교 실험 계획 (개발 100, 실행 전)
 
-- 관련: [92 최종 선택](../docs/reports/261110-1552-92-final-selection.md), [93 후보 state 파이프라인](../docs/reports/261111-1500-93-candidate-state-pipeline.md), [94 평가 지표](../docs/reports/261111-2100-94-eval-metrics.md), [97 판단 모델 입력](../docs/reports/261112-2200-97-decide-input-luna-prompt.md), [98 개정 영향 온톨로지](../docs/reports/261112-2330-98-impact-ontology-domain-graph.md)
+- 관련: [92 최종 선택](261110-1552-92-final-selection.md), [93 후보 state 파이프라인](261111-1500-93-candidate-state-pipeline.md), [94 평가 지표](261111-2100-94-eval-metrics.md), [97 판단 모델 입력](261112-2200-97-decide-input-luna-prompt.md), [98 개정 영향 온톨로지](261112-2330-98-impact-ontology-domain-graph.md)
 - 변경 범위: 이 문서만. 실행 스크립트 `eval/relabel_v2/compare_methods.py`(새), 결과 폴더 `out/relabel_v2/compare_bm/`(git 제외)는 실행 때 만든다.
 - 상태: **실행 완료(개발 100, seed 0).** 아래 「측정값」에 값을 채웠다. 해석과 계획 대비 바뀐 것은 [리포트 100](261113-1414-100-filter-method-compare-result.md). Gemma 4 12B-it(로컬 LLM) 실행 중이라 해당 행은 비어 있다. 3 · 7번은 규칙 후보 점수를 현재 코드로 다시 채점한 값으로 갱신했다(리포트 100).
 
