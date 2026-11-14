@@ -1,6 +1,6 @@
 # 261102-0939 영향 라벨 작성·독립 검토 결과 (사람 확인 전)
 
-- 관련 TODO: [impact-evalset](../todo/impact-evalset.md)
+- 관련 TODO: [impact-evalset](../archive/plans/todo/impact-evalset.md)
 - 기준: [68 설계](261030-1800-68-impact-evalset-design.md), [69 키트](261030-1830-69-impact-label-kit.md)
 - 변경 범위: `eval/impact_label_kit/산출/`, TODO·현재 상태. 시스템 코드·키트 원문·원본 검사기 변경 없음
 
@@ -10,7 +10,7 @@
 
 ## 산출물과 수치
 
-키트의 [산출 폴더](../../eval/impact_label_kit/산출/)에 저장했다.
+키트의 [산출 폴더](../../eval/impact_label_kit/산출)에 저장했다.
 
 | 산출물·지표 | 결과 |
 |---|---|

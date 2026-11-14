@@ -1,6 +1,6 @@
 # 261015-1900 감시·공포에서 초안까지, 개정 위치 찾기, 근거 종류 표시와 시연 리허설
 
-- 관련 TODO: [00-todo-list](../todo/00-todo-list.md) 발표 자료, 시연([08](../08-demo-scenario.md))
+- 관련 TODO: [00-todo-list](../archive/plans/todo/00-todo-list.md) 발표 자료, 시연([08](../archive/plans/08-demo-scenario.md))
 - 변경 범위: `app/web_agent.py`(`companion_drafts`, `targets`, 법령명 정비에 감시 결과 포함), `app/web_watch.py`(다음 행동), `app/web_server.py`(`find` 후보, 카드 `basis`), `app/web/*`, `src/regcheck/target.py`(신규), `src/regcheck/change_check.py`(`basis_of`), `src/regcheck/nl.py`(번호 밀기 문장·가지번호 안내)
 
 ## 요약

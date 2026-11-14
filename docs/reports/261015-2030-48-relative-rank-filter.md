@@ -1,6 +1,6 @@
 # 261015-2030 절대 점수 대신 상대 순위(간격)와 최소 컷오프를 함께 쓰기
 
-- 관련 TODO: [00-todo-list](../todo/00-todo-list.md), 리포트 [44](261015-1600-44-semantic-neighbors.md)·[45](261015-1700-45-relocate.md)·[47](261015-1900-47-agent-loop-rehearsal.md)
+- 관련 TODO: [00-todo-list](../archive/plans/todo/00-todo-list.md), 리포트 [44](261015-1600-44-semantic-neighbors.md)·[45](261015-1700-45-relocate.md)·[47](261015-1900-47-agent-loop-rehearsal.md)
 - 변경 범위: `src/regcheck/change_check.py`(`DUP_GAP`, `NEIGHBOR_GAP`, 의미 이웃 「참고」), `src/regcheck/neighbors.py`(`gap` 저장), `src/regcheck/relocate.py`(`confident`·`gap`), `src/regcheck/findings.py`, `scripts/build_relocate.py`, `tests/test_terms.py`
 
 ## 요약

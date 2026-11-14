@@ -1,6 +1,6 @@
 # 261015-1820 LLM 2단계 리랭커 도입 결과 정리 (팀 공유용)
 
-저장소 `kvic-internal-regulations-review`. 상세는 [보고서 36](./261015-1536-36-llm-rerank.md)(도입·측정)과 [보고서 37](./261015-1650-37-llm-rerank-prompt-lab.md)(프롬프트 변형 실험).
+저장소 `kvic-internal-regulations-review`. 상세는 [보고서 36](261015-1536-36-llm-rerank.md)(도입·측정)과 [보고서 37](261015-1650-37-llm-rerank-prompt-lab.md)(프롬프트 변형 실험).
 
 ## 0. 한 줄 결론
 

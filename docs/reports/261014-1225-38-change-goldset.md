@@ -1,6 +1,6 @@
 # 261014-1225 변경안 골든셋 v0 (106문항)
 
-- 관련 TODO: [agent-eval](../todo/agent-eval.md)
+- 관련 TODO: [agent-eval](../archive/plans/todo/agent-eval.md)
 - 변경 범위: `src/regcheck/change_gold.py`(신규), `scripts/eval_change_gold.py`(신규), `eval/agent/change_gold_s1.jsonl`
 
 ## 요약

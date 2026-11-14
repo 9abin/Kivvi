@@ -1,6 +1,6 @@
 # 261015-1800 기준선 점검 오탐 줄이기: 원문 대조 정밀도 25% → 48% (주 목록)
 
-- 관련 TODO: [00-todo-list](../todo/00-todo-list.md) 에이전트 평가 ⑥ 정밀도, 리포트 [45](261015-1700-45-relocate.md)
+- 관련 TODO: [00-todo-list](../archive/plans/todo/00-todo-list.md) 에이전트 평가 ⑥ 정밀도, 리포트 [45](261015-1700-45-relocate.md)
 - 변경 범위: `src/regcheck/citations.py`(나열 인용·연결어·별표 개념어), `src/regcheck/lawdb.py`(`touches_cited`), `src/regcheck/findings.py`(`tier`: 근거 종류·참고 등급·두 신호 원칙), `scripts/build_findings.py`, `scripts/eval_precision.py`(`--csv`, 앞 표본 제외, 우선순위 칸)
 
 ## 요약

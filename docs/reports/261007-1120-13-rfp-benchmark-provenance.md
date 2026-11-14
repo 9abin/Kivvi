@@ -1,6 +1,6 @@
 # 261007-1120 RFP 벤치마킹 점검, 실행 기록, 1차 결과 페이지
 
-- 관련 TODO: [goldset](../todo/goldset.md), 00-todo-list 2주차 "신·구조문대비표"
+- 관련 TODO: [goldset](../archive/plans/todo/goldset.md), 00-todo-list 2주차 "신·구조문대비표"
 - 변경 범위: `src/regcheck/runinfo.py`, `scripts/{semantic_check,build_relations,build_findings,score,make_report}.py`, `eval/runs/`
 
 ## 요약

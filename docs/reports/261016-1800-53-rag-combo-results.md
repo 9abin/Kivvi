@@ -1,6 +1,6 @@
 # 261016-1800 RAG 조합 실험 결과 (4명, k=10)
 
-- 관련: [rag-combo-experiment.md](../rag-combo-experiment.md)(가이드), 가빈 `docs/조합_실험_실행법.md`, 리포트 [52](261016-1300-52-embed-candidates.md)(임베딩·리랭커 예비 측정)
+- 관련: [rag-combo-experiment.md](../archive/experiments/rag-combo-experiment.md)(가이드), 가빈 `docs/archive/experiments/조합_실험_실행법.md`, 리포트 [52](261016-1300-52-embed-candidates.md)(임베딩·리랭커 예비 측정)
 - 코드: origin/master `c11c97b` + `fix/combo-meta-labels`(Qwen3 리랭커 `logits_to_keep=1`, 배치 6)
 - 평가셋: 개발용 `answer_eval_100_tiered.jsonl` (질문 99개 · 필수 근거 126곳). 지표는 질문 단위 부트스트랩 95% 구간
 

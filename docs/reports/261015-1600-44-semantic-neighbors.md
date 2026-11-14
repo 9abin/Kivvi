@@ -1,6 +1,6 @@
 # 261015-1600 의미 이웃: 제목·인용·용어가 달라도 같은 주제인 다른 규정 조문
 
-- 관련 TODO: [00-todo-list](../todo/00-todo-list.md) 「인용 없이 이어지는 영향」, 리포트 [43](261015-1500-43-term-impact.md)의 후속
+- 관련 TODO: [00-todo-list](../archive/plans/todo/00-todo-list.md) 「인용 없이 이어지는 영향」, 리포트 [43](261015-1500-43-term-impact.md)의 후속
 - 변경 범위: `src/regcheck/neighbors.py`(신규), `scripts/build_neighbors.py`(신규), `src/regcheck/change_check.py`(경로 의미 이웃), `src/regcheck/agent.py`, `app/web_agent.py`(화면 개정안 작성에서 켬), `scripts/eval_change_gold.py`(`--neighbors`), `tests/test_terms.py`
 
 ## 요약
