@@ -6,9 +6,9 @@
 
 ## 🖱️ 목차
 
-| | | |
-| :--- | :--- | :--- |
-| [1. 프로젝트 정보](#-프로젝트-정보)</br>[2. 주제](#-주제)</br>[3. 기획 배경](#-기획-배경) | [4. 서비스 화면](#-서비스-화면)</br>[5. 서비스 특징](#-서비스-특징)</br>[6. 성능](#-성능) | [7. 산출물](#️-산출물)</br>[8. 기술 스택](#-기술-스택)</br>[9. 시작하기](#-시작하기) |
+| | | | |
+| :--- | :--- | :--- | :--- |
+| [1. 프로젝트 정보](#-프로젝트-정보)</br>[2. 주제](#-주제)</br>[3. 기획 배경](#-기획-배경) | [4. 기능 소개](#-기능-소개)</br>[5. 서비스 화면](#-서비스-화면)</br>[6. 기술 스택](#-기술-스택) | [7. 아키텍처](#-아키텍처)</br>[8. 데이터와 온톨로지](#-데이터와-온톨로지)</br>[9. 성능과 평가](#-성능과-평가) | [10. API 명세서](#-api-명세서)</br>[11. 시작하기](#-시작하기)</br>[12. 팀원](#-팀원) |
 
 </br>
 
@@ -18,7 +18,7 @@
 - **과정:** [LG CNS AI 캠퍼스](https://lgcnsaicampus.kr/), MCP 기반 Agentic AI 서비스 개발자 과정
 - **프로젝트:** RAG 기반 지식 응답 에이전트 구현 프로젝트
 - **기간:** 2026.10.01(목) ~ 2026.11.13(금)
-- **팀원:** 맨 아래 [팀원](#-팀원) 참고 **(작성 필요)**
+- **팀원:** 맨 아래 [팀원](#-팀원) 참고
 
 </br>
 
@@ -41,7 +41,6 @@
 
 Kivvi는 충돌을 확정하지 않습니다. 후보와 근거까지만 내고, 판단은 사람이 합니다.
 
-<img src="assets/pipeline.svg" />
 
 </br>
 
@@ -59,6 +58,41 @@ Kivvi는 충돌을 확정하지 않습니다. 후보와 근거까지만 내고, 
 | 전통적인 온톨로지 | 관계를 미리 추론해 두어 정확도가 높다 | 어떤 조항이 어떻게 바뀔지 경우의 수를 전부 만들어야 해서 시간과 비용이 매우 크다 |
 
 **해결 방향:** RAG는 의미가 비슷한 조항을, 규정 영향 온톨로지는 인용·같은 제목·같은 용어·같은 값으로 이어진 조항을 찾습니다. 온톨로지는 영향이 갈 만한 관계만 미리 연결해 두었다가 개정이 들어오면 그 연결을 따라가므로, 글자나 의미가 겹치지 않는 조항도 잡습니다. 결론까지 미리 추론해 두지는 않습니다.
+
+</br>
+
+## 📝 기능 소개
+
+### 🧭 세 가지 방법으로 후보 수집
+
+| 방법 | 하는 일 | 성격 |
+| --- | --- | --- |
+| 규정 영향 온톨로지 | 개정 종류에 맞는 관계만 골라 그래프를 따라 이어진 조를 찾음 | 찾은 이유를 코드로 설명할 수 있음 |
+| 개정문 낱말 일치 | 바뀌기 전 말 등을 원문에서 그대로 찾음 | 찾은 이유를 코드로 설명할 수 있음 |
+| 의미 검색(RAG) | 임베딩과 키워드를 합쳐 비슷한 조를 가져옴 | 유사해서 가져옴 |
+
+### 🧹 후보 유형별 선별
+
+- **규칙 후보**는 판단 모델이 점수를 매겨 문턱 0.7 미만을 거릅니다. 확정급과 정의가 바뀌는 용어를 쓰는 조는 항상 남깁니다.
+- **RAG 후보**는 상위 50개를 LLM(gpt-5.6-luna)이 한 번에 보고 선별, 순서, 근거를 함께 냅니다.
+- 원문과 일치하는 인용만 쓰고, 일치하는 인용이 없으면 "원문에서 근거를 확인하지 못함, 담당자 확인 필요"로 표시합니다.
+
+### 🔗 개정이 미치는 영향 6가지
+
+주제만 비슷한 조는 제외하고, 아래 유형 중 하나에 해당할 가능성이 있는 조만 후보로 보여 줍니다.
+
+| 유형 | 내용 |
+| --- | --- |
+| 인용 | 고치는 조를 번호나 제목으로 가리킨다 |
+| 준용 · 위임 | 고치는 조를 준용하거나, 사항을 맡기거나 맡는다 |
+| 같은 사항 | 같은 사항(값 · 기간 · 대상 · 주체 · 절차)을 따로 정해, 고친 뒤 서로 어긋날 수 있다 |
+| 정의 용어 | 정의가 바뀌는 용어를 쓴다 |
+| 전제 | 삭제 · 변경되는 절차 · 직무 · 서식을 전제로 쓴다 |
+| 2단계 | 영향받는 조를 다시 인용해서 수정 내용이 이어진다 |
+
+### 🧑‍⚖️ 사람이 최종 판단
+
+시스템은 충돌을 확정하지 않습니다. 담당자가 후보마다 검토 완료와 의견을 남기고 저장하면, 개정 때마다 점검한 기록이 남습니다.
 
 </br>
 
@@ -105,57 +139,53 @@ Kivvi는 충돌을 확정하지 않습니다. 후보와 근거까지만 내고, 
 
 </br>
 
-## 🔮 서비스 특징
+## 🔎 기술 스택
 
-### 🧭 세 가지 방법으로 후보 수집
+<div>
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white"/>
+  <img src="https://img.shields.io/badge/uv-DE5FE9?style=for-the-badge&logo=uv&logoColor=white"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white"/>
+</div>
+<div>
+  <img src="https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white"/>
+  <img src="https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white"/>
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black"/>
+</div>
+<div>
+  <img src="https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white"/>
+  <img src="https://img.shields.io/badge/OpenAI_API-412991?style=for-the-badge&logo=openai&logoColor=white"/>
+</div>
 
-| 방법 | 하는 일 | 성격 |
-| --- | --- | --- |
-| 규정 영향 온톨로지 | 개정 종류에 맞는 관계만 골라 그래프를 따라 이어진 조를 찾음 | 찾은 이유를 코드로 설명할 수 있음 |
-| 개정문 낱말 일치 | 바뀌기 전 말 등을 원문에서 그대로 찾음 | 찾은 이유를 코드로 설명할 수 있음 |
-| 의미 검색(RAG) | 임베딩과 키워드를 합쳐 비슷한 조를 가져옴 | 유사해서 가져옴 |
-
-### 🧹 후보 유형별 선별
-
-- **규칙 후보**는 판단 모델이 점수를 매겨 문턱 0.7 미만을 거릅니다. 확정급과 정의가 바뀌는 용어를 쓰는 조는 항상 남깁니다.
-- **RAG 후보**는 상위 50개를 LLM(gpt-5.6-luna)이 한 번에 보고 선별, 순서, 근거를 함께 냅니다.
-- 원문과 일치하는 인용만 쓰고, 일치하는 인용이 없으면 "원문에서 근거를 확인하지 못함, 담당자 확인 필요"로 표시합니다.
-
-### 🔗 개정이 미치는 영향 6가지
-
-주제만 비슷한 조는 제외하고, 아래 유형 중 하나에 해당할 가능성이 있는 조만 후보로 보여 줍니다.
-
-| 유형 | 내용 |
+| 구분 | 사용 |
 | --- | --- |
-| 인용 | 고치는 조를 번호나 제목으로 가리킨다 |
-| 준용 · 위임 | 고치는 조를 준용하거나, 사항을 맡기거나 맡는다 |
-| 같은 사항 | 같은 사항(값 · 기간 · 대상 · 주체 · 절차)을 따로 정해, 고친 뒤 서로 어긋날 수 있다 |
-| 정의 용어 | 정의가 바뀌는 용어를 쓴다 |
-| 전제 | 삭제 · 변경되는 절차 · 직무 · 서식을 전제로 쓴다 |
-| 2단계 | 영향받는 조를 다시 인용해서 수정 내용이 이어진다 |
-
-### 🧑‍⚖️ 사람이 최종 판단
-
-시스템은 충돌을 확정하지 않습니다. 담당자가 후보마다 검토 완료와 의견을 남기고 저장하면, 개정 때마다 점검한 기록이 남습니다.
+| 검색 | 임베딩 + 키워드 하이브리드, bge-reranker-v2-m3 |
+| 규칙 후보 선별 | Kanana-2-v-decide-3b (로컬) |
+| RAG 후보 선별·근거 작성 | gpt-5.6-luna (외부 API) |
 
 </br>
 
-## 📊 성능
+## 🧩 아키텍처
 
-시험 100(설정을 고정한 뒤 한 번만 측정)에서 **최종 재현율 0.900(45/50)**, 사람이 보는 목록은 문항당 평균 **5.9개**입니다.
+<img src="assets/pipeline.svg" />
 
-| 방법 | 검색 재현율 | 최종 재현율 | 목록 크기 | 정답 없는 문항의 후보 수 |
-| --- | --- | --- | --- | --- |
-| 선별 전 (검색 결과 전체) | 0.940 (47/50) | 0.940 | 63.5 | 60.1 |
-| **선별 후** | 0.940 (47/50) | **0.900 (45/50)** | **5.9** | **3.8** |
+| 단계 | 하는 일 |
+| --- | --- |
+| 변경 분석 | 개정문에서 수정 종류와 시작 조를 정한다 |
+| 후보 수집 | 규정 영향 온톨로지, 개정문 낱말 일치, 의미 검색(RAG)으로 후보를 모은다 |
+| 선별 | 규칙 후보는 판단 모델이, RAG 후보는 LLM이 남길 것을 고른다 |
+| 근거 작성 | 남은 후보마다 찾은 경로와 원문 인용으로 이유를 쓴다 |
+| 사람 검토 | 담당자가 후보와 근거를 보고 최종 판단한다 |
 
-- **최종 재현율:** 정답 조 중에서, 사람에게 보여 주는 최종 후보 목록 안에 든 비율. 목표치는 90%입니다.
-- 근거 작성의 Faithfulness는 0.96(95% 구간 0.91~0.99)입니다. 시험 답변 531개 중 50개를 뽑아 원문과 대조한 추정입니다.
-- **주의:** 정답은 AI가 만든 초안이고 현업 검수 전입니다. 시험 정답이 50개라 구간이 넓습니다.
+**주요 설계**
+
+- **후보를 찾은 방식에 따라 선별 방법을 나눕니다.** 모든 후보를 LLM으로 거르면 후보가 많아 비용이 큽니다. 찾은 경로가 있는 규칙 후보는 점수로 거르기만 하면 되므로 판단 모델에 맡기고, 유사해서 가져온 RAG 후보는 의미를 읽어야 하므로 LLM에 맡깁니다.
+- **온톨로지는 결론을 미리 추론하지 않습니다.** 영향이 갈 만한 관계만 미리 연결해 두고, 개정이 들어오면 수정 종류별 탐색 규칙으로 그 연결을 따라갑니다.
+- **DB는 세 개로 나눴습니다.** 규정 원문 DB(청크, 임베딩, 형태소 색인), 규정 관계 DB(항·호·목, 인용, 지식 그래프, 개정·영향·결정 기록), 법령 DB(법령 284개, 조문 청크 27,905개)입니다. 규정 원문 DB와 온톨로지 DB는 화면에서 읽기 전용입니다.
 
 </br>
 
-## 🗃️ 산출물
+## 🧬 데이터와 온톨로지
 
 ### 데이터와 DB
 
@@ -199,29 +229,36 @@ Kivvi는 충돌을 확정하지 않습니다. 후보와 근거까지만 내고, 
 
 </br>
 
-## 🔎 기술 스택
+## 📊 성능과 평가
 
-<div>
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/uv-DE5FE9?style=for-the-badge&logo=uv&logoColor=white"/>
-  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white"/>
-</div>
-<div>
-  <img src="https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white"/>
-  <img src="https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white"/>
-  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black"/>
-</div>
-<div>
-  <img src="https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white"/>
-  <img src="https://img.shields.io/badge/OpenAI_API-412991?style=for-the-badge&logo=openai&logoColor=white"/>
-</div>
+시험 100(설정을 고정한 뒤 한 번만 측정)에서 **최종 재현율 0.900(45/50)**, 사람이 보는 목록은 문항당 평균 **5.9개**입니다.
 
-| 구분 | 사용 |
-| --- | --- |
-| 검색 | 임베딩 + 키워드 하이브리드, bge-reranker-v2-m3 |
-| 규칙 후보 선별 | Kanana-2-v-decide-3b (로컬) |
-| RAG 후보 선별·근거 작성 | gpt-5.6-luna (외부 API) |
+| 방법 | 검색 재현율 | 최종 재현율 | 목록 크기 | 정답 없는 문항의 후보 수 |
+| --- | --- | --- | --- | --- |
+| 선별 전 (검색 결과 전체) | 0.940 (47/50) | 0.940 | 63.5 | 60.1 |
+| **선별 후** | 0.940 (47/50) | **0.900 (45/50)** | **5.9** | **3.8** |
+
+- **최종 재현율:** 정답 조 중에서, 사람에게 보여 주는 최종 후보 목록 안에 든 비율. 목표치는 90%입니다.
+- 근거 작성의 Faithfulness는 0.96(95% 구간 0.91~0.99)입니다. 시험 답변 531개 중 50개를 뽑아 원문과 대조한 추정입니다.
+- **주의:** 정답은 AI가 만든 초안이고 현업 검수 전입니다. 시험 정답이 50개라 구간이 넓습니다.
+
+</br>
+
+## 🔃 API 명세서
+
+Kivvi 화면이 쓰는 서버 주소입니다. 요청과 응답은 JSON입니다.
+
+| 메서드 | 주소 | 설명 | 요청 | 응답 |
+| --- | --- | --- | --- | --- |
+| GET | `/api/edit/catalog` | 규정 목록 | 없음 | `regulations`: `id`, `name` 목록 |
+| GET | `/api/edit/catalog?reg=<규정 id>` | 한 규정의 본문 | `reg` | `name`, `articles`(조 목록: `id`, `label`, `title`, `text`, `deleted`, `version`, `chapter`), `sections`(부칙·별표·별지) |
+| POST | `/api/edit/review` | 영향 분석 실행 | `reg_id`, `article_id`, `version`, `edited`(수정한 조 전문) | 영향 후보 목록과 근거. 후보마다 `regulation`, `label`, `title`, `tier`, `evidence`(근거 문장, 이유), `answer`, `text` |
+| POST | `/api/edit/save` | 검토 저장 | `id`(분석 번호), `regulation`, `article`, `before`, `after`, `items`(후보별 `id`, `done`, `note` 등, 최대 300개) | `ok`, `saved_at`, `total`, `done` |
+| GET | `/api/edit/history` | 저장한 검토 목록 | 없음 | `items`: `id`, `saved_at`, `regulation`, `article`, `total`, `done` |
+| GET | `/api/edit/history?id=<분석 번호>` | 저장한 검토 하나 | `id` | 저장한 검토 전체(`items`에 체크와 의견 포함) |
+| POST | `/api/edit/delete` | 저장한 검토 삭제 | `id` | `ok` (분석 초안은 지우지 않고 저장한 검토만 지웁니다) |
+
+오류는 `{"error": "안내 문구"}`로 돌아옵니다.
 
 </br>
 
@@ -317,10 +354,13 @@ config.py, run.py      경로·설정, 전처리 실행 진입점
 
 </br>
 
-## 👨‍👩‍👧 팀원
+## 🥝 팀원
 
-| 이름 | 역할 |
-| :---: | :--- |
-| (작성 필요) | (작성 필요) |
+| Name | Roles | GitHub |
+| :-- | :-- | :-- |
+| 김가빈 | 규정 데이터 구축, 검색(RAG) | [@9abin](https://github.com/9abin) |
+| 박형건 | 영향 분석 파이프라인, Kivvi 화면 | [@Broogun](https://github.com/Broogun) |
+| 이민형 | (역할 확인 필요) | [@minhyeongi-lab](https://github.com/minhyeongi-lab) |
+| 한석희 | 평가셋, 평가 | [@han14308](https://github.com/han14308) |
 
 > 과거 계획서와 실험 기록은 `docs/archive/`, `docs/reports/`에 있으며 지금 구현과 다를 수 있습니다.
