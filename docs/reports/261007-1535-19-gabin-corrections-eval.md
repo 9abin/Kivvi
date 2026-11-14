@@ -1,6 +1,6 @@
 # 261007-1535 가빈 corrections.json 155건 독립 평가
 
-- 관련 TODO: [goldset](../todo/goldset.md)
+- 관련 TODO: [goldset](../archive/plans/todo/goldset.md)
 - 변경 범위: `scripts/import_corrections.py`(실제 형식으로 재작성), `eval/ledger/corrections.jsonl`(152행), `scripts/score.py`(정상 확인 오탐), `src/regcheck/findings.py`(조번호 중복), `src/regcheck/citations.py`(가운뎃점), 테스트 +2
 
 ## 요약

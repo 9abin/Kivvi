@@ -1,6 +1,6 @@
 # 261012-1525 파서 수정: hwpx 머리말 속 문단, 한 줄에 붙은 항·호
 
-- 관련 TODO: [chatbot-integration](../todo/chatbot-integration.md)
+- 관련 TODO: [chatbot-integration](../archive/chatbot/chatbot-integration.md)
 - 변경 범위: `src/regcheck/extract.py`(hwpx), `src/regcheck/parse.py`(`_split_inline_paras`), `tests/test_parse.py`, 90건 재파싱·인용·관련 조항 표·점검 결과·벡터 재생성
 
 ## 요약

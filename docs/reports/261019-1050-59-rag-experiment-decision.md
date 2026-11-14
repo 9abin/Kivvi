@@ -1,7 +1,7 @@
 # 261019-1050 RAG 조합 실험 결과로 정한 것 (임베딩 · 검색 부품 · 답변 모델)
 
-- 관련 TODO: 발표 준비, RAG 실험 패키지(`docs/rag-experiment-brief.md` · `rag-experiment-pipeline.md`)
-- 변경 범위: 문서만 (이 리포트, 리포트 58, `docs/00-status.md`). 코드 · 설정 변경 없음
+- 관련 TODO: 발표 준비, RAG 실험 패키지(`docs/archive/experiments/rag-experiment-brief.md` · `rag-experiment-pipeline.md`)
+- 변경 범위: 문서만 (이 리포트, 리포트 58, `docs/archive/plans/00-status.md`). 코드 · 설정 변경 없음
 - 입력: 실험 제출물 `rag_story_제출_20261019`(저장소 밖, 리포트 `rag-story-20261018.md`, `ans_local.json` · `ans_api.json`, 조건 24개 요약 `out_ret_summary.csv`). 실행 코드는 `origin/master` c11c97b(가빈 PR #7 조합 실험 코드), 평가셋 v2 99문항 · 필수 근거 126개
 
 ## 요약

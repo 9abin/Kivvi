@@ -1,6 +1,6 @@
 # 261007-1601 개정 이력 신호: 상대가 바뀐 뒤 따라가지 않은 인용
 
-- 관련 TODO: [error-rules](../todo/error-rules.md), [goldset](../todo/goldset.md)
+- 관련 TODO: [error-rules](../archive/plans/todo/error-rules.md), [goldset](../archive/plans/todo/goldset.md)
 - 변경 범위: `src/regcheck/history.py`(신규), `scripts/build_findings.py`, `src/regcheck/findings.py`(COMPATIBLE), `tests/test_history.py`
 
 ## 요약

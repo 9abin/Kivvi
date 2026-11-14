@@ -20,7 +20,7 @@
 
 ## 변경 사항
 - 신규: `AGENTS.md`, `CLAUDE.md`, `.gitignore`
-- 신규: `docs/00-status.md`, `01-folder-architecture.md`, `02-specs.md`, `03-product-plan.md`, `04-glossary.md`
+- 신규: `docs/archive/plans/00-status.md`, `01-folder-architecture.md`, `02-specs.md`, `03-product-plan.md`, `04-glossary.md`
 - 신규: `docs/todo/` (목록, `law-db-interface`, `error-rules`, `ingest-articles`, 템플릿), `docs/reports/` (템플릿, 이 리포트)
 - 수정(같은 날): 처음 만든 코드 골격(packages·services·apps 등), 학습 모드 규칙, 코딩 규칙 문서, 출력 유형 태깅 규칙은 다른 프로젝트에서 가져온 것이라 삭제
 

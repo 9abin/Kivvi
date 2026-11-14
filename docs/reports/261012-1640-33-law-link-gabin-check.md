@@ -1,6 +1,6 @@
 # 261012-1640 가빈 외부 법령 연결 메모 확인: 약칭·법령명 변경·별표 안 법령 인용
 
-- 관련 TODO: [law-db-interface](../todo/law-db-interface.md), [chatbot-integration](../todo/chatbot-integration.md)
+- 관련 TODO: [law-db-interface](../archive/plans/todo/law-db-interface.md), [chatbot-integration](../archive/chatbot/chatbot-integration.md)
 - 변경 범위: `src/regcheck/lawdb.py` (ABBR, RENAMED, `law_changes` 별표·별지), findings 재생성
 
 ## 요약
@@ -49,7 +49,7 @@
 - 법률 DB에 있는데 못 찾던 6개 해결: 약칭 퇴직급여보장법, 옛 이름 민원사무처리에 관한 법률·전자거래기본법(DB에 이전법령명 기록 없어 RENAMED에), 뒤 괄호 「(이하 …)」 떼기, 앞이 잘린 이름은 **정확히 한 법령의 끝부분일 때만** 연결(「당사자로 하는 계약에 관한 법률」은 국가·지방 둘 다라 연결 안 함)
 - **법령명_오기** 결과: 찾지 못한 이름이 DB 법령명과 95% 이상 같으면 알림만 (자동 연결 안 함) — 「부패방지 및 국민권익**위위**원회의 설치와 운영에 관한 법률」 2곳(취업규칙 제6조, 인사규정 별지 제1호서식)
 - 법령명_변경 5 (전자거래기본법→취업규칙 제8조, 민원사무처리에 관한 법률→정보공개지침 제14조 추가). 법령 연결 425, 점검 결과 274, 채점 그대로
-- 석희 수집 요청: [law-db-collect-request](../todo/law-db-collect-request.md) (법령 약 27종, 핵심 4)
+- 석희 수집 요청: [law-db-collect-request](../archive/plans/todo/law-db-collect-request.md) (법령 약 27종, 핵심 4)
 
 ## 추가 (261012 17:30): 한석희 수집본 반영
 - 새 법률 DB 확인: 무결성 ok, 표 구조 같음, 기존 232개 그대로 + 52개 추가(284). 요청 26개 중 25개, 인용 조문 전부 존재. 「여성폭력기본법」은 내규 오기(정식 「여성폭력방지기본법」) → `MISNAMED`로 연결 + 법령명_오기

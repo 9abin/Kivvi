@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 56 1100 276" width="1100" height="276" font-family="'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <defs>
+    <filter id="s" x="-10%" y="-20%" width="120%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#2b4a8f" flood-opacity="0.09"/></filter>
+    <!-- 속이 빈 화살표 머리 -->
+    <marker id="b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.5 1.5L8 5L1.5 8.5" fill="none" stroke="#1677f9" stroke-width="1.5" stroke-linejoin="miter"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.5 1.5L8 5L1.5 8.5" fill="none" stroke="#8d99b8" stroke-width="1.5" stroke-linejoin="miter"/></marker>
+  </defs>
+  <rect x="0" y="56" width="1100" height="276" rx="24" fill="#f5f7fc"/>
+
+  <!-- 묶음 상자 (투명도 있는 박스) -->
+  <rect x="312" y="76" width="240" height="236" rx="18" fill="#1677f9" fill-opacity="0.07" stroke="#1677f9" stroke-opacity="0.28" stroke-width="1.5"/>
+  <rect x="592" y="76" width="214" height="236" rx="18" fill="#1677f9" fill-opacity="0.07" stroke="#1677f9" stroke-opacity="0.28" stroke-width="1.5"/>
+  <g font-size="14" font-weight="800" fill="#0f63d6">
+    <text x="332" y="102">후보 수집</text>
+    <text x="612" y="102">필터링</text>
+  </g>
+
+
+  <!-- 단계 -->
+  <g filter="url(#s)" fill="#fff">
+    <rect x="24" y="176" width="100" height="52" rx="14"/>
+    <rect x="166" y="176" width="100" height="52" rx="14"/>
+    <rect x="336" y="118" width="192" height="64" rx="14"/>
+    <rect x="336" y="222" width="192" height="64" rx="14"/>
+    <rect x="616" y="126" width="166" height="48" rx="24"/>
+    <rect x="616" y="230" width="166" height="48" rx="24"/>
+    <rect x="846" y="176" width="100" height="52" rx="14"/>
+  </g>
+  <rect x="986" y="176" width="90" height="52" rx="14" fill="#1677f9"/>
+  <g font-size="16" font-weight="800" text-anchor="middle" fill="#17264d">
+    <text x="74" y="208">개정문 입력</text>
+    <text x="216" y="208">변경 분석</text>
+    <text x="432" y="146">규칙 기반 검색</text>
+    <text x="432" y="250">RAG</text>
+    <text x="699" y="156">판단 모델</text>
+    <text x="699" y="260">LLM</text>
+    <text x="896" y="208">근거 작성</text>
+    <text x="1031" y="208" fill="#fff">사람 검토</text>
+  </g>
+  <g fill="#7181a8" font-size="12.5" font-weight="500" text-anchor="middle">
+    <text x="432" y="167">온톨로지 · 낱말 일치</text>
+    <text x="432" y="271">Dense + Sparse 하이브리드</text>
+    <text x="699" y="196" font-size="11.5" fill="#8d99b8"> </text>
+  </g>
+
+  <!-- 화살표: 직각으로만 꺾고, 머리는 속이 빈 모양 -->
+  <g fill="none" stroke-width="1.8" stroke-linejoin="miter" stroke-linecap="butt">
+    <g stroke="#1677f9">
+      <path d="M124 202H164" marker-end="url(#b)"/>
+      <path d="M266 202H289V150H334" marker-end="url(#b)"/>
+      <path d="M289 202V254H334" marker-end="url(#b)"/>
+      <path d="M528 150H614" marker-end="url(#b)"/>
+      <path d="M528 254H614" marker-end="url(#b)"/>
+      <path d="M782 150H826V202H844" marker-end="url(#b)"/>
+      <path d="M782 254H826V202"/>
+      <path d="M946 202H984" marker-end="url(#b)"/>
+    </g>
+    
+  </g>
+</svg>

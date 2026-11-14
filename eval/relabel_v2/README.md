@@ -1,6 +1,6 @@
 # 영향 후보 평가셋 v2 (val 30 · 최종 100)
 
-작성 261111 박형건. 관련: [리포트 93](../../docs/reports/261111-1500-93-candidate-state-pipeline.md), [TODO](../../docs/todo/candidate-state-pipeline.md)
+작성 261111 박형건. 관련: [리포트 93](../../docs/reports/261111-1500-93-candidate-state-pipeline.md), [TODO](../../docs/archive/plans/todo/candidate-state-pipeline.md)
 
 개정 하나마다 「담당자가 함께 살펴봐야 하는 조」를 다시 라벨링한 세트다. 라벨러는 AI(B1 · B2 독립 → C 불일치 결정)이고, 지시서는 [`../relabel_kit/지시서.md`](../relabel_kit/지시서.md)(v2.1). **AI 초안이다.** 업무 판단은 현업 검수로 확정한다.
 

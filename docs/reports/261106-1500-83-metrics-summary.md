@@ -1,6 +1,6 @@
 # 261106-1500 지금까지의 지표 종합 (영향 후보 점검 · 순서 정렬 · 에이전트 평가)
 
-- 관련: [07 에이전트 평가 종합](../07-agent-evaluation.md), [74 전체 구조](261102-1530-74-impact-pipeline-overview.md), [80 4차 봉인](261102-2030-80-sealed-round4-result.md), [81 주제 층·후속 기록 1~19](261105-1500-81-leave-layer-test.md), [82 근거 감사](261106-1100-82-evidence-audit.md), [59 RAG 조합](261019-1050-59-rag-experiment-decision.md), [06 충돌 정의](../06-conflict-definition.md)
+- 관련: [07 에이전트 평가 종합](../archive/plans/07-agent-evaluation.md), [74 전체 구조](261102-1530-74-impact-pipeline-overview.md), [80 4차 봉인](261102-2030-80-sealed-round4-result.md), [81 주제 층·후속 기록 1~19](261105-1500-81-leave-layer-test.md), [82 근거 감사](261106-1100-82-evidence-audit.md), [59 RAG 조합](261019-1050-59-rag-experiment-decision.md), [06 충돌 정의](../06-conflict-definition.md)
 - 범위: 문서만. 숫자는 각 리포트에서 옮겼고, **순서 정렬(§4)은 오늘 저장된 캐시로 다시 계산**했다(`scripts/eval_rank.py`, `eval_rank_ctx.py`, `eval_decide.py`).
 - 전제: 현업 확인을 받을 수 없다. 영향 평가의 정답은 모두 **AI 라벨 초안**이고, 아래 수치는 모두 **탐색적**이다. 최종 성능으로 인용하지 않는다(근거 등급 U, [82](261106-1100-82-evidence-audit.md)).
 
@@ -239,7 +239,7 @@ LLM 판정 (생성형, 단계 표시용):
 - 예/아니오 확률은 후보 집합 안의 상대값이라 정렬 기준으로 불안정했고, 4단계 점수가 쓸 만했다. 단계를 버리면 번호 이동처럼 구조 신호로만 잡히는 정답이 떨어진다.
 - 후보 3,000건 중 확정급은 61, 확인 권장 471, 참고 2,463개다. 개선은 대부분 참고 · 확인 권장 단계 안에서 일어난다.
 
-## 5. 정확성 · 기능 평가 ([07](../07-agent-evaluation.md))
+## 5. 정확성 · 기능 평가 ([07](../archive/plans/07-agent-evaluation.md))
 
 | 평가 | 결과 | 주의 |
 |---|---|---|

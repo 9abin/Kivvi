@@ -1,7 +1,7 @@
 # DB 설정 (pgvector)
 
 규정 검색 색인을 저장하는 PostgreSQL 설정을 정리한다.
-청크를 어떻게 만드는지는 `docs/전처리_규칙.md`, 색인 설계는 `docs/재색인_설계.md`를 본다.
+청크를 어떻게 만드는지는 `docs/전처리_규칙.md`, 색인 설계는 `docs/archive/experiments/재색인_설계.md`를 본다.
 
 **기준일: 2026.10.06**
 

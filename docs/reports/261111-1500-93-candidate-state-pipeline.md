@@ -1,7 +1,7 @@
 # 261111-1500 후보 state와 출처별 파이프라인 (규칙 = 판단 모델, 그래프 · RAG = luna 목록 리랭킹 + 근거, 답변 = LLM)
 
 - 관련: [92 최종 선택](261110-1552-92-final-selection.md), [74 영향 파이프라인 · 근거 카드](261102-1530-74-impact-pipeline-overview.md)(근거 문장은 코드가 원문에서 뽑는다)
-- 관련 TODO: [candidate-state-pipeline](../todo/candidate-state-pipeline.md)
+- 관련 TODO: [candidate-state-pipeline](../archive/plans/todo/candidate-state-pipeline.md)
 - 변경 범위: `src/regcheck/cand_state.py`(새), `luna_rerank.py`(새), `impact_pipeline.py`(새), `answer_writer.py`(새), `graph_source.py`(새), `impact_view.run`(graph 인자, 기본 끔), `final_view.is_rule`(그래프 경로는 규칙 아님), `tests/test_impact_pipeline.py`(새, 11개)
 - 상태: **val에서 값 · 프롬프트를 정함(아래 「val 결과」).** 최종 100건 확인은 아직. 평가셋은 다시 라벨링한 v2(`eval/relabel_v2/`, 확신 높음 · 중간만 정답).
 

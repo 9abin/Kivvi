@@ -1,6 +1,6 @@
 # 261014-1830 합성 질문 생성 파일럿 (GPT-5.4 mini, 프롬프트 v1·v2)
 
-- 관련 문서: [09-embedding-data-guideline](../09-embedding-data-guideline.md), [40 단계 0](261014-1700-40-embed-stage0.md)
+- 관련 문서: [09-embedding-data-guideline](../archive/plans/09-embedding-data-guideline.md), [40 단계 0](261014-1700-40-embed-stage0.md)
 - 변경 범위: `scripts/gen_questions.py`(신규), `data/embedding/pilot_*`(git 제외)
 
 ## 요약

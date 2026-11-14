@@ -1,134 +1,339 @@
-# 한국벤처투자 내부규정 RAG 전처리
+# 규정 개정 영향 분석 서비스, Kivvi 🥝
 
-내부규정 90건을 조 단위 청크로 만들고(장·절 제목은 메타데이터로), 조문 간 참조(cites)를 해석하고, 확정된 보정을 적용하는 전처리 파이프라인입니다.
-상세 규칙은 `docs/전처리_규칙.md`를 보세요.
-검색·답변(RAG 챗봇)의 추천 구성과 성능, 평가 방법은 `docs/팀_실행_안내.md`, 질문 하나가 처리되는 순서는 `docs/질의_흐름.md`에 있습니다.
+<img src="assets/screens/01-home.png" />
 
-## 1. 환경 조건
+</br>
 
-| 항목 | 조건 |
-|---|---|
-| Python | **3.12 이상** (`pyproject.toml`의 `requires-python`) |
-| 패키지 관리 | **uv** (`uv.lock`으로 버전 고정) |
-| 원본 위치 | 이 폴더의 **상위 폴더**에 `한국벤처투자_내부규정` 폴더가 있어야 합니다 |
-| 원본 구조 | 각 규정은 `고유번호_문서명` 폴더 안에 있어야 합니다 (폴더명 끝 숫자 = 알리오 고유번호) |
-| 원본 파일 | HWP 84, HWPX 3, PDF 3 (총 90건) |
-| 외부 의존 | 없음 (인터넷·API 불필요) |
+## 🖱️ 목차
 
-폴더 구조 예시:
+| | | |
+| :--- | :--- | :--- |
+| [1. 프로젝트 정보](#-프로젝트-정보)</br>[2. 기획 배경](#-기획-배경)</br>[3. 서비스 화면](#-서비스-화면) | [4. 아키텍처](#-아키텍처)</br>[5. 기술 스택](#-기술-스택) | [6. 시작하기](#-시작하기)</br>[7. 팀원](#-팀원) |
+
+</br>
+
+## 📅 프로젝트 정보
+
+- **프로젝트명:** 규정 개정 영향 분석 서비스, Kivvi
+- **과정:** [LG CNS AI 캠퍼스](https://lgcnsaicampus.kr/), MCP 기반 Agentic AI 서비스 개발자 과정
+- **프로젝트:** RAG 기반 지식 응답 에이전트 구현 프로젝트
+- **기간:** 2026.10.01(목) ~ 2026.11.13(금)
+
+</br>
+
+## 👨‍🎤 기획 배경
+
+> **한 조항을 바꿀 때, 함께 확인할 규정까지**
+
+- 규정 문서에 오류가 있으면, 정확한 사내 AI 챗봇도 틀린 정보를 제공
+- 한국벤처투자 규정 점검 결과 **오류 46건** 확인, 이것이 전부는 아닐 가능성
+- 규정끼리 인용 · 위임 · 같은 용어 사용 → 한 곳을 고치면 다른 곳과 불일치 발생
+- 개정이 반복될수록 새 오류 누적
+- 일반 RAG는 글자나 의미가 겹치지 않는 조항을 놓치고, 온톨로지만으로는 모든 경우를 미리 만들기 어려움
+- **RAG + 규정 영향 온톨로지**로 영향 후보와 근거를 제시, 최종 판단은 사람이 수행
+
+> 예) 인사규정 제30조(육아휴직) 분할 횟수를 "최대 2회"에서 "최대 3회"로 수정하면, 같은 제목의 **취업규칙 제43조(육아휴직)** 가 후보로 제시
+
+</br>
+
+## 📱 서비스 화면
+
+### 💙 규정 찾기
+
+- 홈에서 규정 이름으로 검색해 바로 시작할 수 있어요.
+- 규정 탐색에서는 규정 90건의 본문을 읽을 수 있어요(읽기 전용).
+
+| | | |
+|:---:|:---:|:---:|
+| <img src="assets/screens/01-home.png" width="250px" /> | <img src="assets/screens/02-browse.png" width="250px" /> | <img src="assets/screens/03-step1.png" width="250px" /> |
+| 홈 | 규정 탐색 | 1단계 · 규정 선택 |
+
+### 💙 개정안 작성
+
+- 바꿀 조를 고르고 수정안을 직접 써요.
+- 수정 전·후를 나란히 놓고 바뀐 부분을 확인해요.
+
+| | | |
+|:---:|:---:|:---:|
+| <img src="assets/screens/04-step2-pick.png" width="250px" /> | <img src="assets/screens/05-step2-edit.png" width="250px" /> | <img src="assets/screens/06-step3-compare.png" width="250px" /> |
+| 2단계 · 조 선택 | 2단계 · 수정안 작성 | 3단계 · 수정 전후 비교 |
+
+### 💙 영향 검토
+
+- 영향 후보를 근거 문장, 확인할 점, 원문과 함께 보여 줘요.
+- 후보마다 검토 완료를 표시하고 검토 의견을 남겨요(최대 500자).
+
+| | | |
+|:---:|:---:|:---:|
+| <img src="assets/screens/07-step4-loading.png" width="250px" /> | <img src="assets/screens/08-step4-result.png" width="250px" /> | <img src="assets/screens/09-step4-review.png" width="250px" /> |
+| 4단계 · 분석 중 | 4단계 · 영향 후보 | 4단계 · 검토 의견 |
+
+### 💙 검토 내역
+
+- 저장한 검토를 다시 열어 체크와 의견을 고치거나 지울 수 있어요.
+
+| |
+|:---:|
+| <img src="assets/screens/10-history.png" width="250px" /> |
+| 검토 내역 |
+
+</br>
+
+## 🧩 아키텍처
+
+### 시스템 구성
+
+<img src="assets/architecture.svg" />
+
+### 영향 분석 파이프라인
+
+<img src="assets/pipeline.svg" />
+
+**① 변경 분석**
+
+- 개정문에서 수정 종류와 시작 조 결정
+
+**② 후보 수집**
+
+| 유형 | 검색기 | 후보 성격 |
+| --- | --- | --- |
+| 규칙 기반 검색 | 규정 영향 온톨로지(그래프 탐색), 개정문 낱말 일치(바뀌기 전 말 등을 원문에서 그대로 찾음) | 찾은 이유를 코드로 설명할 수 있음 |
+| RAG | Dense(임베딩) + Sparse(키워드) 하이브리드 검색 | 유사해서 가져옴 |
+
+**③ 필터링 (후보 유형별)**
+
+| 후보 | 필터링 | 방법 |
+| --- | --- | --- |
+| 규칙 후보 | 판단 모델 | 점수를 매겨 문턱 0.7 미만을 거름. 확정급과 정의가 바뀌는 용어를 쓰는 조는 항상 남김 |
+| RAG 후보 | LLM (gpt-5.6-luna) | 상위 50개를 한 번에 보고 선별, 순서, 근거를 함께 냄 |
+
+원문과 일치하는 인용만 쓰고, 일치하는 인용이 없으면 "원문에서 근거를 확인하지 못함, 담당자 확인 필요"로 표시합니다.
+
+**④ 근거 작성 · 사람 검토**
+
+- 남은 후보마다 찾은 경로와 원문 인용으로 이유 작성
+- 충돌은 확정하지 않고, 담당자가 후보마다 검토 완료와 의견을 남겨 최종 판단
+
+**후보로 보는 영향 6가지**
+
+주제만 비슷한 조는 제외하고, 아래 유형 중 하나에 해당할 가능성이 있는 조만 후보로 보여 줍니다.
+
+| 유형 | 내용 |
+| --- | --- |
+| 인용 | 고치는 조를 번호나 제목으로 가리킨다 |
+| 준용 · 위임 | 고치는 조를 준용하거나, 사항을 맡기거나 맡는다 |
+| 같은 사항 | 같은 사항(값 · 기간 · 대상 · 주체 · 절차)을 따로 정해, 고친 뒤 서로 어긋날 수 있다 |
+| 정의 용어 | 정의가 바뀌는 용어를 쓴다 |
+| 전제 | 삭제 · 변경되는 절차 · 직무 · 서식을 전제로 쓴다 |
+| 2단계 | 영향받는 조를 다시 인용해서 수정 내용이 이어진다 |
+
+### 사용 모델
+
+- 임베딩: BGE-m3 (기본), Qwen3-Embedding-4B (선택)
+- 판단 모델(규칙 후보 필터링): Kanana-2-v-decide-3b (로컬)
+- LLM(RAG 후보 필터링 · 근거 작성): gpt-5.6-luna (OpenAI API)
+- 비교 실험: bge-reranker-v2-m3, Qwen3-Reranker-4B, Qwen3-Embedding-0.6B, Gemma 4 12B-it, Qwen3 30B-A3B, Qwen3.5 9B, Solar
+
+### 데이터 구조 (ERD)
+
+- 규정 원문 DB: `documents`, `chunks`
+- 규정 관계 DB: `kg_node`, `kg_edge`, `changeset`, `impact`
+- 법령 DB: `law_documents`, `law_chunks`
+
+```mermaid
+erDiagram
+    documents ||--o{ chunks : "조 단위 청크"
+    documents ||--o{ kg_node : "소속"
+    kg_node ||--o{ kg_edge : "시작"
+    kg_node ||--o{ kg_edge : "도착"
+    documents ||--o{ changeset : "수정 대상"
+    changeset ||--o{ impact : "영향 후보"
+    documents ||--o{ impact : "영향받는 규정"
+    law_documents ||--o{ law_chunks : "조문"
+
+    documents {
+        string doc_id PK "고유번호"
+        string title "규정명"
+        string tier "위계"
+        string revision "개정표기"
+    }
+    chunks {
+        string chunk_id PK "청크 ID"
+        string doc_id FK "규정"
+        string article "조"
+        string section "장·절"
+        string status "정상/삭제"
+        text body "본문"
+    }
+    kg_node {
+        string id PK "노드 ID"
+        string type "노드 종류"
+        string name "이름"
+        string reg FK "소속 규정"
+        string label "조 번호"
+        string title "조 제목"
+    }
+    kg_edge {
+        string src FK "시작 노드"
+        string dst FK "도착 노드"
+        string type "관계 종류"
+        string method "만든 규칙"
+        text evidence "근거 문구"
+    }
+    changeset {
+        string id PK "개정안 ID"
+        string reg_id FK "수정한 규정"
+        text amendment "개정문"
+        string status "초안/검토/승인"
+        datetime created_at "작성 시각"
+    }
+    impact {
+        string changeset_id FK "개정안"
+        string review_key PK "후보 키"
+        string reg_id FK "영향받는 규정"
+        string article "영향받는 조"
+        string category "영향 분류"
+        string path "찾은 경로"
+        text reason "근거 문장"
+    }
+    law_documents {
+        string id PK "법령 ID"
+        string requested_title "법령명"
+        string effective_date "시행일"
+        string current_status "현행 여부"
+    }
+    law_chunks {
+        int id PK "조문 ID"
+        string document_id FK "법령"
+        string path "조·항 위치"
+        text content "조문 본문"
+    }
 ```
-한국벤처투자_내부규정_최신개정본/
-├── 한국벤처투자_내부규정/          ← 원본 (90건)
-│   ├── 감사규정_23234/...
-│   └── ...
-├── src/ app/ eval/ docs/ ...       ← 이 저장소 (RAG 챗봇 + 개정안 에이전트)
-```
 
-## 2. 실행 순서
+온톨로지 스키마, 평가셋, 성능 결과는 [온톨로지와 평가셋 상세](docs/온톨로지와_평가셋.md)에 있습니다.
 
-```
-$env:UV_PROJECT_ENVIRONMENT = ".venv"      # 저장소 안에 격리된 환경 사용
-uv sync                                    # 패키지 설치 (처음 한 번)
-.\.venv\Scripts\python.exe run.py          # 추출 → 청킹 → 참조 해석 → 보정 적용 → out/ 저장
-.\.venv\Scripts\python.exe -m unittest discover tests
-.\.venv\Scripts\python.exe -m streamlit run app\streamlit_app.py
-.\.venv\Scripts\python.exe -m src.eval.run # 검색 평가 (PostgreSQL 색인 필요, 약 6분)
-```
+</br>
 
-`run.py`가 하는 일:
-1. 원본 90건 텍스트 추출 → `out/text/`
-2. 조 단위 청킹(장·절 제목 분리), 부칙 분리, 삭제 조 표시
-3. 약칭 사전 생성, 참조 해석과 상태 분류
-4. 옛 규정 참조 자동 판정 (현행 규정명이 문맥에 있는지)
-5. 확정된 보정 적용 (오탈자 치환, 참조 정정, 근거 없음 표시)
-6. 보정 검증: 대상 조문과 치환 글자가 실제로 있는지 확인 (없으면 `경고:` 출력)
-7. 산출물 저장
+## 🔎 기술 스택
 
-### 개정안 검토 화면 (Kivvi)
+### AI / Model
 
-**처음 한 번 준비** (생성물 `out/`은 git에 올라가지 않아 각자 만듭니다. 규정 원문 폴더 `한국벤처투자_내부규정/`가 저장소 옆에 있어야 합니다)
+<div>
+  <img src="https://img.shields.io/badge/Ollama-000000?style=flat&logo=ollama&logoColor=white"/>
+  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat&logo=pytorch&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Hugging Face-FFD21E?style=flat&logo=huggingface&logoColor=black"/>
+  <img src="https://img.shields.io/badge/LangChain-1C3C3C?style=flat&logo=langchain&logoColor=white"/>
+  <img src="https://img.shields.io/badge/OpenAI API-412991?style=flat&logo=openai&logoColor=white"/>
+</div>
+
+</br>
+
+### Backend / Data
+
+<div>
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white"/>
+  <img src="https://img.shields.io/badge/uv-DE5FE9?style=flat&logo=uv&logoColor=white"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white"/>
+  <img src="https://img.shields.io/badge/pgvector-336791?style=flat&logo=postgresql&logoColor=white"/>
+  <img src="https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white"/>
+</div>
+
+- 추출: olefile(HWP), pypdf(PDF), kiwipiepy(형태소 분석)
+- 검색: BM25, sentence-transformers, Transformers, PEFT, NumPy
+- DB: PostgreSQL 17 + pgvector(규정 원문 · 관계), SQLite(법령 · 온톨로지 검색)
+- 웹 서버: Python 표준 라이브러리(`http.server`)
+
+</br>
+
+### Frontend
+
+<div>
+  <img src="https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white"/>
+  <img src="https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white"/>
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black"/>
+</div>
+
+</br>
+
+### Infra
+
+<div>
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Docker Compose-2496ED?style=flat&logo=docker&logoColor=white"/>
+</div>
+
+</br>
+
+### Collaboration Tool
+
+<div>
+  <img src="https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Notion-000000?style=flat&logo=notion&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Figma-F24E1E?style=flat&logo=figma&logoColor=white"/>
+</div>
+
+</br>
+
+## 🚀 시작하기
+
+- 필요: Python 3.12 이상, [uv](https://docs.astral.sh/uv/)
+- 규정 원본: 저장소 안 `한국벤처투자_내부규정/` 폴더 사용
 
 ```powershell
 uv sync
-uv run python scripts/parse_regs.py --all        # 규정 90건 → out/parsed/
+uv run python scripts/parse_regs.py --all        # 규정 90건 정리
 uv run python scripts/extract_edges.py --all     # 조항 연결 추출
-uv run python scripts/build_kg.py                # 지식 그래프 → out/kg/
-```
-
-**서버 켜기**
-
-```powershell
+uv run python scripts/build_kg.py                # 지식 그래프
 uv run --extra db python app/web_server.py --review-only
 ```
 
-`http://127.0.0.1:8765/edit-review.html`을 엽니다. 화면은 다섯 가지입니다.
+- 접속: http://127.0.0.1:8765/edit-review.html
+- 전체 결과에는 의미 검색 색인, `OPENAI_API_KEY`, 판단 모델이 추가로 필요 → [실행 안내](docs/실행_안내.md)
 
-| 메뉴 | 하는 일 |
-|---|---|
-| 홈 | 규정 검색, 진행 안내, 최근 검토 |
-| 규정 탐색 | 규정 90건 본문 읽기(읽기 전용) |
-| 영향 분석 | 1 규정 선택 → 2 조항 선택·수정안 작성 → 3 수정 전·후 비교 → 4 영향 확인·검토 |
-| 검토 내역 | 저장한 검토를 다시 열어 체크·의견을 고치거나 삭제 |
-| 설정, 알림, 프로필 | 아직 연결된 기능이 없습니다(눌러도 안내만 뜹니다) |
-
-- 영향 분석은 개정 영향 온톨로지 경로와 개정문 낱말 일치(판단 모델로 거름), 의미 검색(Luna가 고름)으로 후보를 찾아 첫 화면에 10개(확정급은 10개를 넘어도 포함)를 보이고 나머지는 「더 보기」에 둡니다.
-- 규정 원문 DB와 온톨로지 DB는 읽기 전용입니다. 분석 초안은 `out/changes/<id>/changeset.json`, 4단계에서 「검토 저장」을 누른 검토는 같은 폴더의 `review.json`에 저장됩니다(git 제외). 검토 삭제는 `review.json`만 지웁니다.
-- 서버 주소: 조항 목록 `GET /api/edit/catalog`, 영향 분석 `POST /api/edit/review`, 검토 저장 `POST /api/edit/save`, 검토 삭제 `POST /api/edit/delete`, 검토 내역 `GET /api/edit/history`.
-
-**위 준비만 하면 되는 것과 아닌 것**
-
-- 홈, 규정 탐색, 조항 수정, 수정 전·후 비교, 검토 내역은 위 준비만으로 동작합니다.
-- 영향 분석 결과는 아래 세 가지가 없으면 일부만 나옵니다. 꺼진 단계가 있으면 4단계 위에 안내 문구가 뜨고, 판단 모델이 꺼지면 규칙 후보를 거르지 않고 모두 보여 줍니다.
-  - **의미 검색 색인**: `uv run --extra vector python scripts/build_vectors.py`로 `out/vector/`를 만듭니다. Ollama에 `bge-m3`가 있으면 `uv run python scripts/build_vectors.py --ollama bge-m3`도 됩니다.
-  - **Luna**: `.env` 또는 서버 환경에 `OPENAI_API_KEY`를 둡니다. 이때 개정 내용과 후보 조항이 외부 API로 전송됩니다.
-  - **판단 모델**: 서버를 켜기 전에 환경변수 `IMPACT_DECIDE_PYTHON`(판단 모델용 Python 실행 파일)과 `IMPACT_DECIDE_MODEL`(모델 폴더)을 지정합니다. 설정 예와 주의점은 리포트 99(`docs/reports/261113-1700-99-web-run-pipeline.md`)에 있습니다.
-- **글꼴**: Pretendard 파일(`app/web/fonts/PretendardVariable.woff2`)은 저장소에 없습니다. 받는 방법은 `app/web/fonts/README.md`에 있고, 없으면 맑은 고딕으로 보입니다.
-
-기존 규정 도우미 웹 화면(`index.html`)을 사용 중이라면 조항을 연 뒤 **이 조항 직접 편집**으로 새 화면에 들어갈 수 있습니다.
-
-## 3. 산출물 (`out/`)
-
-| 파일 | 내용 |
-|---|---|
-| `text/{고유번호}.txt` | 문서별 추출 텍스트 |
-| `chunks.jsonl` | 청크 원본 (본문, 검색용 본문, 메타데이터, cites, 정정안내) |
-| `aliases.json` | 문서별 약칭 사전 |
-| `cite_review.csv` | 참조 검토 목록 (외부 스킵 포함) |
-| `항번호_정정목록.csv` | 원문 항 번호 중복 정정 내역 |
-
-## 4. 보정 목록 (`data/manual/`)
-
-| 파일 | 내용 |
-|---|---|
-| `corrections.json` | 사람이 판정한 보정 기록 (오탈자 치환 쌍, 참조 정정, 근거 없음, 옛 규정) |
-| `manual_chunks.jsonl` | 조문 없는 문서의 수동 청크 (윤리헌장) |
-
-- 오탈자 치환 쌍 후보를 정정안에서 뽑으려면: `uv run python -m src.corrections.typo_pairs`
-- 보정 상태: `확정(…)`은 적용, `후보(…)`는 적용하지 않음, `없음(…)`은 근거 없음으로 표시
-
-## 5. 폴더 구조
+### 폴더 구조
 
 ```
-config.py              경로·설정 (여기서만 바꿈)
-run.py                 실행 진입점
-src/
-  extract/             원문 추출 (hwp.py, hwpx.py, __init__.py)
-  preprocess/          정제(clean.py), 메타데이터(metadata.py)
-  chunk/articles.py    조·항 분리, 중복 항 번호 정정, 부칙 분리
-  citations/refs.py    약칭 사전, 참조 해석, 옛 규정 판정
-  corrections/
-    store.py           보정 목록 읽기·검증
-    apply.py           보정 적용 (검색 텍스트, 참조, 근거 없음)
-    typo_pairs.py      치환 쌍 후보 추출 도구
-docs/전처리_규칙.md    상세 규칙과 판정 기록
-tests/                 테스트 (구조 검증 위주)
-archive/               작업 중 만든 임시 파일 보관 (실행에 쓰지 않음)
+kvic-internal-regulations-review/
+│
+├── 📂 app/                       # 웹 서버와 화면
+│   └── web/                      # Kivvi 화면 (edit-review.html · css · js)
+│
+├── 📂 src/                       # 핵심 코드
+│   ├── regcheck/                 # 영향 후보 파이프라인 (후보 수집 · 필터링 · 근거 작성)
+│   ├── extract/ preprocess/      # 원문 추출 · 정제
+│   ├── chunk/ citations/         # 조 단위 청킹 · 참조 해석
+│   ├── corrections/              # 확정된 보정 적용
+│   └── search/ answer/ eval/     # 검색 · 답변 · 평가
+│
+├── 📂 scripts/                   # 구축 · 실험 실행 스크립트
+├── 📂 eval/                      # 평가셋과 실험 결과
+├── 📂 data/manual/               # 사람이 정한 보정 목록
+├── 📂 configs/                   # 실험 설정
+├── 📂 tests/                     # 테스트
+│
+├── 📂 docs/                      # 문서
+│   ├── reports/                  # 작업 기록 (날짜 · 번호순)
+│   └── archive/                  # 지난 계획서 · 실험 안내 (현재와 다를 수 있음)
+│
+├── 📂 assets/                    # README 그림 (화면 캡처 · 구조도)
+├── 📂 ontology-search/           # 온톨로지 검색만 떼어 낸 독립 실행 폴더
+├── 📂 한국벤처투자_내부규정/       # 규정 원본 90건
+│
+├── config.py                     # 경로 · 설정
+├── run.py                        # 전처리 실행 진입점
+├── docker-compose.yml            # 규정 DB (PostgreSQL + pgvector)
+└── pyproject.toml                # 의존성 (uv)
 ```
 
-## 6. 재현 시 주의
+현재 설명 문서: [전처리 규칙](docs/전처리_규칙.md) · [검색 설계](docs/검색_설계.md) · [답변 설계](docs/답변_설계.md) · [질의 흐름](docs/질의_흐름.md) · [충돌 정의](docs/06-conflict-definition.md) · [용어집](docs/04-glossary.md) · [DB 설정](docs/DB_설정.md)
 
-- 원본 파일을 바꾸면 보정 목록의 원문·대상 ID가 맞지 않을 수 있습니다. `run.py`의 `경고:` 출력을 확인하세요.
-- `out/`은 실행할 때마다 다시 만들어집니다. 직접 수정하지 마세요.
-- `archive/`의 파일은 작업 이력입니다. 실행에 쓰이지 않습니다.
-- 외부 법령(90건 밖)을 참고하는 항목은 이 저장소에서 처리하지 않습니다(외부 DB에서 별도 작업).
-- 검색 평가 질문-정답 세트는 `eval/questions.jsonl`에 있습니다(277개, 유형·세부유형 포함). 추가·수정은 이 JSONL 파일을 직접 고칩니다. `docs/평가_라벨링.md`는 라벨링 기준과 세부유형 정의를 설명하지만, 그 문서가 말하는 **Streamlit 라벨링 화면과 오류 원장(`eval/error_ledger.jsonl`)은 이 저장소에 포함되지 않았습니다.** 별도 작업으로 가져올지 판단 중입니다.
+</br>
+
+## 🥝 팀원
+
+| Name | Roles | GitHub |
+| :-- | :-- | :-- |
+| 김가빈 | Frontend, Backend, Design | [@9abin](https://github.com/9abin) |
+| 박형건 | 팀장, Frontend, Backend | [@Broogun](https://github.com/Broogun) |
+| 이민형 | Frontend, Design | [@minhyeongi-lab](https://github.com/minhyeongi-lab) |
+| 한석희 | Frontend, Backend | [@han14308](https://github.com/han14308) |
