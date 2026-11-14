@@ -45,7 +45,7 @@ https://docs.google.com/document/d/1R_LI4P210kNSGdPyo2dS8vZjy5vz2heoGuUNAWFMLEM/
 - 내부망(폐쇄망) 가정. 법률 API는 직접 호출하지 않고, 반입된 법령 스냅샷만 쓴다. 데모는 반입 스냅샷으로 가정한다.
 - LLM은 로컬 모델을 쓴다.
 - 규정 원문(HWP 등)은 KVIC 저작물이다. 외부 공유 시 원문 대신 ALIO 링크를 제공한다.
-- 비밀번호는 git 제외 파일(`.env`, `.env.team`)에만 둔다. 접속 정보는 [connections](../team/connections.md).
+- 비밀번호는 git 제외 파일(`.env`, `.env.team`)에만 둔다.
 
 ## 5. 문서 규칙
 
