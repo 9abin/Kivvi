@@ -102,7 +102,6 @@ h1, h2, h3, p { margin: 0; }
 .doc-list .empty { padding: 20px; color: var(--sub); text-align: center; }
 .reader { min-height: 420px; }
 .empty-state { display: grid; justify-items: center; align-content: center; gap: 10px; min-height: 420px; padding: 24px 20px; text-align: center; color: #53658d; }
-.empty-state img { width: min(350px, 80%); height: auto; }
 .empty-state p { font-size: 18px; white-space: pre-line; }
 
 /* 조항 목록 · 본문 */
@@ -303,10 +302,11 @@ details.more > summary { cursor: pointer; padding: 10px 4px; color: var(--primar
 
 /* 홈 */
 .home { gap: 40px; padding-bottom: 60px; }
-.hero { position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; gap: 24px; padding: 28px 8px 8px; }
+.hero { overflow-x: clip; position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; gap: 24px; padding: 28px 8px 8px; }
+.hero-art { justify-self: center; width: min(420px, 100%); height: auto; animation: float 5s ease-in-out infinite; }
 .hero h1 { font-size: clamp(32px, 4vw, 46px); font-weight: 700; line-height: 1.25; letter-spacing: -.03em; }
 .hero p { margin: 14px 0 26px; color: var(--sub); font-size: 18px; }
-.hero-art { justify-self: center; width: min(420px, 100%); height: auto; animation: float 5s ease-in-out infinite; }
+
 .home-search { position: relative; max-width: 560px; }
 .home-search .search { padding: 0 20px; border-radius: 18px; box-shadow: 0 6px 24px rgba(22, 119, 249, .10); transition: box-shadow .2s, border-color .2s; }
 .home-search .search:focus-within { border-color: var(--primary); box-shadow: 0 8px 28px rgba(22, 119, 249, .18); }
@@ -342,10 +342,26 @@ details.more > summary { cursor: pointer; padding: 10px 4px; color: var(--primar
 .fade { animation: fade-up .5s ease both; animation-delay: var(--d, 0s); }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 @keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .hero-art, .fade { animation: none; } .home-card, .hstep, .recent-card { transition: none; } }
+/* 홈 그림: 돋보기가 지나간 자리만 또렷하게 읽힌다 (8.8초 주기: 세 곳에서 0.9초씩 멈춤, 이동 1.0~1.8초, 이동 거리에 맞춰 속도 조절) */
+.hero-lens { position: relative; top: 24px; justify-self: start; align-self: center; width: min(540px, 100%); height: 320px; margin-bottom: 56px; }
+.hero-lens .paper { position: absolute; inset: 0; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(23, 38, 77, .08); }
+.hero-lens .txt { position: absolute; inset: 0; padding: 58px 44px 0; font-size: 13px; overflow: hidden; }
+.hero-lens .lens-ln { overflow: hidden; line-height: 26px; white-space: nowrap; }
+.hero-lens .lens-t { display: inline-block; }
+.hero-lens .paper, .hero-lens .blur { -webkit-mask-image: linear-gradient(to bottom, #000 66%, transparent 100%); mask-image: linear-gradient(to bottom, #000 66%, transparent 100%); }
+.hero-lens .blur { color: #9db0d3; filter: blur(1.7px); }
+.hero-lens .clear { color: var(--text); font-weight: 600; clip-path: circle(0 at var(--s-x, 350px) var(--s-y, 197px)); animation: lens-clip 8.8s ease-in-out infinite; }
+.hero-lens mark { padding: 0 2px; border-radius: 3px; background: #cfe2ff; color: #0d4ab5; }
+.hero-lens .ring { position: absolute; left: var(--s-l, 332px); top: var(--s-t, 177px); width: 76px; height: 76px; border: 4px solid var(--primary); border-radius: 50%; box-shadow: 0 6px 14px rgba(22, 60, 140, .22); animation: lens-roam 8.8s ease-in-out infinite; }
+.hero-lens .ring::after { content: ""; position: absolute; left: 57px; top: 58px; width: 6px; height: 40px; border-radius: 3px; background: var(--primary); transform: rotate(-45deg); transform-origin: top; }
+.hero-lens .lens-clip { position: absolute; left: 44px; top: -18px; width: 26px; height: 60px; color: #9db0d3; transform: rotate(8deg); filter: drop-shadow(0 2px 3px rgba(23, 38, 77, .15)); }
+.hero-lens .lens-clip svg { display: block; width: 100%; height: 100%; }
+@keyframes lens-roam { 0%, 4.5% { left: var(--s-l, 332px); top: var(--s-t, 177px); } 25%, 35.2% { left: var(--a-l, 88px); top: var(--a-t, 19px); } 50%, 60.2% { left: var(--c-l, 20px); top: var(--c-t, 200px); } 73.9%, 84.1% { left: var(--b-l, 160px); top: var(--b-t, 149px); } 95.5%, 100% { left: var(--s-l, 332px); top: var(--s-t, 177px); } }
+@keyframes lens-clip { 0%, 4.5% { clip-path: circle(0 at var(--s-x, 350px) var(--s-y, 197px)); } 25%, 35.2% { clip-path: circle(38px at var(--a-x, 106px) var(--a-y, 39px)); } 50%, 60.2% { clip-path: circle(38px at var(--c-x, 40px) var(--c-y, 222px)); } 73.9%, 84.1% { clip-path: circle(38px at var(--b-x, 180px) var(--b-y, 169px)); } 95.5%, 100% { clip-path: circle(0 at var(--s-x, 350px) var(--s-y, 197px)); } }
+@media (prefers-reduced-motion: reduce) { .hero-art, .hero-lens .ring, .hero-lens .clear, .fade { animation: none; } .hero-lens .ring { left: var(--a-l, 88px); top: var(--a-t, 19px); } .hero-lens .clear { clip-path: circle(38px at var(--a-x, 106px) var(--a-y, 39px)); } .home-card, .hstep, .recent-card { transition: none; } }
 @media (max-width: 1100px) { .hsteps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .recent-list { grid-template-columns: 1fr; } }
-@media (max-width: 860px) { .hero, .home-cards { grid-template-columns: 1fr; } .hero-art { width: min(300px, 80%); } }
-
+@media (min-width: 1400px) { .hero-lens { margin-left: -30px; } }
+@media (max-width: 860px) { .hero, .home-cards { grid-template-columns: 1fr; } .hero-art { width: min(300px, 80%); } .hero-lens { margin-top: 24px; } }
 .found small { display: block; margin-bottom: 6px; color: var(--sub); font-size: 13px; font-weight: 600; }
 .found p { margin: 0; padding: 14px 16px; border-radius: 14px; background: #f7f9fd; line-height: 1.75; overflow-wrap: anywhere; }
 .found mark { font-weight: 600; }
@@ -391,16 +407,28 @@ dialog.confirm .row { display: flex; justify-content: flex-end; gap: 10px; }
 /* 스크롤바가 생겼다 없어져도 화면 폭이 변하지 않게 스크롤바 자리를 항상 비워 둔다(종 · 프로필 위치가 흔들리던 문제) */
 html { scrollbar-gutter: stable; }
 
-/* 규정 탐색: 아래 버튼 줄이 없어서, 목록과 본문 패널이 같은 높이로 화면 아래까지 이어지게 하고 목록 끝은 서서히 흐리게 한다 */
+/* 규정 탐색: 목록과 본문 패널이 같은 높이로 끝나고 목록 끝은 서서히 흐리게 한다. 아래 끝선은 영향 분석 1단계 패널과 같은 높이에 둔다(두 화면을 오갈 때 흰 박스가 튀지 않게) */
 .page.browse { padding-bottom: 28px; }
 .page.browse .split { align-items: stretch; }
-.page.browse .panel.reader { min-height: calc(100vh - 273px); }
+.page.browse .panel.reader { min-height: calc(100vh - 306px); max-height: calc(100vh - 306px); }
+.page.browse .doc-list { max-height: calc(100vh - 413px); }
 .doc-list { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); padding-bottom: 28px; }
 
-.page.browse .empty-state { min-height: calc(100vh - 273px - 54px); }   /* 패널이 화면 아래까지 늘어났으니 안의 그림도 패널의 세로 가운데에 오게 */
+.page.browse .empty-state { min-height: calc(100vh - 306px - 54px); }   /* 패널이 화면 아래까지 늘어났으니 안의 그림도 패널의 세로 가운데에 오게 */
 
 /* 영향 분석 1단계: 오른쪽 패널과 왼쪽 목록이 아래 버튼 줄 바로 위(여백 24px)에서 같이 끝나게 한다 */
 .page.pick .split { align-items: stretch; }
-.page.pick .panel.reader { min-height: calc(100vh - 353px); max-height: calc(100vh - 353px); }
-.page.pick .empty-state { min-height: calc(100vh - 353px - 54px); }
-.page.pick .doc-list { max-height: calc(100vh - 459px); }
+.page.pick .panel.reader { min-height: calc(100vh - 354px); max-height: calc(100vh - 354px); }
+.page.pick { padding-bottom: 0; }
+.page.pick .empty-state { min-height: calc(100vh - 354px - 54px); }
+.page.pick .doc-list { min-height: 120px; max-height: calc(100vh - 460px); }
+
+/* 빈 안내 화면: 아이콘 + 안내 + 마우스를 올리면 미리보기 */
+.empty-ico { display: grid; place-items: center; width: 84px; height: 84px; margin-bottom: 6px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); animation: ripple 2.6s ease-out infinite; }
+.empty-ico svg { width: 38px; height: 38px; }
+.empty-state .hint, .quick .hint { color: var(--sub); font-size: 14px; }
+@keyframes ripple { 0% { box-shadow: 0 0 0 0 rgba(22, 119, 249, .22); } 100% { box-shadow: 0 0 0 26px rgba(22, 119, 249, 0); } }
+.quick { animation: fade-up .25s ease both; }
+.quick ul { display: grid; gap: 4px; margin: 16px 0 0; padding: 0; list-style: none; }
+.quick li { padding: 9px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.quick .hint { margin-top: 14px; }

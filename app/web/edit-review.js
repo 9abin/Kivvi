@@ -175,7 +175,7 @@ function actionBar({ back, next, hint }) {
   return { node: bar, next: nextBtn, hint: bar.querySelector(".hint") };
 }
 
-function regPicker(onPick) {
+function regPicker(onPick, hover) {
   const search = el("input", { type: "search", placeholder: "규정명으로 검색하세요", "aria-label": "규정명 검색" });
   const count = el("p", { class: "count" });
   const list = el("ul", { class: "doc-list", style: "list-style:none" });
@@ -186,7 +186,8 @@ function regPicker(onPick) {
     for (const reg of S.regs) {
       if (!reg.name.replace(/\s+/g, "").toLowerCase().includes(query)) continue;
       shown++;
-      list.append(el("li", null, el("button", { type: "button", class: "doc-row", "aria-pressed": String(S.regId === reg.id), onclick: () => onPick(reg) },
+      list.append(el("li", null, el("button", { type: "button", class: "doc-row", "aria-pressed": String(S.regId === reg.id), onclick: () => onPick(reg),
+        onmouseenter: () => hover?.enter(reg), onfocus: () => hover?.enter(reg), onmouseleave: () => hover?.leave(), onblur: () => hover?.leave() },
         el("span", { class: "radio" }), el("span", { class: "doc-ico" }, icon("doc")),
         el("span", { class: "doc-name", text: reg.name }), el("span", { class: "chev" }, icon("chevron")))));
     }
@@ -199,14 +200,37 @@ function regPicker(onPick) {
   return { node: el("div", null, el("div", { class: "search" }, icon("search"), search), count, list), redraw: draw };
 }
 
-function emptyPreview(text) {
-  return el("div", { class: "empty-state" }, el("img", { src: "img/document-search.png", alt: "", width: 350, height: 220 }), el("p", { text }));
+function emptyPreview(text, hint) {
+  return el("div", { class: "empty-state" }, el("span", { class: "empty-ico" }, icon("doc")), el("p", { text }), hint && el("p", { class: "hint", text: hint }));
+}
+
+// 아무것도 고르지 않았을 때, 목록 위에 마우스를 올리면 그 규정의 첫 조항들을 오른쪽에 미리 보여 준다
+function hoverPreview(panel) {
+  let current = "";
+  return {
+    enter: async (reg) => {
+      if (S.regId) return;   // 이미 고른 규정이 있으면 그 내용을 그대로 둔다
+      current = reg.id;
+      panel.replaceChildren(el("div", { class: "quick" }, el("div", { class: "doc-head" }, el("span", { class: "doc-ico" }, icon("doc")), el("h2", { text: reg.name })), el("p", { class: "muted", text: "불러오는 중입니다…" })));
+      try {
+        const cat = await loadCatalog(reg.id);
+        if (S.regId || current !== reg.id) return;
+        const list = cat.articles.filter((a) => !a.deleted);
+        panel.replaceChildren(el("div", { class: "quick" },
+          el("div", { class: "doc-head" }, el("span", { class: "doc-ico" }, icon("doc")), el("div", null, el("h2", { text: reg.name }), el("p", { class: "muted", text: `조 ${list.length}개` }))),
+          el("ul", null, list.slice(0, 7).map((a) => el("li", null, el("strong", { text: a.label }), " ", a.title))),
+          list.length > 7 && el("p", { class: "muted", text: `외 ${list.length - 7}개 조` }),
+          el("p", { class: "hint", text: "눌러서 전체 내용을 확인하세요." })));
+      } catch (error) { /* 미리보기는 없어도 된다 */ }
+    },
+    leave: () => { current = ""; if (!S.regId) fillDocument(panel); },
+  };
 }
 
 // 규정 전문을 쭉 보여 준다(읽기 전용). 규정 탐색과 영향 분석 1단계가 함께 쓴다.
 function fillDocument(panel) {
   panel.replaceChildren();
-  if (!S.regId) return panel.append(emptyPreview("왼쪽에서 규정 문서를 선택하면\n해당 문서의 내용을 확인할 수 있어요."));
+  if (!S.regId) return panel.append(emptyPreview("왼쪽에서 규정 문서를 선택하면\n해당 문서의 내용을 확인할 수 있어요.", "목록에 마우스를 올리면 미리 볼 수 있어요."));
   if (S.catError) return panel.append(el("p", { class: "notice error", text: S.catError }));
   if (!S.cat) return panel.append(el("p", { class: "muted", text: "규정 문서를 불러오는 중입니다…" }));
   panel.append(el("div", { class: "doc-head" }, el("span", { class: "doc-ico" }, icon("doc")), el("h2", { text: S.cat.name })));
@@ -335,6 +359,66 @@ function homeSearch() {
   return el("div", { class: "home-search" }, el("div", { class: "search" }, icon("search"), input), list);
 }
 
+// 홈 그림: 흐릿한 문서 위를 돋보기가 세 곳(제30조, 같은 사항, 감사지침)을 지나가며 또렷하게 보여 준다(장식이라 읽기 도구에는 숨김).
+// 돋보기가 멈출 자리는 글꼴에 따라 달라지므로 파란 표시 낱말의 실제 위치를 재서 CSS 변수로 넘긴다.
+function heroLens() {
+  const lines = (on) => {
+    const mk = (t) => (on ? el("mark", { text: t }) : t);
+    const row = (...parts) => el("div", { class: "lens-ln" }, el("span", { class: "lens-t" }, ...parts));
+    return [
+      row("직원은 연간 휴가일수를 정하여 사용하며 필요한 경우에는 그 사유를 기록하고 보관한다."),
+      row("분할하여 연차를 사용하는 횟수는 ", mk("제30조"), "에 따라 연 단위로 정하고 따로 통보한다."),
+      row("휴가 사용 일정은 부서장과 협의하여 정하고 인사부서에 통보하며 변경하는 경우에도 같다."),
+      row("신청 절차는 별도로 정하며 사용 예정일 전에 제출하되 부득이한 경우에는 사후에 제출한다."),
+      row("휴가 기간 중 급여는 정상 지급하고 근속 기간에 포함하며 각종 수당 산정에도 반영한다."),
+      row("휴가 사용을 이유로 불이익한 처우를 하여서는 안 되며 그 사실을 기록으로 남겨 둔다."),
+      row("미사용 휴가의 보상 기준과 관련하여 별도로 정한 바가 없으면 인사규정과 ", mk("같은 사항"), "으로 본다."),
+      row("이 규정에 정하지 아니한 사항은 관련 지침에 따르며 해석상 다툼이 있으면 위원회가 정한다."),
+      row("위반 시 ", mk("감사지침"), "에 따라 시정을 요구할 수 있으며 그 결과는 소속 부서장에게 통보한다."),
+      row("시정 결과는 다음 연도 감사계획에 반영하여 통보하고 필요한 경우 규정 개정을 검토한다."),
+      row("감사 결과는 이사회에 보고하고 관련 부서에 공유하며 후속 조치 이행 현황을 점검한다."),
+      row("이 규정은 공포한 날부터 시행하며 종전 규정은 이 규정 시행과 동시에 폐지하는 것으로 한다."),
+      row("부칙: 이 규정 시행 전에 처리 중인 사항은 종전 규정에 따라 처리하는 것으로 본다.")];
+  };
+  const clip = el("span", { class: "lens-clip" });
+  clip.innerHTML = '<svg viewBox="0 0 28 64"><path d="M9 26V12a5.5 5.5 0 0 1 11 0v33a8 8 0 0 1-16 0V16" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const root = el("div", { class: "hero-lens", "aria-hidden": "true" },
+    el("div", { class: "paper" }),
+    el("div", { class: "txt blur" }, ...lines(false)),
+    el("div", { class: "txt clear" }, ...lines(true)),
+    el("div", { class: "ring" }), clip);
+  // 줄 끝을 맞추려고 글자 사이를 미세하게(±0.8px 이내) 조정한다. 띄어쓰기만 늘리면 틈이 벌어져 보인다.
+  const fit = () => {
+    const blur = root.querySelectorAll(".blur .lens-t"), clear = root.querySelectorAll(".clear .lens-t");
+    blur.forEach((t, i) => {
+      t.style.letterSpacing = clear[i].style.letterSpacing = "0px";
+      const w = t.parentElement.clientWidth, n = t.textContent.length;
+      const ls = Math.max(-0.5, Math.min(0.8, (w - t.getBoundingClientRect().width) / n));
+      t.style.letterSpacing = clear[i].style.letterSpacing = `${ls.toFixed(2)}px`;
+      t.dataset.ls = ls.toFixed(2);
+    });
+  };
+  const place = () => {
+    fit();
+    const r = root.getBoundingClientRect(), t = root.querySelector(".clear").getBoundingClientRect();
+    const ox = r.left + root.clientLeft, oy = r.top + root.clientTop;
+    const set = (k, x, y) => {
+      root.style.setProperty(`--${k}-l`, `${x - 38}px`);
+      root.style.setProperty(`--${k}-t`, `${y - 38}px`);
+      root.style.setProperty(`--${k}-x`, `${x + ox - t.left}px`);
+      root.style.setProperty(`--${k}-y`, `${y + oy - t.top}px`);
+    };
+    root.querySelectorAll(".clear mark").forEach((m, i) => {
+      const b = m.getBoundingClientRect();
+      set("abc"[i], b.left + b.width / 2 - ox, b.top + b.height / 2 - oy);
+    });
+    set("s", r.width + 20, r.height - 6);
+  };
+  requestAnimationFrame(place);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+  return root;
+}
+
 function pageHome() {
   const stepNodes = HOME_STEPS.map(([name, text], i) => el("li", { class: "hstep", tabindex: "0" },
     el("span", { class: "num" }, String(i + 1)), el("strong", { text: name }), el("p", { text })));
@@ -371,7 +455,7 @@ function pageHome() {
         el("p", { text: "고치려는 규정을 찾으면, 영향이 갈 수 있는 조항을 근거와 함께 보여 드려요." }),
         homeSearch(),
         S.regsError && el("p", { class: "notice error", text: S.regsError })),
-      el("img", { class: "hero-art", src: "img/document-search.png", alt: "", width: 350, height: 220 })),
+      heroLens()),
     el("div", { class: "home-cards fade", style: "--d: .08s" },
       card("search", "규정 탐색", "규정 90건의 내용을 읽어 볼 수 있어요.", "browse"),
       card("analyze", "영향 분석 시작하기", "규정을 고치고, 영향받는 조항을 확인해요.", "analyze/1")),
@@ -395,7 +479,7 @@ function pageBrowse() {
     drawReader();
     try { S.cat = await loadCatalog(reg.id); } catch (error) { S.catError = error.message; }
     if (S.regId === reg.id) drawReader();
-  });
+  }, hoverPreview(reader));
   const drawReader = () => fillDocument(reader);
   drawReader();
   if (S.regId && !S.cat) loadCatalog(S.regId).then((cat) => { S.cat = cat; drawReader(); }).catch((error) => { S.catError = error.message; drawReader(); });
@@ -415,7 +499,7 @@ function pageStep1() {
     picker.redraw(); drawPreview(); next.next.disabled = true;
     try { S.cat = await loadCatalog(reg.id); } catch (error) { S.catError = error.message; }
     if (S.regId === reg.id) { drawPreview(); next.next.disabled = !S.cat; }
-  });
+  }, hoverPreview(preview));
   next = actionBar({ next: { label: "다음 단계로 이동", disabled: !(S.regId && S.cat), onclick: () => { S.editing = Boolean(S.articleId && S.editing); go("analyze/2"); } } });
   if (S.regId && !S.cat) loadCatalog(S.regId).then((cat) => { S.cat = cat; drawPreview(); next.next.disabled = false; }).catch((error) => { S.catError = error.message; drawPreview(); });
   drawPreview();
