@@ -122,12 +122,15 @@ class LawDB:
         key = norm(re.sub(r"\s*\(이하[^)]*\)\s*$", "", name or ""))
         if len(key) < 8:
             return None
-        best, score = None, 0.0
+        best, score, edits = None, 0.0, 99
         for k, law in self.laws.items():
-            sc = SequenceMatcher(None, key, k).ratio()
+            sm = SequenceMatcher(None, key, k)
+            sc = sm.ratio()
             if sc > score:
                 best, score = law["title"], sc
-        return best if score >= cutoff else None
+                edits = sum(max(i2 - i1, j2 - j1) for t, i1, i2, j1, j2 in sm.get_opcodes() if t != "equal")
+        # 글자 하나 차이는 짧은 이름도 오기로 본다 — 0.95만 보면 10자 이름의 한 글자 누락(0.947)을 놓쳤다 (261014 오류 주입 평가)
+        return best if score >= cutoff or edits <= 1 else None
 
     def same_title(self, title: str, limit: int = 5) -> list[tuple[dict, str, dict]]:
         """조문 제목이 같은 법령 조문 [(법령, 조 키, 조문)] — 변경안 점검의 법령 대조 후보 (예: 육아휴직 → 남녀고용평등법 제19조)"""
@@ -153,7 +156,7 @@ class LawDB:
         return key, law["조문"].get(key)
 
 
-def amendment_lines(law: dict, key: str) -> list[str]:
+def amendment_lines(law: dict, key: str, limit: int = 5) -> list[str]:
     """개정문에서 그 조를 고친 문장 (예: 「제23조제2항 중 "훼손되지"를 …로 한다.」).
     타법개정이면 개정문은 다른 법의 부칙이므로 「{이 법} 일부를 다음과 같이 개정한다」 이후 부분만 본다."""
     text = law["개정문"]
@@ -165,7 +168,32 @@ def amendment_lines(law: dict, key: str) -> list[str]:
     no, _, br = key.partition("의")
     pat = re.compile(rf"(?:^|\s)제{no}조" + (rf"의{br}" if br else r"(?!의\d)") + r"(?:제\d+항|제\d+호|\s|를|중|의|부터)")
     verb = re.compile(r"(로 한다|삭제한다|신설한다|같이 한다)$")
-    return [x.strip().lstrip(".").strip() for x in re.split(r"(?<=다)\.\s*", text) if pat.search(x) and verb.search(x.strip())][:5]
+    return [x.strip().lstrip(".").strip() for x in re.split(r"(?<=다)\.\s*", text) if pat.search(x) and verb.search(x.strip())][:limit]
+
+
+def touches_cited(lines: list[str], key: str, raw: str) -> bool:
+    """개정문이 우리가 인용한 항·호를 건드리나. 판단할 수 없으면 True (알림을 남긴다).
+    예: 인용 「제2조제6호」, 개정문 「제2조제3호마목 중 … 같은 호 아목부터 …」 → 제3호만 바뀜 → False (261015 정밀도 표본)"""
+    no, _, br = key.partition("의")
+    art = rf"제{no}조" + (rf"의{br}" if br else r"(?!의\d)")
+    m = re.search(art + r"\s*(?:제\s*(\d+)\s*항)?\s*(?:제\s*(\d+)\s*호)?", re.sub(r"\s", "", raw))
+    if not lines or not m or not (m.group(1) or m.group(2)):
+        return True                       # 개정문을 모르거나 조 전체를 인용
+    my_hang, my_ho = m.group(1), m.group(2)
+    units = []
+    for x in lines:
+        x = re.sub(r"\s", "", x)
+        for u in re.finditer(rf"(?:{art}|같은조)(?:제(\d+)항)?(?:제(\d+)호)?", x):
+            units.append((u.group(1), u.group(2)))
+    if not units or any(h is None and o is None for h, o in units):
+        return True                       # 조 전체를 바꿈 (「제N조를 다음과 같이 한다」, 「제N조 중 …」)
+    for h, o in units:
+        if my_hang and h and h != my_hang:
+            continue
+        if my_ho and o and o != my_ho and (not my_hang or h == my_hang or h is None):
+            continue
+        return True
+    return False
 
 
 def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: dict[str, str] | None = None) -> tuple[list[dict], dict]:
@@ -176,6 +204,11 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
     arts = {a["id"]: (r, a) for r in regs.values() for a in r["articles"]}
     stats = {"법령 인용": 0, "법령 연결": 0, "조문 연결": 0, "법령 없음": 0, "조 없음": 0}
     out, seen = [], set()
+    def written(e: dict) -> bool:
+        """그 법령 이름이 이 인용 문맥에 실제로 적혀 있나. 「…법(이하 "법")」 뒤의 「법 제5조」는 약칭으로 이어진 것이라
+        이름 오기·옛 이름은 이름이 적힌 곳에서 한 번만 알린다 (같은 오기를 33번 알리던 문제, 261014 오류 주입 평가)"""
+        return norm(e["target_doc"]) in norm(e.get("context") or "")
+
     for e in edges:
         # 본문과 별표·별지 (표 안 「…법률 제7조제1항제1호」도 법령 인용, 261012). 부칙은 옛 문구라 제외
         if e["status"] not in ("law_pending", "external_rule") or e["src_kind"] not in ("본문", "별표", "별지"):
@@ -185,7 +218,7 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
         if not law:
             stats["법령 없음"] += 1
             close = db.close_title(e["target_doc"])
-            if close and (e["src"], "typo", close) not in seen and e["src_kind"] in ("본문", "별표", "별지"):
+            if close and written(e) and (e["src"], "typo", close) not in seen:
                 seen.add((e["src"], "typo", close))
                 stats["법령명 오기 의심"] = stats.get("법령명 오기 의심", 0) + 1
                 out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
@@ -194,14 +227,14 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
             continue
         stats["법령 연결"] += 1
         wrong = {norm(k): v for k, v in MISNAMED.items()}.get(norm(e["target_doc"]))
-        if wrong and (e["src"], "typo", wrong) not in seen:
+        if wrong and written(e) and (e["src"], "typo", wrong) not in seen:
             seen.add((e["src"], "typo", wrong))
             stats["법령명 오기 의심"] = stats.get("법령명 오기 의심", 0) + 1
             out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
                         "type": "법령명_오기", "priority": "중간", "suggest": law["title"],
                         "note": f"정식 이름은 「{law['title']}」 — 법령명 확인"})
         new_name = db.previous_names.get(norm(e["target_doc"]))
-        if new_name and (e["src"], "renamed", new_name) not in seen:
+        if new_name and written(e) and (e["src"], "renamed", new_name) not in seen:
             seen.add((e["src"], "renamed", new_name))
             stats["법령명 변경"] = stats.get("법령명 변경", 0) + 1
             out.append({**locate(e["src"]), "quote": e["target_doc"], "context": e["context"], "method": "law_db", "src_id": e["src"],
@@ -244,6 +277,9 @@ def law_changes(regs: dict[str, dict], edges: list[dict], db: LawDB, aliases: di
             continue
         seen.add(k)
         lines = amendment_lines(law, key)
+        if not moved and not touches_cited(amendment_lines(law, key, limit=100), key, e["raw"]):   # 판단은 개정문 전체로 (보여 줄 때만 5문장)
+            stats["개정이 인용한 항·호와 무관"] = stats.get("개정이 인용한 항·호와 무관", 0) + 1
+            continue
         out.append({**base, "type": "법령_개정확인", "priority": "높음" if moved else "중간",
                     "note": f"「{law['title']}」 {base['law_article']}({u.get('조문제목') or ''}) "
                             + ("이동 " if moved else "") + f"{law['구분'] or '개정'} 시행 {fmt(when)}"

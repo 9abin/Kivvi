@@ -46,6 +46,30 @@ eval/answer_runs/
 # 평가 검수 artifact용 임시 export
 review_data.json
 
+# 에이전트 평가 문항 중 규정 원문 문장이 들어 있는 것 (KVIC 저작물). 시드로 다시 만든다:
+#   scripts/eval_inject.py --seed N, scripts/eval_spell.py make, scripts/eval_precision.py make (판정 중인 csv는 로컬에만)
+/eval/agent/inject_s*.jsonl
+/eval/agent/spell_s*.jsonl
+/eval/agent/precision_sample*.csv
+/eval/agent/term_sample.csv
+/eval/agent/neighbor_sample.csv
+
+# 화면 글꼴 파일 (app/web/fonts/README.md)
+*.woff2
+/eval/agent/change_gold_s[2-9].jsonl
+/eval/agent/nl_requests_ext.jsonl
+/eval/agent/nl_requests_ext_*.jsonl
 # 조합 실험 결과 (src/combo): 문서 벡터와 결과 파일은 각자 PC에서 만들고 올리지 않는다
 eval/combo/
 eval/combo_smoke/
+eval/combo_final/
+
+# 영향 평가 라벨 키트의 규정 원문 사본 (KVIC 저작물: 원문은 ALIO 링크로 복원, 저장소에 올리지 않는다)
+eval/impact_label_kit*/규정/
+
+# Explicitly shared ontology snapshots and local experiment runtime files.
+!/eval/four_domain/domain_ontology.reviewed.db
+!/eval/four_domain/hyujik-user-original.db
+/eval/four_domain/.cache/
+/eval/four_domain/runs/
+/eval/four_domain/single_change/runs/

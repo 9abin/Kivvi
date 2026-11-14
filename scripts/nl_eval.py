@@ -54,15 +54,18 @@ def judge(req: dict, res: dict) -> tuple[bool, bool]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen2.5:7b")
+    ap.add_argument("--file", default="eval/nl_requests.jsonl", help="요청 파일 (확장셋: eval/agent/nl_requests_ext.jsonl, scripts/gen_nl_requests.py)")
     args = ap.parse_args()
     regs = {r["reg_id"]: r for r in (json.loads(p.read_text(encoding="utf-8")) for p in (ROOT / "out" / "parsed").glob("[0-9]*.json"))}
-    reqs = [json.loads(l) for l in (ROOT / "eval" / "nl_requests.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
-    run = runinfo.start("nl_eval", [ROOT / "eval" / "nl_requests.jsonl"], models={"llm": args.model})
+    reqs = [json.loads(l) for l in (ROOT / args.file).read_text(encoding="utf-8").splitlines() if l.strip()]
+    run = runinfo.start("nl_eval", [ROOT / args.file], models={"llm": args.model})
     rows = []
     for q in reqs:
         t0 = time.time()
         try:
-            res = draft(regs, q["request"], model=args.model)
+            # 화면(web_agent.draft)과 같게: 조를 열어 둔 요청이면 「규정명 조라벨 요청」으로 보낸다
+            text = f'{q["reg"]} {q["article"]} {q["request"]}' if q.get("with_reg") else q["request"]
+            res = draft(regs, text, model=args.model, reg=regs[q["reg_id"]] if q.get("with_reg") else None)
         except Exception as e:   # 모델 연결 실패 등
             res = {"ok": False, "tries": [{"output": "", "error": f"호출 실패: {e}"}]}
         target, intent = judge(q, res)
@@ -81,7 +84,8 @@ def main() -> None:
             "그중 규칙으로 작성": sum(r["by"] == "규칙" and r["ok"] for r in rows), "요청": n}
     out = ROOT / "out" / "nl_eval"
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"{re.sub(r'[^\w.-]', '_', args.model)}.json"
+    stem = Path(args.file).stem
+    path = out / f"{re.sub(r'[^\w.-]', '_', args.model)}{'' if stem == 'nl_requests' else '__' + stem}.json"
     path.write_text(json.dumps({"model": args.model, "summary": summ, "rows": rows}, ensure_ascii=False, indent=1), encoding="utf-8")
     runinfo.finish(run, [path], summ)
     print(summ, "→", path)

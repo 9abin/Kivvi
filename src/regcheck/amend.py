@@ -14,6 +14,9 @@
   제N조[제M항]를 다음과 같이 한다.  + 다음 줄부터 본문
   제N조의 다음에 제X조를 다음과 같이 신설한다. / 제X조를 다음과 같이 신설한다.  + 본문
   제A조부터 제B조까지를 각각 제C조부터 제D조까지로 한다. / 제A조를 제B조로 한다.
+  제N조[제M항] 본문 중 / 단서 중 "A"를 "B"로 한다.      (「다만」 앞은 본문, 「다만」 뒤는 단서)
+  제N조 이하를 각각 한 조씩 뒤로(앞으로) 한다.          (제N조 이상 모든 조, 가지 조 포함)
+  제N조[제M항]에 제K호를 다음과 같이 신설한다.          (기존 호 사이에 끼운다. 이미 있는 호 번호면 멈춘다)
 「하고,」로 이어진 문장은 나눠서 차례로 적용한다.
 """
 
@@ -36,10 +39,12 @@ class AmendError(ValueError):
 
 UNIT = r"제\s*(\d+)\s*조(?:\s*의\s*(\d+))?(?:\s*제\s*(\d+)\s*항)?(?:\s*제\s*(\d+)\s*호)?(?:\s*([가-하])\s*목)?"
 RE_UNIT = re.compile(UNIT)
-RE_PAIR = re.compile(r'"([^"]+)"\s*(?:을|를)\s*"([^"]*)"\s*(?:으로|로)')
+RE_PAIR = re.compile(r'"([^"]+)"\s*(?:을|를)\s*(?:각각\s*)?"([^"]*)"\s*(?:으로|로)')   # 「"A"를 각각 "B"로」도 읽는다
 RE_RANGE = re.compile(r"^(?:종전\s*)?제\s*(\d+)\s*조부터\s*제\s*(\d+)\s*조까지를\s*각각\s*제\s*(\d+)\s*조부터\s*제\s*(\d+)\s*조까지로\s*한다$")
 RE_MOVE = re.compile(r"^(?:종전\s*)?제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*(?:을|를)\s*제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*(?:으로|로)\s*한다$")
 RE_INSERT = re.compile(rf"^(?:(?:같은\s*(?:규정|조)에\s*)?{UNIT}\s*의\s*다음에\s*)?(?:같은\s*(?:규정|조)에\s*)?제\s*(\d+)\s*조(?:\s*의\s*(\d+))?(?:\s*제\s*(\d+)\s*항)?\s*(?:을|를)\s*(?:다음과\s*같이\s*)?신설한다$")
+RE_SHIFT = re.compile(r"^제\s*(\d+)\s*조\s*이하를\s*각각\s*(?:한|(\d+))\s*조씩\s*(뒤로|앞으로)\s*한다$")
+RE_INSERT_HO = re.compile(r"^(" + UNIT + r")\s*에\s*제\s*(\d+)\s*호\s*(?:을|를)\s*(?:다음과\s*같이\s*)?신설한다$")
 RE_BODY_LINE = re.compile(r"^\s*(?:제\s*\d+\s*조(?:\s*의\s*\d+)?\s*[(（]|[①-⑳]|\d+(?:의\d+)?\.\s|[가-하]\.\s)")
 
 
@@ -83,6 +88,9 @@ class Op:
     after: Unit | None = None
     body: list[str] = field(default_factory=list)
     moves: list[tuple[tuple[int, int], tuple[int, int]]] = field(default_factory=list)
+    scope: str | None = None          # replace의 범위: "본문" | "단서" (None이면 단위 전체)
+    shift: tuple[int, int] | None = None   # shift: (시작 조 번호, 밀 칸 수; 뒤로 +, 앞으로 -)
+    ho: int | None = None             # insert_ho: 신설하는 호 번호
 
 
 # ---------------------------------------------------------------- 해석
@@ -126,6 +134,12 @@ def _parse_sentence(s: str) -> Op:
     if m := RE_MOVE.match(s):
         a, ab, c, cb = m.groups()
         return Op("renumber", s, moves=[((int(a), int(ab or 0)), (int(c), int(cb or 0)))])
+    if m := RE_SHIFT.match(s):
+        n, k, way = int(m.group(1)), int(m.group(2) or 1), m.group(3)
+        return Op("shift", s, shift=(n, k if way == "뒤로" else -k))
+    if m := RE_INSERT_HO.match(s):
+        g = m.groups()
+        return Op("insert_ho", s, unit=Unit.from_match(g[1:6]), ho=int(g[6]))
     if m := RE_INSERT.match(s):
         g = m.groups()
         after = Unit.from_match(g[0:5]) if g[0] else None
@@ -138,15 +152,18 @@ def _parse_sentence(s: str) -> Op:
     title = False
     if rest.startswith("의 제목"):
         title, rest = True, rest[len("의 제목"):].strip()
+    scope = None
+    if m_sc := re.match(r"^(본문|단서)\s+중\s", rest):
+        scope, rest = m_sc.group(1), "중 " + rest[m_sc.end():]
     if rest.startswith("중 ") or (title and rest.startswith('"')):
         rest = rest[2:].strip() if rest.startswith("중 ") else rest
         if m2 := re.fullmatch(r'"([^"]+)"\s*(?:을|를)\s*삭제한다', rest):
-            return Op("replace", s, unit=unit, pairs=[(m2.group(1), "")], title=title)
+            return Op("replace", s, unit=unit, pairs=[(m2.group(1), "")], title=title, scope=scope)
         pairs = RE_PAIR.findall(rest)
         tail = RE_PAIR.sub("", rest).replace(",", "").replace("각각", "").strip()
         if not pairs or tail != "한다":
             raise AmendError(f"해석 못함 (치환 문구): {s}")
-        return Op("replace", s, unit=unit, pairs=pairs, title=title)
+        return Op("replace", s, unit=unit, pairs=pairs, title=title, scope=scope)
     if re.fullmatch(r"(?:을|를)\s*삭제한다", rest):
         return Op("delete", s, unit=unit)
     if re.fullmatch(r"(?:을|를)\s*다음과\s*같이\s*한다", rest):
@@ -168,16 +185,59 @@ def parse_amendment(text: str) -> list[Op]:
         if not raw.strip():
             continue
         line = _clean(raw)
-        needs_body = ops and ops[-1].kind in ("rewrite", "insert") and "다음과 같이" in ops[-1].sentence
+        needs_body = ops and ops[-1].kind in ("rewrite", "insert", "insert_ho") and "다음과 같이" in ops[-1].sentence
         if needs_body and not _is_instruction(line):
             ops[-1].body.append(line)
             continue
         for s in _split_sentences(line):
             ops.append(_parse_sentence(s))
     for op in ops:
-        if op.kind in ("rewrite", "insert") and "다음과 같이" in op.sentence and not op.body:
+        if op.kind in ("rewrite", "insert", "insert_ho") and "다음과 같이" in op.sentence and not op.body:
             raise AmendError(f"본문 없음: {op.sentence}")
     return ops
+
+
+def article_edit_amendment(article: dict, edited: str, *, reg: dict | None = None) -> str:
+    """한 본문 조항의 편집 내용을 기존 개정문 입력 형식으로 변환한다."""
+    from .parse import RE_ARTICLE, parse
+
+    edited = edited.strip()
+    if not edited or article.get("deleted"):
+        raise AmendError("편집할 현행 조항과 수정 본문이 필요합니다.")
+    if edited == article["text"].strip():
+        raise AmendError("현행 조항과 비교해 달라진 제목이나 본문이 없습니다.")
+    lines = edited.splitlines()
+    if not RE_ARTICLE.match(lines[0]):
+        raise AmendError("첫 줄을 제19조(제목) 형식으로 입력해 주세요.")
+    parsed = parse(lines)
+    if (len(parsed.articles) != 1 or parsed.preamble or parsed.addenda or parsed.appendices
+            or parsed.articles[0].chapter or parsed.articles[0].deleted):
+        raise AmendError("해당 조항 하나만 입력해 주세요.")
+    new_label = parsed.articles[0].label
+    moving = new_label != article["label"]
+    if moving:
+        if reg is None:
+            raise AmendError("이 편집 화면에서는 선택한 조 번호를 유지해 주세요.")
+        if any(a["label"] == new_label and a["id"] != article["id"] for a in reg["articles"]):
+            raise AmendError(f"{new_label}가 이미 있습니다. 기존 조항은 덮어쓸 수 없으니 비어 있는 조 번호를 입력해 주세요.")
+    amendment = f"{new_label}를 다음과 같이 한다.\n{edited}"
+    ops = parse_amendment(amendment)
+    if len(ops) != 1 or ops[0].kind != "rewrite":
+        raise AmendError("선택한 조항의 수정 본문만 입력해 주세요.")
+    revised = _parse_body(ops[0].body, ops[0].unit.jo, ops[0].unit.br)
+
+    def content(a: dict) -> tuple:
+        return a["title"], [(it["path"], it["norm"], it["deleted"]) for it in a["items"]]
+
+    if content(revised) == content(article):
+        if moving:
+            return f"{article['label']}를 {new_label}로 한다."
+        raise AmendError("현행 조항과 비교해 달라진 제목이나 본문이 없습니다.")
+    if not revised["items"]:
+        raise AmendError("수정할 본문을 입력해 주세요.")
+    if moving:
+        return f"{article['label']}를 {new_label}로 한다.\n{amendment}"
+    return amendment
 
 
 # ---------------------------------------------------------------- 적용
@@ -220,6 +280,9 @@ def _items_in(a: dict, u: Unit) -> list[dict]:
             ok = False
         if ok:
             out.append(it)
+    if not out and u.hang is None and u.ho:
+        # 「제2조제3호」인데 그 조의 번호 목록이 항 자리([3,0,0])로 읽힌 경우 (항 구분 없이 1. 2. 로만 나열한 조)
+        out = [it for it in a["items"] if it["path"][0] == u.ho and it["path"][1] == 0 and (u.mok is None or it["path"][2] == u.mok)]
     if not out:
         raise AmendError(f"대상 단위 없음: {a['label']} → {u.label()}")
     return out
@@ -260,6 +323,19 @@ def _pairs_pattern(pairs: list[tuple[str, str]]):
     return pat, _T(table)
 
 
+def _scope_span(t: str, scope: str | None) -> tuple[int, int]:
+    """항 본문에서 「본문」(첫 「다만」 앞) 또는 「단서」(첫 「다만」부터)의 글자 범위. 범위 지정이 없으면 전체."""
+    if not scope:
+        return 0, len(t)
+    m = re.search(r"다만|(?<![가-힣])단\s*[,，]", t)   # 단서는 「다만,」 또는 「단,」으로 시작한다
+    k = m.start() if m else -1
+    if scope == "본문":
+        return 0, (k if k >= 0 else len(t))
+    if k < 0:
+        raise AmendError("단서가 없는 항")
+    return k, len(t)
+
+
 def apply(reg: dict, ops: list[Op]) -> tuple[dict, list[dict]]:
     """규정 사본에 Op를 적용. 반환: (새 규정, 조문별 변경 기록)."""
     new = copy.deepcopy(reg)
@@ -275,6 +351,14 @@ def apply(reg: dict, ops: list[Op]) -> tuple[dict, list[dict]]:
             # 여러 쌍은 동시에 바꾼다: 「"제7조"를 "제8조"로, "제8조"를 "제9조"로」에서 새로 생긴 제8조를 다시 바꾸지 않게
             pat, table = _pairs_pattern(op.pairs)
             texts = [a["title"]] if op.title else [it["norm"] for it in _items_in(a, op.unit)]
+            if op.scope and not op.title:   # 본문 중 / 단서 중: 바꿀 범위만 센다
+                spans = []
+                for t in texts:
+                    try:
+                        spans.append(_scope_span(t, op.scope))
+                    except AmendError:
+                        spans.append((0, 0))   # 단서가 없는 항은 센 것이 없다 (아래에서 「없음」으로 멈춘다)
+                texts = [t[s:e] for t, (s, e) in zip(texts, spans)]
             counts = {old: sum(len(re.findall(_one_pattern(old), t)) for t in texts) for old, _ in op.pairs}
             for old, n in counts.items():
                 if not n:
@@ -285,7 +369,14 @@ def apply(reg: dict, ops: list[Op]) -> tuple[dict, list[dict]]:
                 a["title"] = pat.sub(lambda m: table[m.group(0)], a["title"])
             else:
                 for it in _items_in(a, op.unit):
-                    it["norm"] = pat.sub(lambda m: table[m.group(0)], it["norm"])
+                    if op.scope:
+                        try:
+                            s0, e0 = _scope_span(it["norm"], op.scope)
+                        except AmendError:
+                            continue
+                        it["norm"] = it["norm"][:s0] + pat.sub(lambda m: table[m.group(0)], it["norm"][s0:e0]) + it["norm"][e0:]
+                    else:
+                        it["norm"] = pat.sub(lambda m: table[m.group(0)], it["norm"])
             for old, rep in op.pairs:
                 a["_changes"].append({"op": "replace", "unit": op.unit.label(), "old": old, "new": rep, "count": counts[old],
                                       "title": op.title})
@@ -326,9 +417,30 @@ def apply(reg: dict, ops: list[Op]) -> tuple[dict, list[dict]]:
                          "title": "" if body["title"].startswith("임시") else body["title"],
                          "chapter": "", "deleted": False, "amend_notes": [], "items": body["items"],
                          "_origin": None, "_old_label": None, "_changes": [{"op": "insert", "unit": u.label()}]})
-        elif op.kind == "renumber":
+        elif op.kind == "insert_ho":
+            u = op.unit
+            a = _find(arts, u.jo, u.br)
+            hang = u.hang if u.hang is not None else 0
+            if any(it["path"][0] == hang and it["path"][1] == op.ho and it["path"][2] == 0 and not it.get("deleted") for it in a["items"]):
+                raise AmendError(f"이미 있는 호 번호에 신설: {a['label']} 제{op.ho}호 (종전 호를 먼저 옮겨 적어야 함)")
+            body = _parse_body(op.body, u.jo, u.br)
+            new_items = []
+            for it in body["items"]:   # 본문의 호 번호로 읽힌 항목을 이 조의 호 자리로 옮긴다 (임시 조 안에서 [0, n, 0]으로 읽힘)
+                it2 = copy.deepcopy(it)
+                if it2["path"][0] == 0 and it2["path"][1] == 0:
+                    raise AmendError(f"신설 호 본문을 호로 읽지 못함: {op.sentence}")
+                it2["path"] = [hang, op.ho, it2["path"][2]]
+                new_items.append(it2)
+            a["items"] = sorted(a["items"] + new_items, key=lambda it: it["path"])
+            a["_changes"].append({"op": "rewrite", "unit": f"{u.label()}제{op.ho}호", "inserted": [it["norm"] for it in new_items]})
+        elif op.kind in ("renumber", "shift"):
             targets = []
-            for (a_no, a_br), (c_no, c_br) in op.moves:
+            if op.kind == "shift":   # 제N조 이상 모든 조(가지 조 포함)를 같은 칸만큼 민다
+                n, d = op.shift
+                targets = [(x, (_key(x)[0] + d, _key(x)[1])) for x in arts if _key(x)[0] >= n and not x.get("_gone")]
+                if not targets:
+                    raise AmendError(f"밀 조문이 없음: {op.sentence}")
+            for (a_no, a_br), (c_no, c_br) in ([] if op.kind == "shift" else op.moves):
                 if any(_key(x)[0] == a_no and _key(x)[1] and not a_br for x in arts) and len(op.moves) > 1:
                     raise AmendError(f"범위 안에 가지 조문(제{a_no}조의N)이 있음 — 따로 적어 주세요: {op.sentence}")
                 targets.append((_find(arts, a_no, a_br), (c_no, c_br)))

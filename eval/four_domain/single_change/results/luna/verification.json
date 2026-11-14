@@ -1,0 +1,13 @@
+{
+  "complete_cases": 60,
+  "complete_responses": 180,
+  "methods": 3,
+  "one_edit_per_case": true,
+  "one_search_focus_per_case": true,
+  "final_candidates_per_method": 10,
+  "frozen_data_db_and_scorer_verified": true,
+  "same_model_and_prompt_all_methods": true,
+  "gold_status": "AI_DRAFT_REQUIRES_HUMAN_REVIEW",
+  "clean_controls": "20 formatting-only controls; not substantive policy changes",
+  "retrieval_uncompressed_sha256": "88f24d745d28a3014a66456c41be114c578f6e1b6199df7de69f2eae3df3c107"
+}

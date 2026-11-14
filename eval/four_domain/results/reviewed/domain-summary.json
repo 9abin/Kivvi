@@ -1,0 +1,86 @@
+[
+  {
+    "domain": "인사",
+    "method": "rag",
+    "correct": 11,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "인사",
+    "method": "pr_graph_rag",
+    "correct": 12,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "인사",
+    "method": "domain_graph_rag",
+    "correct": 12,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "보수",
+    "method": "rag",
+    "correct": 10,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "보수",
+    "method": "pr_graph_rag",
+    "correct": 12,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "보수",
+    "method": "domain_graph_rag",
+    "correct": 13,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "휴가",
+    "method": "rag",
+    "correct": 12,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "휴가",
+    "method": "pr_graph_rag",
+    "correct": 11,
+    "pending": 1,
+    "total": 15
+  },
+  {
+    "domain": "휴가",
+    "method": "domain_graph_rag",
+    "correct": 15,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "휴직",
+    "method": "rag",
+    "correct": 14,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "휴직",
+    "method": "pr_graph_rag",
+    "correct": 13,
+    "pending": 0,
+    "total": 15
+  },
+  {
+    "domain": "휴직",
+    "method": "domain_graph_rag",
+    "correct": 13,
+    "pending": 0,
+    "total": 15
+  }
+]

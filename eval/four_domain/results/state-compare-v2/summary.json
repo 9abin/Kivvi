@@ -1,0 +1,79 @@
+{
+  "metrics": [
+    {
+      "method": "rag",
+      "cases": 120,
+      "case_correct": 83,
+      "case_pending_review": 0,
+      "new_tp": 50,
+      "new_fp_judged": 0,
+      "new_fn": 59,
+      "resolved_tp": 81,
+      "resolved_fp_judged": 2,
+      "resolved_fn": 28,
+      "clean_false_alarm": 0,
+      "search_hit": 196,
+      "search_total": 354,
+      "quotes": 447,
+      "valid_quotes": 434,
+      "case_accuracy": 0.6916666666666667,
+      "correct_by_type": {
+        "clean": 40,
+        "new": 18,
+        "resolved": 25
+      },
+      "unjudged_findings": 0
+    },
+    {
+      "method": "pr_graph_rag",
+      "cases": 120,
+      "case_correct": 78,
+      "case_pending_review": 3,
+      "new_tp": 65,
+      "new_fp_judged": 1,
+      "new_fn": 44,
+      "resolved_tp": 78,
+      "resolved_fp_judged": 14,
+      "resolved_fn": 31,
+      "clean_false_alarm": 3,
+      "search_hit": 240,
+      "search_total": 354,
+      "quotes": 552,
+      "valid_quotes": 538,
+      "case_accuracy": null,
+      "correct_by_type": {
+        "clean": 35,
+        "new": 21,
+        "resolved": 22
+      },
+      "unjudged_findings": 6
+    },
+    {
+      "method": "domain_graph_rag",
+      "cases": 120,
+      "case_correct": 93,
+      "case_pending_review": 0,
+      "new_tp": 60,
+      "new_fp_judged": 0,
+      "new_fn": 49,
+      "resolved_tp": 97,
+      "resolved_fp_judged": 1,
+      "resolved_fn": 12,
+      "clean_false_alarm": 0,
+      "search_hit": 226,
+      "search_total": 354,
+      "quotes": 549,
+      "valid_quotes": 537,
+      "case_accuracy": 0.775,
+      "correct_by_type": {
+        "clean": 40,
+        "new": 20,
+        "resolved": 33
+      },
+      "unjudged_findings": 0
+    }
+  ],
+  "model_evaluation_performed": true,
+  "scope": "AI draft controlled issue list; additional findings require review; no completeness claim",
+  "scorer_sha256": "0fbc4bdc54a481f90f7e666b5f703cdd8ca21df26eaeec962c05ce3a1d2a5385"
+}

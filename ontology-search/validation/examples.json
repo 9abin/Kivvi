@@ -1,0 +1,405 @@
+{
+  "domain": {
+    "anchor": "24024:30",
+    "method": "domain",
+    "candidate_count": 6,
+    "results": [
+      {
+        "id": "24010:43",
+        "document": "취업규칙",
+        "label": "제43조",
+        "paths": [
+          {
+            "domain_key": "휴직",
+            "seed_concept": "육아휴직",
+            "concept": "육아휴직",
+            "attrs": [
+              "대상",
+              "제외",
+              "주체"
+            ],
+            "rel": "근거",
+            "logical_item_id": "24010:43-1-0-0",
+            "origin": "user_original"
+          },
+          {
+            "domain_key": "휴직",
+            "seed_concept": "육아휴직",
+            "concept": "육아휴직",
+            "attrs": [
+              "기간",
+              "분할"
+            ],
+            "rel": "근거",
+            "logical_item_id": "24010:43-2-0-0",
+            "origin": "user_original"
+          }
+        ]
+      },
+      {
+        "id": "24010:26",
+        "document": "취업규칙",
+        "label": "제26조",
+        "paths": [
+          {
+            "domain_key": "휴직",
+            "seed_concept": "육아휴직",
+            "concept": "휴직",
+            "attrs": [
+              "보수"
+            ],
+            "rel": "근거",
+            "logical_item_id": "24010:26-0-0-0",
+            "origin": "user_original"
+          }
+        ]
+      },
+      {
+        "id": "24047:11",
+        "document": "급여규정",
+        "label": "제11조",
+        "paths": [
+          {
+            "domain_key": "휴직",
+            "seed_concept": "육아휴직",
+            "concept": "휴직",
+            "attrs": [
+              "보수"
+            ],
+            "rel": "근거",
+            "logical_item_id": "24047:11-1-0-0",
+            "origin": "user_original"
+          }
+        ]
+      }
+    ],
+    "stats": {
+      "all_edges": 1997,
+      "user_original_edges": 151,
+      "source_checked_active_new_edges": 1766,
+      "all_head_bindings": 516,
+      "algorithm_version": "all-seed-domain-keys-v1",
+      "domain_keys": [
+        "보수",
+        "인사",
+        "휴가",
+        "휴직"
+      ]
+    }
+  },
+  "scoped": {
+    "anchor": "24024:30",
+    "method": "scoped",
+    "candidate_count": 114,
+    "results": [
+      {
+        "id": "48440:별표2",
+        "document": "승진지침",
+        "label": "별표2",
+        "paths": [
+          [
+            {
+              "source": "24024:30",
+              "target": "48440:별표2",
+              "relation": "specific_reference_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제30조"
+            }
+          ],
+          [
+            {
+              "source": "24024:30",
+              "target": "48440:별표2",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            }
+          ]
+        ]
+      },
+      {
+        "id": "23245:별표2",
+        "document": "감사지침",
+        "label": "별표2",
+        "paths": [
+          [
+            {
+              "source": "24024:30",
+              "target": "23623:3",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            },
+            {
+              "source": "23623:3",
+              "target": "23245:별표2",
+              "relation": "specific_reference_in",
+              "hop": 2,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제3조제2항"
+            }
+          ],
+          [
+            {
+              "source": "24024:30",
+              "target": "23623:3",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            },
+            {
+              "source": "23623:3",
+              "target": "50897:36",
+              "relation": "specific_reference_out",
+              "hop": 2,
+              "impact_gate": true,
+              "reason": "영향 조항이 명시적으로 인용하는 적용 근거다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제36조"
+            },
+            {
+              "source": "50897:36",
+              "target": "23245:별표2",
+              "relation": "specific_reference_in",
+              "hop": 3,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제36조"
+            }
+          ]
+        ]
+      },
+      {
+        "id": "23926:별표1",
+        "document": "해외 파견 업무처리 및 해외사무소 운영지침",
+        "label": "별표1",
+        "paths": [
+          [
+            {
+              "source": "24024:30",
+              "target": "23926:5",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            },
+            {
+              "source": "23926:5",
+              "target": "23926:별표1",
+              "relation": "specific_reference_in",
+              "hop": 2,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제5조"
+            }
+          ],
+          [
+            {
+              "source": "24024:30",
+              "target": "23926:5",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            },
+            {
+              "source": "23926:5",
+              "target": "23926:별표1",
+              "relation": "specific_reference_in",
+              "hop": 2,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제5조"
+            },
+            {
+              "source": "23926:별표1",
+              "target": "23926:5",
+              "relation": "specific_reference_out",
+              "hop": 3,
+              "impact_gate": true,
+              "reason": "영향 조항이 명시적으로 인용하는 적용 근거다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제5조"
+            },
+            {
+              "source": "23926:5",
+              "target": "23926:별표1",
+              "relation": "specific_reference_in",
+              "hop": 4,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제5조"
+            }
+          ]
+        ]
+      }
+    ],
+    "stats": {
+      "enqueued": 128,
+      "processed": 128,
+      "edges_examined": 386,
+      "duplicate_event_skips": 239,
+      "extra_hop_expansions": 94,
+      "self_or_root_skips": 20,
+      "fanout_trimmed": 8,
+      "gate_stops": 33,
+      "visited_nodes": 115,
+      "candidate_nodes": 114,
+      "expandable_candidate_edges": 352,
+      "weak_delegation_candidate_filtered": 164,
+      "intermediate_document_fanout_blocked": 1244,
+      "terminal_candidate_edges": 42,
+      "inactive_source_reference_blocked": 16,
+      "inactive_source_delegation_blocked": 145,
+      "gating_from_candidate_depth": 1
+    }
+  },
+  "scoped_seed": {
+    "anchor": "24024:30",
+    "method": "scoped",
+    "candidate_count": 107,
+    "results": [
+      {
+        "id": "48440:별표2",
+        "document": "승진지침",
+        "label": "별표2",
+        "paths": [
+          [
+            {
+              "source": "24024:30",
+              "target": "48440:별표2",
+              "relation": "specific_reference_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제30조"
+            }
+          ],
+          [
+            {
+              "source": "24024:30",
+              "target": "48440:별표2",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            }
+          ]
+        ]
+      },
+      {
+        "id": "23245:별표2",
+        "document": "감사지침",
+        "label": "별표2",
+        "paths": [
+          [
+            {
+              "source": "24024:30",
+              "target": "23623:3",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            },
+            {
+              "source": "23623:3",
+              "target": "23245:별표2",
+              "relation": "specific_reference_in",
+              "hop": 2,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제3조제2항"
+            }
+          ],
+          [
+            {
+              "source": "24024:30",
+              "target": "23623:3",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            },
+            {
+              "source": "23623:3",
+              "target": "50897:36",
+              "relation": "specific_reference_out",
+              "hop": 2,
+              "impact_gate": true,
+              "reason": "영향 조항이 명시적으로 인용하는 적용 근거다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제36조"
+            },
+            {
+              "source": "50897:36",
+              "target": "23245:별표2",
+              "relation": "specific_reference_in",
+              "hop": 3,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제36조"
+            }
+          ]
+        ]
+      },
+      {
+        "id": "23926:별표1",
+        "document": "해외 파견 업무처리 및 해외사무소 운영지침",
+        "label": "별표1",
+        "paths": [
+          [
+            {
+              "source": "24024:30",
+              "target": "23926:5",
+              "relation": "regulation_delegation_in",
+              "hop": 1,
+              "impact_gate": true,
+              "reason": "규정 전체를 참조하며 같은 변경 주제어가 있다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "인사규정"
+            },
+            {
+              "source": "23926:5",
+              "target": "23926:별표1",
+              "relation": "specific_reference_in",
+              "hop": 2,
+              "impact_gate": true,
+              "reason": "변경된 기준을 번호로 직접 참조하므로 재검토가 필요하다. | 문장 범위 일치: True; 후보 표시와 추가 확장은 별도.",
+              "evidence": "제5조"
+            }
+          ]
+        ]
+      }
+    ],
+    "stats": {
+      "enqueued": 119,
+      "processed": 119,
+      "edges_examined": 303,
+      "duplicate_event_skips": 167,
+      "extra_hop_expansions": 84,
+      "self_or_root_skips": 18,
+      "fanout_trimmed": 5,
+      "gate_stops": 34,
+      "visited_nodes": 108,
+      "candidate_nodes": 107,
+      "expandable_candidate_edges": 261,
+      "weak_delegation_candidate_filtered": 180,
+      "intermediate_document_fanout_blocked": 1108,
+      "terminal_candidate_edges": 47,
+      "unrelated_source_item_schema_blocked": 23,
+      "inactive_source_reference_blocked": 10,
+      "inactive_source_delegation_blocked": 160,
+      "gating_from_candidate_depth": 1
+    }
+  }
+}

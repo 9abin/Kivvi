@@ -25,6 +25,21 @@ def _date_pat(date: str) -> str:
     return rf"{y}\s*\.\s*0?{m}\s*\.\s*0?{d}"
 
 
+def events(reg: dict) -> list[str]:
+    """이 규정에서 재현할 수 있는 개정일 (조 신설·번호 이동 표시가 있는 날). 'YYYY.M.D'"""
+    dates = set()
+    for a in reg["articles"]:
+        text = a["text"] + " " + " ".join(a.get("amend_notes", []))
+        for m in re.finditer(r"(?:본조신설|이동)[^<>\[\]]*?(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})", text):
+            dates.add(".".join(str(int(x)) for x in m.groups()))
+    out = []
+    for d in sorted(dates, key=lambda s: tuple(int(x) for x in s.split("."))):
+        note = reconstruct(reg, d)[2]
+        if note["moved"] or note["inserted"]:
+            out.append(d)
+    return out
+
+
 def reconstruct(reg: dict, date: str) -> tuple[dict, str, dict]:
     """(그날 이전 규정, 그날 개정문, 설명) — 번호 이동·신설만 재현"""
     dp = _date_pat(date)

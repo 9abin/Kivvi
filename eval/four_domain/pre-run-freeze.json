@@ -1,0 +1,10 @@
+{
+  "inputs.jsonl": "1240d7f119ab94a8e8999affecfce8da49bb56892690bf8417f27ed8d48fea39",
+  "gold.jsonl": "f0d01d81c1097916ddb7d2f111c9894ede9bee935b35531ad125e744fa56fc21",
+  "base_corpus.jsonl": "a7489c394895ed3099ec64c9cb251a2350f13010783803203144e766b8e1a8bb",
+  "score_results.py": "0fbc4bdc54a481f90f7e666b5f703cdd8ca21df26eaeec962c05ce3a1d2a5385",
+  "validated_graph.py": "6114e8844deb61a68e8b750016f49734816e3ee48dbe18827a432ae184e253f9",
+  "domain_ontology.reviewed.db": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+  "hyujik-user-original.db": "e7d1c80787900ddb790925bccc1e4f37cfe6cbc8ae5cfa371182933310b95384",
+  "questions.md": "ba23bebc2aca73d73c97a567855993f965b9d94ef1fe2ecad3b8ba7a24ac582e"
+}

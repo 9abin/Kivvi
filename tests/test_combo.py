@@ -43,6 +43,17 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(d[0], 0.0)
         self.assertEqual((d[1], d[2]), (0.0, 0.0))
 
+    def test_paired_diff_cluster(self):
+        # 작업 3개: (a 맞은 수, a 전체, b 맞은 수, b 전체). a가 모든 작업에서 b보다 1개 많다
+        rows = [(3, 4, 2, 4), (2, 3, 1, 3), (4, 5, 3, 5)]
+        d, lo, hi = M.paired_diff_cluster(rows, n=200)
+        self.assertAlmostEqual(d, 3 / 12)
+        self.assertLessEqual(lo, d)
+        self.assertGreaterEqual(hi, d)
+        same = M.paired_diff_cluster([(1, 2, 1, 2), (2, 2, 2, 2)], n=50)
+        self.assertEqual(same, (0.0, 0.0, 0.0))
+        self.assertIsNone(M.paired_diff_cluster([(0, 0, 0, 0)]))
+
 
 class ConfigAndHelpersTest(unittest.TestCase):
     def test_strip_think(self):

@@ -1,0 +1,153 @@
+{
+  "created_date": "2026-11-10",
+  "purpose": "Portable ontology retrieval source folder; run directly from this folder. Not a complete application or benchmark bundle.",
+  "algorithm_changes": false,
+  "files": [
+    {
+      "source": "eval/four_domain/validated_graph.py",
+      "destination": "ontology_search/validated_graph.py",
+      "source_sha256": "6114e8844deb61a68e8b750016f49734816e3ee48dbe18827a432ae184e253f9",
+      "packaged_sha256": "0431562c6282f418efa0023745742bab1ad523c6e8395f53143cb8d8d0829b0f",
+      "adapted": true
+    },
+    {
+      "source": "eval/four_domain/domain_key_graph.py",
+      "destination": "ontology_search/domain_key_graph.py",
+      "source_sha256": "95f761d5bfe69a1c655c49eae48a09541594d78c16c23fc1614c67008e34b35a",
+      "packaged_sha256": "ba3368b24bad3fba3b93ea6694c0966cbac4607dc8e919757db24386562a755b",
+      "adapted": true
+    },
+    {
+      "source": "eval/four_domain/propagating_graph.py",
+      "destination": "ontology_search/propagating_graph.py",
+      "source_sha256": "b0e80d29de39d6a207429df637a538635712973bae572936cb654dcb337cd071",
+      "packaged_sha256": "b0e80d29de39d6a207429df637a538635712973bae572936cb654dcb337cd071",
+      "adapted": false
+    },
+    {
+      "source": "eval/four_domain/scoped_propagating_graph.py",
+      "destination": "ontology_search/scoped_propagating_graph.py",
+      "source_sha256": "dcf1fc27ca7b5bd2559611e869663455a720ca8fbf77444274f8920ddec46c63",
+      "packaged_sha256": "988aba8678fc8bb03a4cde821a0d6f89a9055ee7a41b9dd35aab5e90b32bbfbe",
+      "adapted": true
+    },
+    {
+      "source": "eval/four_domain/support/bm25.py",
+      "destination": "ontology_search/bm25.py",
+      "source_sha256": "67fddd70448ed93e27ef857345b712d199aa8611513e8a5e5f5c000614f440bd",
+      "packaged_sha256": "67fddd70448ed93e27ef857345b712d199aa8611513e8a5e5f5c000614f440bd",
+      "adapted": false
+    },
+    {
+      "source": "eval/four_domain/schema.sql",
+      "destination": "data/schema.sql",
+      "source_sha256": "09b3a44fd9f36e2de48aa891169e4b80c1cad6ed7750323913bc0b394644041f",
+      "packaged_sha256": "09b3a44fd9f36e2de48aa891169e4b80c1cad6ed7750323913bc0b394644041f",
+      "adapted": false
+    },
+    {
+      "source": "eval/four_domain/domain_ontology.reviewed.db",
+      "destination": "data/ontology.db",
+      "source_sha256": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+      "packaged_sha256": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+      "adapted": false
+    },
+    {
+      "source": "eval/domain_set_40_corrected_20261110/evaluation-20261110/common/corpus.jsonl",
+      "destination": "data/corpus.jsonl",
+      "source_sha256": "219cbfe50adff81b81e7c5314259519c9c99bbacd3b9bc5cf28b4293ccc1b354",
+      "packaged_sha256": "219cbfe50adff81b81e7c5314259519c9c99bbacd3b9bc5cf28b4293ccc1b354",
+      "adapted": false
+    },
+    {
+      "source": "out/chunks.jsonl",
+      "destination": "data/references.jsonl",
+      "source_sha256": "3be77cd2e8a76b46d0c48ca9cf13d69eda028bc949f8734fcb9ca0730fca6f69",
+      "packaged_sha256": "bf2d7cdaadc754f9a67784d0303edb2e5ee67f72088cd28092e6a94d93f65485",
+      "adapted": true,
+      "transformation": "Retain internal citation type, target and source quote plus source article identifiers; omit unused chunk bodies."
+    },
+    {
+      "source": "eval/four_domain/test_propagating_graph.py",
+      "destination": "tests/test_propagating_graph.py",
+      "source_sha256": "c85a93c8c2c14659cf4ef0468eef1b200994a604283afdb4bf905b33959c3be6",
+      "packaged_sha256": "f2d299fc4ba21fa081599f21a877f630b60e18f53b329b6935e7fa9e4fb968b4",
+      "adapted": true
+    },
+    {
+      "source": "eval/four_domain/test_scoped_propagating_graph.py",
+      "destination": "tests/test_scoped_propagating_graph.py",
+      "source_sha256": "1894efce4a1e73fc79fc6c2c8f4d8a319a7bcf1c3534451b8127b12f98b3afda",
+      "packaged_sha256": "d0421c949c3999596a890e7b01af5de2fdd3b7efd2bed388627c773c24adfe35",
+      "adapted": true
+    },
+    {
+      "source": "eval/four_domain/test_domain_key_graph.py",
+      "destination": "tests/domain_checks.py",
+      "source_sha256": "ba78403b586ff9077203f790c75fdb31a546b52279e35a7dd8cd328221d0deb4",
+      "packaged_sha256": "d7ed48d0da74ca178a4e3eb18b74dfe467cda696454ab55cfb5a516d8b31ae5a",
+      "adapted": true
+    }
+  ],
+  "additional_files": [
+    {
+      "path": ".gitattributes",
+      "sha256": "504d8a7a6d7a4f62ad20c6d7f5872d578743dfb0d3c193e9e2a8e0547b2d794e"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "571226e0f699b045da7771aebf945c1eb8e1e793a9cb94baba32ee0851172c26"
+    },
+    {
+      "path": "data/README.md",
+      "sha256": "95d197a48c82d48c4dcd36ee94e073f8a5ac0ec5f5741556197c71b2d6b2e0ba"
+    },
+    {
+      "path": "ontology_search/__init__.py",
+      "sha256": "2767e8225ecf0bc6e3bfa8131a352ce63d79ac4c0d93a36d92f22fc13032e736"
+    },
+    {
+      "path": "prompts/impact_rerank.txt",
+      "sha256": "50dfe49af81226248beb6ac2b76393a24f7c31b04e27a411acf0936565c808b3"
+    },
+    {
+      "path": "prompts/README.md",
+      "sha256": "90a5e471b3593b897979b62f19179c7db636f12f4a91710f127ff11e5818cbca"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "31094737de20b5cca999bbec13ec4ece9b2d062091a01e3ba7bfc3c464641d8e"
+    },
+    {
+      "path": "README.md",
+      "sha256": "40d4f0c710118b5dd1ff897083a3fc4af80630d2c84be014ef561037c262054b"
+    },
+    {
+      "path": "run.py",
+      "sha256": "4d47e677accfa60c12bde1edf4098d59c0df6e3e3bfc4300978bcbd19046c13e"
+    },
+    {
+      "path": "tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "tests/test_domain_keys.py",
+      "sha256": "75e6cb91c2b549abe8f614b776e26ff8b77ce2f505e55ad2f7599ce3dda915b7"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "6641155372b9a86fe611f69f3849fdab348e8e4a005a20b432761603248eeb91"
+    },
+    {
+      "path": "검증_및_전체_플로우.md",
+      "sha256": "bc3aa0cc7f8c16f5308366401dfb6f0240f13a140eea861ffd63c694c11cc4cf"
+    }
+  ],
+  "verification": {
+    "existing_regression_tests_passed": 14,
+    "domain_cli_smoke": true,
+    "scoped_cli_smoke": true,
+    "original_source_hashes_preserved": true
+  },
+  "followup_note": "Added standalone verifier, validation documentation and reference reranking prompt; README and package ignore rules updated. Algorithms and source data unchanged."
+}

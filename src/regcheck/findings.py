@@ -53,6 +53,59 @@ def from_edges(edges: list[dict]) -> list[dict]:
     return out
 
 
+BASIS = {"rule": "문서 명시", "law_db": "문서 명시", "history": "문서 명시", "semantic": "모델 추정"}
+
+
+def attach_relocate(found: list[dict], reloc: dict) -> list[dict]:
+    """「옮겨 간 곳 찾기」 결과(scripts/build_relocate.py)를 붙인다. 판정이 아니라 후보.
+      · 원문 이동 표시로 찾음 → 제안(문서 명시)
+      · 재탐색에서 지금 인용한 그 조가 1위 → 인용이 맞을 가능성이 커 「참고」 (261015 판정 표본 4건 모두 오탐)
+      · 인용한 규정 안에서 맞는 조를 못 찾음 → 근거 소멸 가능성
+    """
+    from .review import key_baseline
+
+    for f in found:
+        x = reloc.get(key_baseline(f))
+        if not x:
+            continue
+        cands = x["candidates"][:3]
+        f["relocate"] = {"kind": x["kind"], "found": x["found"],
+                         "candidates": [{k: c[k] for k in ("reg_name", "label", "title", "score", "tier")} for c in cands]}
+        top = cands[0] if cands else None
+        if x["kind"] == "인용한 그 조가 1위":
+            f["priority"] = "참고"
+            f["note"] = (f.get("note") or "") + " / 재탐색: 지금 인용한 조가 내용상 가장 잘 맞음 (인용이 맞을 가능성)"
+        elif x["kind"] == "못 찾음":
+            f["note"] = (f.get("note") or "") + " / 재탐색: 인용한 규정 안에서 맞는 조를 못 찾음 (근거 소멸 가능성)"
+        elif top:
+            # 후보 간 점수 차가 작아 1위를 믿기 어려우면 알림만 덧붙인다. 제안을 숨기지는 않는다: 정답 원장 제안 일치가 숨길 때
+            # 17/26 → 12/19로 같은 비율이 줄었다 (숨긴 7건 중 5건이 정답, 리포트 48). 표본이 작아 다음 표본에서 다시 본다
+            if not f.get("suggest") or x["kind"] == "문서 명시":   # 원문 이동 표시는 모델 추정 제안보다 확실 → 덮어씀
+                f["suggest"] = top["label"] if top["reg_name"] == x.get("target") else f"{top['reg_name']} {top['label']}"
+            f["note"] = (f.get("note") or "") + f" / 옮겨 간 곳 후보: {top['reg_name']} {top['label']}({top['title']}) [{top['tier']}]" + (
+                "" if x.get("confident", True) else f" — 후보 간 점수 차가 작아 확실하지 않음({x.get('gap', 0):.2f})")
+    return found
+
+
+def tier(found: list[dict]) -> list[dict]:
+    """근거 종류(basis)를 붙이고, 원문 대조 정밀도 표본에서 오탐만 나온 묶음을 「참고」로 내린다 (지우지 않음 — 재현율 유지).
+      · 의미 비교만 근거(벡터 1단계, 개정 이력 신호 없음): 261015 표본 2차례 13건 중 실제 문제 0 → 참고
+      · 부칙 안의 대상 없음·규정명 미확인·대상 불일치: 옛 번호·옛 이름 경과조치일 수 있음 (02-specs 제외 원칙, 부칙 정책 미정) → 참고
+    """
+    for f in found:
+        f["basis"] = BASIS.get(f.get("method"), "문서 명시")
+        both = "개정 이력" in (f.get("note") or "")   # 의미 비교와 개정 이력, 서로 독립인 두 신호가 겹침
+        if f.get("method") == "semantic" and f.get("priority") == "낮음" and not both:
+            f["priority"] = "참고"
+        elif f.get("method") in ("semantic", "history") and f.get("priority") == "높음" and not (f["method"] == "semantic" and both):
+            # 높음은 두 신호가 겹칠 때만 (261015 표본: 설명구만 1/4, 개정 이력만 0/2 — week1에 맞춘 기준이 넘침). 신호 하나면 중간
+            f["priority"] = "중간"
+        elif f.get("unit") == "부칙" and f["type"] in ("인용_대상없음", "규정명_미확인", "인용_대상불일치"):
+            f["priority"] = "참고"
+            f["note"] = (f.get("note") or "") + " / 부칙의 옛 번호·이름일 수 있음 (경과조치)"
+    return found
+
+
 def from_semantic(rows: list[dict]) -> list[dict]:
     """scripts/semantic_check.py 의 '대상 불일치 후보' (설명구 + reranker)."""
     out = []

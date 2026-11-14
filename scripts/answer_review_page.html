@@ -1,0 +1,408 @@
+<title>KVIC 답변 검토</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* 레이아웃: 위에 요약(판정 막대 · 지표), 그 아래 필터, 질문 카드 목록. 카드를 열면 답변 → 채점 → 정답 근거 → 메모 순서 */
+:root {
+  --bg: #f3f4f1; --surface: #ffffff; --sunk: #eceee9; --fg: #1b2124; --muted: #5d676c; --line: #d6dad3;
+  --accent: #1d5f6b; --accent-soft: #dcebed; --memo: #fff6d6; --memo-line: #e9d58f; --memo-fg: #6b5410;
+  --ok: #1a6b40; --ok-bg: #dff1e6; --part: #865a00; --part-bg: #f8ecd0; --bad: #a32b2b; --bad-bg: #f7e0de;
+  --none: #4b5560; --none-bg: #e4e7eb; --cite: #fff0a6;
+  --sans: "IBM Plex Sans KR", "Noto Sans KR", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131719; --surface: #1b2124; --sunk: #161b1d; --fg: #e6eaeb; --muted: #98a3a8; --line: #30393d;
+    --accent: #79c0cc; --accent-soft: #1d3539; --memo: #332c12; --memo-line: #5c4f1d; --memo-fg: #f0d888;
+    --ok: #74d39f; --ok-bg: #173627; --part: #eec463; --part-bg: #3a2f15; --bad: #ff9590; --bad-bg: #40201f;
+    --none: #b7c1cb; --none-bg: #283037; --cite: #5a4d10; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131719; --surface: #1b2124; --sunk: #161b1d; --fg: #e6eaeb; --muted: #98a3a8; --line: #30393d;
+  --accent: #79c0cc; --accent-soft: #1d3539; --memo: #332c12; --memo-line: #5c4f1d; --memo-fg: #f0d888;
+  --ok: #74d39f; --ok-bg: #173627; --part: #eec463; --part-bg: #3a2f15; --bad: #ff9590; --bad-bg: #40201f;
+  --none: #b7c1cb; --none-bg: #283037; --cite: #5a4d10; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.6; font-size: 15px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 64px; }
+.wrap { max-width: 940px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font-size: 1.5rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h2 { font-size: 0.75rem; margin: 0; color: var(--muted); letter-spacing: 0.06em; font-weight: 700; }
+.sub { color: var(--muted); font-size: 0.8125rem; margin: 2px 0 0; overflow-wrap: anywhere; }
+.mono { font-family: var(--mono); }
+.summary { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 14px; }
+.bar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: var(--sunk); }
+.bar span { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.8125rem; color: var(--muted); }
+.legend b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { display: grid; gap: 2px; }
+.stat .k { font-size: 0.75rem; color: var(--muted); }
+.stat .v { font-size: 1.125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat .n { font-size: 0.75rem; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: inherit; font-size: 0.875rem; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 5px 13px; cursor: pointer; display: inline-flex; gap: 7px; align-items: baseline; }
+.chip b { font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.tools select, .tools input, .memo-form select, .memo-form textarea { font: inherit; font-size: 0.875rem; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); min-width: 0; }
+.tools input { grid-column: 1 / -1; }
+:is(.chip, select, input, textarea, button, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.count { color: var(--muted); font-size: 0.8125rem; }
+.list { display: grid; gap: 8px; }
+details.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+details.card[open] { border-color: var(--accent); }
+details.card > summary { list-style: none; cursor: pointer; padding: 11px 14px; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; align-items: baseline; }
+summary::-webkit-details-marker { display: none; }
+.qid { font-family: var(--mono); font-size: 0.8125rem; color: var(--muted); }
+.qtext { font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 0.8125rem; color: var(--muted); }
+.pill { border-radius: 999px; padding: 0 9px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.v-정답 { background: var(--ok-bg); color: var(--ok); } .v-부분 { background: var(--part-bg); color: var(--part); }
+.v-오답 { background: var(--bad-bg); color: var(--bad); } .v-답못함, .v-채점실패 { background: var(--none-bg); color: var(--none); }
+.flag { border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; font-size: 0.6875rem; white-space: nowrap; }
+.flag.f-해석 { border-color: var(--part); color: var(--part); } .flag.f-부재 { color: var(--muted); } .flag.f-law { border-color: var(--accent); color: var(--accent); }
+.nbadge { background: var(--memo); color: var(--memo-fg); border: 1px solid var(--memo-line); border-radius: 4px; padding: 0 6px; font-size: 0.6875rem; font-weight: 700; }
+.body { border-top: 1px solid var(--line); padding: 14px; display: grid; gap: 14px; min-width: 0; }
+.body h3 { margin: 0 0 6px; font-size: 0.75rem; color: var(--muted); letter-spacing: 0.05em; }
+.answer { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--sunk); border-radius: 6px; padding: 12px; font-size: 0.9375rem; }
+.cite { font-family: var(--mono); font-size: 0.8125rem; color: var(--muted); }
+.cite.g { background: var(--cite); color: var(--fg); border-radius: 3px; padding: 0 2px; }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.verdict-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
+ul.pts { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+ul.pts li { display: grid; grid-template-columns: 4.2em 1fr; gap: 8px; align-items: baseline; overflow-wrap: anywhere; font-size: 0.9375rem; }
+.tag { font-size: 0.6875rem; font-weight: 700; border-radius: 4px; padding: 1px 5px; text-align: center; white-space: nowrap; }
+.t-ok { background: var(--ok-bg); color: var(--ok); } .t-bad { background: var(--bad-bg); color: var(--bad); } .t-none { background: var(--none-bg); color: var(--none); }
+.gold { display: grid; gap: 2px; padding: 8px 0; border-top: 1px dashed var(--line); font-size: 0.875rem; overflow-wrap: anywhere; }
+.gold:first-of-type { border-top: 0; padding-top: 0; }
+.gold .head { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.gold .q { color: var(--muted); font-size: 0.8125rem; }
+.note-check { background: var(--part-bg); color: var(--part); border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; overflow-wrap: anywhere; }
+.note-law { background: var(--accent-soft); color: var(--fg); border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; }
+.small { color: var(--muted); font-size: 0.8125rem; overflow-wrap: anywhere; }
+details.more > summary { cursor: pointer; color: var(--accent); font-size: 0.8125rem; }
+ul.entries { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 0.8125rem; }
+ul.entries li.g { background: var(--cite); border-radius: 3px; padding: 0 4px; }
+.warn { background: var(--part-bg); color: var(--part); border-radius: 6px; padding: 8px 12px; font-size: 0.8125rem; overflow-wrap: anywhere; }
+/* 메모: 노란 메모지 한 장. 질문마다 여러 사람이 남긴다 */
+.memo { background: var(--memo); border: 1px solid var(--memo-line); border-radius: 8px; padding: 12px; display: grid; gap: 10px; }
+.memo h3 { color: var(--memo-fg); margin: 0; }
+.notes { display: grid; gap: 8px; }
+.n-item { display: grid; gap: 2px; border-bottom: 1px dashed var(--memo-line); padding-bottom: 8px; }
+.n-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.n-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 0.75rem; color: var(--memo-fg); }
+.n-label { font-weight: 700; }
+.n-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.9375rem; }
+.n-del { font: inherit; font-size: 0.75rem; background: none; border: 0; color: var(--memo-fg); text-decoration: underline; cursor: pointer; padding: 0; margin-left: auto; }
+.memo-form { display: grid; grid-template-columns: minmax(0, 11em) 1fr; gap: 8px; align-items: start; }
+.memo-form textarea { grid-column: 1 / -1; min-height: 4.2em; resize: vertical; }
+.memo-form .row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.btn { font: inherit; font-size: 0.875rem; font-weight: 700; border: 0; border-radius: 6px; padding: 7px 16px; background: var(--accent); color: var(--surface); cursor: pointer; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.m-status { font-size: 0.8125rem; color: var(--memo-fg); }
+.empty { color: var(--muted); padding: 32px 0; text-align: center; }
+@media (max-width: 480px) { .memo-form { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>KVIC 답변 검토</h1>
+    <p class="sub" id="sub"></p>
+  </header>
+
+  <section class="summary" aria-label="요약">
+    <div class="bar" id="bar"></div>
+    <div class="legend" id="legend"></div>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <div class="chips" id="chips" role="group" aria-label="판정으로 거르기"></div>
+  <div class="tools">
+    <select id="f-type" aria-label="질문 유형"></select>
+    <select id="f-check" aria-label="현업 확인"></select>
+    <select id="f-src" aria-label="정답 근거 확보"></select>
+    <select id="f-memo" aria-label="메모"></select>
+    <input id="f-q" type="search" placeholder="질문, 답변, 규정 이름, 메모 검색" aria-label="검색">
+  </div>
+  <div class="count" id="count"></div>
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const ROWS = D.rows, INFO = D.info, AGG = D.agg;
+const VERDICTS = ["정답", "부분", "오답", "답못함", "채점실패"];
+const VCOLOR = { 정답: "var(--ok)", 부분: "var(--part)", 오답: "var(--bad)", 답못함: "var(--none)", 채점실패: "var(--line)" };
+const LABELS = ["현업 확인 필요", "골든셋 수정", "답변 문제", "검색 문제", "기타"];
+const state = { verdict: "전체", type: "전체", check: "전체", src: "전체", memo: "전체", q: "" };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = (x) => (x == null ? "-" : (x * 100).toFixed(1) + "%");
+const BASE = /^\s*(제\s*\d+\s*조(?:\s*의\s*\d+)?|별표\s*\d*|별지\s*\d*|부칙)/;
+const base = (a) => { const m = BASE.exec(a || ""); return m ? m[1].replace(/\s+/g, "") : (a || "").trim(); };
+
+for (const d of ROWS) {
+  const must = d.gold.filter((g) => g.tier !== "보조");
+  d.mustHit = must.filter((g) => g.hit).length; d.mustN = must.length;
+  d.allHit = must.length > 0 && d.mustHit === must.length;
+  d.hay = [d.id, d.q, d.answer, d.entries.map((e) => e.doc).join(" "), d.gold.map((g) => g.doc).join(" ")].join(" ").toLowerCase();
+}
+
+/* ---------- 메모 (Artifact db) ---------- */
+let db = null, userNs = null, myId = null, memoReady = false, memoMsg = "메모를 불러오는 중입니다.", readOnly = false;
+const notesByQ = new Map();
+const names = new Map();
+const editing = new Map();  // 수정 중인 메모: id → {text, label, qid}. 다른 사람 메모가 들어와 다시 그려도 입력 중인 내용을 지킨다
+
+function notesOf(qid) { return notesByQ.get(qid) || []; }
+
+async function resolveNames(ids) {
+  if (!userNs) return;
+  const need = ids.filter((i) => i && !names.has(i));
+  if (!need.length) return;
+  try { const ps = await userNs.profiles(need); for (const i of need) names.set(i, (ps[i] && ps[i].name) || "누군가"); } catch { /* 이름 없이 표시 */ }
+}
+
+function paintNotes(qid) {
+  const box = document.querySelector(`.memo[data-q="${qid}"]`);
+  const badge = document.querySelector(`.nbadge[data-q="${qid}"]`);
+  const list = notesOf(qid);
+  if (badge) { badge.hidden = !list.length; badge.textContent = `메모 ${list.length}`; }
+  if (!box) return;
+  const wrap = box.querySelector(".notes");
+  wrap.replaceChildren();
+  if (!list.length) {
+    const p = document.createElement("div"); p.className = "small"; p.style.color = "var(--memo-fg)";
+    p.textContent = memoReady ? "아직 메모가 없습니다. 아래에 첫 메모를 남겨 주세요." : memoMsg;
+    wrap.append(p);
+  }
+  for (const n of list) {
+    const item = document.createElement("div"); item.className = "n-item";
+    const head = document.createElement("div"); head.className = "n-head";
+    const lab = document.createElement("span"); lab.className = "n-label"; lab.textContent = n.label || "기타";
+    const who = document.createElement("span"); who.textContent = n.by ? (n.by === myId ? "나" : names.get(n.by) || "…") : "이름 없음";
+    const when = document.createElement("span"); when.textContent = n.at ? new Date(n.at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" }) : "";
+    head.append(lab, who, when);
+    const mine = myId && n.by === myId && !readOnly;
+    if (mine && !editing.has(n.id)) {
+      const ed = document.createElement("button"); ed.type = "button"; ed.className = "n-del"; ed.dataset.edit = n.id; ed.textContent = "수정";
+      const del = document.createElement("button"); del.type = "button"; del.className = "n-del"; del.style.marginLeft = "8px"; del.dataset.del = n.id; del.textContent = "지우기";
+      head.append(ed, del);
+    }
+    if (n.editedAt) { const e = document.createElement("span"); e.textContent = "(수정됨)"; head.insertBefore(e, head.querySelector("[data-edit]")); }
+    item.append(head);
+    if (mine && editing.has(n.id)) {
+      const box = document.createElement("div"); box.className = "memo-form"; box.dataset.editing = n.id;
+      const sel = document.createElement("select"); sel.setAttribute("aria-label", "메모 종류");
+      for (const l of LABELS) { const o = document.createElement("option"); o.textContent = l; sel.append(o); }
+      sel.value = editing.get(n.id).label; sel.dataset.editLabel = n.id;
+      const ta = document.createElement("textarea"); ta.setAttribute("aria-label", "메모 내용"); ta.value = editing.get(n.id).text; ta.dataset.editText = n.id;
+      const row = document.createElement("div"); row.className = "row";
+      const save = document.createElement("button"); save.type = "button"; save.className = "btn"; save.dataset.editSave = n.id; save.textContent = "수정 저장";
+      const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "n-del"; cancel.style.marginLeft = "0"; cancel.dataset.editCancel = n.id; cancel.textContent = "취소";
+      const st = document.createElement("span"); st.className = "m-status"; st.setAttribute("aria-live", "polite");
+      row.append(save, cancel, st); box.append(sel, ta, row); item.append(box);
+    } else {
+      const text = document.createElement("div"); text.className = "n-text"; text.textContent = n.text || "";
+      item.append(text);
+    }
+    wrap.append(item);
+  }
+  const form = box.querySelector("form.memo-form");
+  form.hidden = !db || readOnly;
+}
+
+function paintAllNotes() {
+  document.querySelectorAll(".memo[data-q]").forEach((el) => paintNotes(el.dataset.q));
+  ROWS.forEach((d) => { const b = document.querySelector(`.nbadge[data-q="${d.id}"]`); if (b) { const n = notesOf(d.id).length; b.hidden = !n; b.textContent = `메모 ${n}`; } });
+  const total = [...notesByQ.values()].reduce((s, a) => s + a.length, 0);
+  const opt = $("f-memo"); if (opt) opt.options[1].textContent = `메모 있음 (${[...notesByQ.values()].filter((a) => a.length).length}문항 · ${total}개)`;
+}
+
+async function initMemo() {
+  if (!window.claude || !window.claude.use) { memoMsg = "메모는 claude.ai에서 이 페이지를 열면 쓸 수 있습니다."; paintAllNotes(); return; }
+  try {
+    [db, userNs] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+  } catch { db = null; }
+  if (!db) { memoMsg = "이 화면에서는 메모를 쓸 수 없습니다. claude.ai에 로그인한 상태로 열어 주세요."; paintAllNotes(); return; }
+  try { myId = userNs ? await userNs.id() : null; } catch { myId = null; }
+  try { if (userNs && (await userNs.can("data.write")) === false) readOnly = true; } catch { /* 모르면 쓰기 시도 */ }
+  db.collection("notes").onSnapshot(async (snap) => {
+    notesByQ.clear();
+    for (const doc of snap.docs) {
+      const n = doc.data(); if (!n || typeof n.qid !== "string") continue;
+      if (!notesByQ.has(n.qid)) notesByQ.set(n.qid, []);
+      notesByQ.get(n.qid).push({ id: doc.id, ...n });
+    }
+    for (const a of notesByQ.values()) a.sort((x, y) => String(x.at).localeCompare(String(y.at)));
+    memoReady = true;
+    await resolveNames([...new Set([...notesByQ.values()].flat().map((n) => n.by))]);
+    for (const d of ROWS) d.memoHay = notesOf(d.id).map((n) => n.text + " " + n.label).join(" ").toLowerCase();
+    paintAllNotes();
+  }, (e) => { memoReady = false; memoMsg = "메모를 불러오지 못했습니다. 페이지를 다시 열어 주세요."; paintAllNotes(); });
+}
+
+async function saveNote(form) {
+  const qid = form.dataset.q, ta = form.querySelector("textarea"), sel = form.querySelector("select"), btn = form.querySelector("button"), st = form.querySelector(".m-status");
+  const text = ta.value.trim();
+  if (!text) { st.textContent = "메모 내용을 적어 주세요."; return; }
+  if (!db) { st.textContent = "이 화면에서는 저장할 수 없습니다."; return; }
+  btn.disabled = true; st.textContent = "저장 중…";
+  try {
+    await db.collection("notes").add({ qid, text: text.slice(0, 4000), label: sel.value, by: myId, at: new Date().toISOString() });
+    ta.value = ""; st.textContent = "저장했습니다.";
+  } catch (e) {
+    if (e && e.code === "invalid_argument") { readOnly = true; st.textContent = "이 페이지에 메모를 쓸 권한이 없습니다(보기 전용). 소유자에게 참여자 권한을 요청해 주세요."; paintAllNotes(); }
+    else if (e && e.code === "quota_exceeded") st.textContent = "메모 저장 공간이 찼습니다. 오래된 메모를 지운 뒤 다시 저장해 주세요.";
+    else st.textContent = "저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.";
+  } finally { btn.disabled = false; }
+}
+
+/* ---------- 요약 ---------- */
+function summary() {
+  const n = ROWS.length;
+  const cnt = Object.fromEntries(VERDICTS.map((v) => [v, ROWS.filter((d) => d.verdict === v).length]));
+  $("sub").innerHTML = `${esc(INFO.label)} · <span class="mono">${esc(INFO.combo)}</span> · 답변 ${esc(INFO.answer_model)} · 근거 ${esc(INFO.k)}개 · 채점 ${esc(INFO.judge_model)} · ${esc(INFO.time)}`;
+  $("bar").innerHTML = VERDICTS.filter((v) => cnt[v]).map((v) => `<span title="${v} ${cnt[v]}" style="width:${(cnt[v] / n) * 100}%;background:${VCOLOR[v]}"></span>`).join("");
+  $("legend").innerHTML = VERDICTS.filter((v) => cnt[v] || v !== "채점실패").map((v) => `<span><i class="dot" style="background:${VCOLOR[v]}"></i>${v} <b>${cnt[v]}</b></span>`).join("");
+  const core = ROWS.filter((d) => d.check !== "해석");
+  const coreOk = core.filter((d) => d.verdict === "정답").length;
+  const stats = [
+    ["정답", `${cnt["정답"]} / ${n}`, `부분 포함 ${cnt["정답"] + cnt["부분"]}`],
+    ["정답 (해석 문항 제외)", `${coreOk} / ${core.length}`, "현업확인 = 해석 18문항 제외"],
+    ["필수 요지 충족률", pct(AGG.core_point_fill), "문항 평균"],
+    ["금지 내용 위반", pct(AGG.forbidden_violation_rate), "틀린 단정"],
+    ["답할 수 없는 질문 거절", pct(AGG.refusal_accuracy), `${AGG.n_unanswerable ?? "-"}문항`],
+    ["인용 정확도", pct(AGG.citation_accuracy), `인용 ${AGG.citations ?? "-"}개`],
+    ["답변 시간 p50", AGG.sec_answer && AGG.sec_answer.p50 != null ? AGG.sec_answer.p50.toFixed(1) + "초" : "-", AGG.sec_answer && AGG.sec_answer.p95 != null ? `p95 ${AGG.sec_answer.p95.toFixed(1)}초` : ""],
+  ];
+  $("stats").innerHTML = stats.map(([k, v, s]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span><span class="n">${esc(s)}</span></div>`).join("");
+}
+
+/* ---------- 필터 ---------- */
+function fill() {
+  const mk = (label, n) => `<button class="chip" type="button" data-v="${label}" aria-pressed="${state.verdict === label}">${label} <b>${n}</b></button>`;
+  $("chips").innerHTML = mk("전체", ROWS.length) + VERDICTS.filter((v) => v !== "채점실패" || ROWS.some((d) => d.verdict === v)).map((v) => mk(v, ROWS.filter((d) => d.verdict === v).length)).join("");
+  const opts = (id, arr) => { $(id).innerHTML = arr.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join(""); };
+  opts("f-type", [["전체", "유형: 전체"], ...[...new Set(ROWS.map((d) => d.type))].map((t) => [t, t])]);
+  opts("f-check", [["전체", "현업 확인: 전체"], ["해석", "해석이 들어간 정답"], ["부재", "규정에 없다는 정답"], ["", "표시 없음"]]);
+  opts("f-src", [["전체", "정답 근거: 전체"], ["다", "필수 근거를 모두 넘김"], ["빠짐", "필수 근거가 빠짐"]]);
+  opts("f-memo", [["전체", "메모: 전체"], ["있음", "메모 있음"], ["없음", "메모 없음"]]);
+  $("f-type").value = state.type; $("f-check").value = state.check; $("f-src").value = state.src; $("f-memo").value = state.memo;
+}
+
+/* ---------- 카드 ---------- */
+function card(d) {
+  const keys = new Set(d.goldKeys);
+  const isGold = (e) => e && keys.has(e.doc + "|" + base(e.art));
+  const answerHtml = d.answer
+    ? esc(d.answer).replace(/\[(\d+)\]/g, (m, k) => `<span class="cite${isGold(d.entries[k - 1]) ? " g" : ""}">${m}</span>`)
+    : `<span class="small">${d.error ? "답변 생성 오류: " + esc(d.error) : "답변 없음"}</span>`;
+  const metOk = d.met.length === d.points.length;
+  const tag = (ok) => (ok ? `<span class="tag t-ok">충족</span>` : `<span class="tag t-bad">미충족</span>`);
+  const points = d.points.map((p, i) => `<li>${metOk ? tag(d.met[i]) : `<span class="tag t-none">-</span>`}<span>${esc(p)}</span></li>`).join("");
+  const subs = d.sub.length ? `<div><h3>보조 요지 (판정에 쓰지 않음)</h3><ul class="pts">${d.sub.map((p, i) => `<li>${d.subMet.length === d.sub.length ? tag(d.subMet[i]) : `<span class="tag t-none">보조</span>`}<span>${esc(p)}</span></li>`).join("")}</ul></div>` : "";
+  const forbid = d.forbid.length ? `<div><h3>금지 내용</h3><ul class="pts">${d.forbid.map((f) => `<li><span class="tag ${d.violated ? "t-bad" : "t-ok"}">${d.violated ? "위반" : "지킴"}</span><span>${esc(f)}</span></li>`).join("")}</ul></div>` : "";
+  const order = [...d.gold.filter((g) => g.tier !== "보조"), ...d.gold.filter((g) => g.tier === "보조")];
+  const golds = order.map((g) => `<div class="gold"><div class="head"><span class="tag ${g.hit ? "t-ok" : "t-bad"}">${g.hit ? "넘김" : "빠짐"}</span><span class="tag t-none">${esc(g.tier)}</span><span>${esc(g.doc)} ${esc(g.art)}</span></div><div class="q">${esc(g.quote)}</div></div>`).join("")
+    + d.equiv.map((g) => `<div class="gold"><div class="head"><span class="tag ${g.hit ? "t-ok" : "t-none"}">${g.hit ? "넘김" : "-"}</span><span class="tag t-none">동등</span><span>${esc(g.doc)} ${esc(g.art)}</span></div><div class="q">${esc(g.note)}</div></div>`).join("");
+  const flags = (d.check ? `<span class="flag f-${d.check}">현업확인 ${d.check}</span>` : "") + (d.law ? `<span class="flag f-law">법령 기준</span>` : "");
+  const checkNote = d.check ? `<div class="note-check"><b>현업 확인 (${esc(d.check)})</b> · ${esc(d.checkWhy)}</div>` : "";
+  const lawNote = d.law ? `<div class="note-law"><b>법령 기준</b> · ${esc(d.law)}</div>` : "";
+  const ents = d.entries.map((e, i) => `<li class="${isGold(e) ? "g" : ""}"><span class="mono">[${i + 1}]</span> ${esc(e.doc)} ${esc(e.art)}</li>`).join("");
+  const warns = d.warnings.length ? `<div class="warn">${d.warnings.map(esc).join("<br>")}</div>` : "";
+  const mode = d.mode === "answer" ? "답변" : d.mode === "partial" ? "일부 답변" : d.mode ? "관련 없음 안내" : "오류";
+  return `<details class="card" data-q="${d.id}"><summary>
+    <span class="qid">${d.id}</span><span class="qtext">${esc(d.q)}</span>
+    <span class="meta"><span class="pill v-${d.verdict}">${d.verdict}</span><span>${esc(d.type)}</span><span>필수 근거 ${d.mustHit}/${d.mustN}</span>${d.sec != null ? `<span>${Number(d.sec).toFixed(0)}초</span>` : ""}${flags}<span class="nbadge" data-q="${d.id}" hidden></span></span>
+  </summary><div class="body">
+    ${checkNote}${lawNote}
+    <div><h3>시스템 답변 · ${mode}</h3><div class="answer">${answerHtml}</div></div>
+    <section class="box"><h3>채점</h3>
+      <div class="verdict-line"><span class="pill v-${d.verdict}">${d.verdict}</span><span>${esc(d.reason)}</span></div>
+      <div><h3>필수 요지 (판정 기준)</h3><ul class="pts">${points}</ul></div>${subs}${forbid}
+    </section>
+    <section class="box"><h3>정답 근거 · 답변 모델에 넘겼는가 · 필수 ${d.mustHit}/${d.mustN}</h3>${golds}
+      <div class="small">같은 규정의 같은 조(항 번호는 보지 않음)가 답변에 넘긴 근거에 있으면 「넘김」입니다. 답변 속 노란 번호는 정답 근거와 같은 조입니다.</div>
+    </section>
+    <details class="more"><summary>답변에 넘긴 근거 ${d.entries.length}개 · 검사 경고 ${d.warnings.length}개 · 질문 상황</summary>
+      <ul class="entries">${ents}</ul>${warns}
+      <div class="small">질문자: ${esc(d.who)} · 의도: ${esc(d.intent)} · 답가능여부: ${esc(d.able)}</div>
+    </details>
+    <section class="memo" data-q="${d.id}"><h3>메모</h3><div class="notes"></div>
+      <form class="memo-form" data-q="${d.id}" hidden>
+        <select id="ml-${d.id}" aria-label="메모 종류">${LABELS.map((l) => `<option>${l}</option>`).join("")}</select>
+        <textarea id="mt-${d.id}" aria-label="메모 내용" placeholder="예: 정답 요지의 24일 계산은 인사팀 확인 필요"></textarea>
+        <div class="row"><button class="btn" type="submit">메모 저장</button><span class="m-status" aria-live="polite"></span></div>
+      </form>
+    </section>
+  </div></details>`;
+}
+
+function render() {
+  const q = state.q.trim().toLowerCase();
+  const rows = ROWS.filter((d) => {
+    const nm = notesOf(d.id).length;
+    return (state.verdict === "전체" || d.verdict === state.verdict) &&
+      (state.type === "전체" || d.type === state.type) &&
+      (state.check === "전체" || d.check === state.check) &&
+      (state.src === "전체" || (state.src === "다" ? d.allHit : !d.allHit)) &&
+      (state.memo === "전체" || (state.memo === "있음" ? nm > 0 : nm === 0)) &&
+      (!q || d.hay.includes(q) || (d.memoHay || "").includes(q));
+  });
+  $("count").textContent = `${rows.length}개 질문`;
+  $("list").innerHTML = rows.length ? rows.map(card).join("") : `<div class="empty">조건에 맞는 질문이 없습니다.</div>`;
+  paintAllNotes();
+}
+
+$("chips").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.verdict = b.dataset.v; fill(); render(); };
+for (const [id, k] of [["f-type", "type"], ["f-check", "check"], ["f-src", "src"], ["f-memo", "memo"]]) $(id).onchange = (e) => { state[k] = e.target.value; render(); };
+$("f-q").oninput = (e) => { state.q = e.target.value; render(); };
+$("list").addEventListener("submit", (e) => { const f = e.target.closest(".memo-form"); if (!f) return; e.preventDefault(); saveNote(f); });
+$("list").addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.dataset.editText && editing.has(t.dataset.editText)) editing.get(t.dataset.editText).text = t.value;
+});
+$("list").addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.dataset.editLabel && editing.has(t.dataset.editLabel)) editing.get(t.dataset.editLabel).label = t.value;
+});
+$("list").addEventListener("click", async (e) => {
+  const ed = e.target.closest("[data-edit]");
+  if (ed) {
+    const n = [...notesByQ.values()].flat().find((x) => x.id === ed.dataset.edit); if (!n) return;
+    editing.set(n.id, { text: n.text || "", label: n.label || "기타", qid: n.qid }); paintNotes(n.qid);
+    const ta = document.querySelector(`[data-edit-text="${n.id}"]`); if (ta) ta.focus();
+    return;
+  }
+  const cancel = e.target.closest("[data-edit-cancel]");
+  if (cancel) { const d = editing.get(cancel.dataset.editCancel); editing.delete(cancel.dataset.editCancel); if (d) paintNotes(d.qid); return; }
+  const save = e.target.closest("[data-edit-save]");
+  if (save && db) {
+    const id = save.dataset.editSave, d = editing.get(id); if (!d) return;
+    const st = save.parentElement.querySelector(".m-status");
+    const text = d.text.trim(); if (!text) { st.textContent = "메모 내용을 적어 주세요. 없애려면 「지우기」를 눌러 주세요."; return; }
+    save.disabled = true; st.textContent = "저장 중…";
+    try {
+      await db.collection("notes").doc(id).update({ text: text.slice(0, 4000), label: d.label, editedAt: new Date().toISOString() });
+      editing.delete(id); paintNotes(d.qid);
+    } catch (err) {
+      save.disabled = false;
+      st.textContent = err && err.code === "invalid_argument" ? "고칠 권한이 없거나 이미 지워진 메모입니다." : "저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.";
+    }
+    return;
+  }
+  const b = e.target.closest("[data-del]"); if (!b || !db) return;
+  if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "한 번 더 누르면 지웁니다"; return; }
+  b.disabled = true;
+  try { await db.collection("notes").doc(b.dataset.del).delete(); } catch { b.textContent = "지우지 못했습니다"; b.disabled = false; }
+});
+
+summary(); fill(); render(); initMemo();
+</script>

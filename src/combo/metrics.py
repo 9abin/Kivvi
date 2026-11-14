@@ -90,6 +90,18 @@ def bootstrap(pairs, n=1000, seed=0):
     return vals[int(n * 0.025)], vals[int(n * 0.975) - 1]
 
 
+def paired_diff_cluster(rows, n=1000, seed=0):
+    """작업(묶음) 단위로 복원 추출한 짝 차이(a - b)의 평균과 95% 구간. rows = [(a 맞은 수, a 전체 수, b 맞은 수, b 전체 수)]를 묶음마다 하나씩.
+    같은 작업의 세 변형은 같은 정답을 공유해 독립이 아니므로, 질문이 아니라 묶음을 뽑는다."""
+    rows = [r for r in rows if r[1] and r[3]]
+    if not rows:
+        return None
+    rnd = random.Random(seed)
+    diff = lambda s: micro([(r[0], r[1]) for r in s]) - micro([(r[2], r[3]) for r in s])  # noqa: E731
+    diffs = sorted(diff([rows[rnd.randrange(len(rows))] for _ in rows]) for _ in range(n))
+    return diff(rows), diffs[int(n * 0.025)], diffs[int(n * 0.975) - 1]
+
+
 def paired_diff(a_pairs, b_pairs, n=1000, seed=0):
     """같은 질문끼리 짝지은 차이(a - b)의 평균과 95% 구간. 입력은 같은 순서의 [(맞은 수, 전체 수)]."""
     rows = [(a, b) for a, b in zip(a_pairs, b_pairs) if a[1]]

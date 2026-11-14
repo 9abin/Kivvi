@@ -1,0 +1,14 @@
+[
+  {
+    "calls": 339,
+    "usage": {
+      "input_tokens": 5165329,
+      "output_tokens": 221815,
+      "total_tokens": 5387144
+    }
+  },
+  {
+    "calls": 0,
+    "usage": {}
+  }
+]

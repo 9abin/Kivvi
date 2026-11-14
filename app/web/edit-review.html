@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kivvi · 내부규정 도우미</title>
+  <link rel="icon" href="img/kiwi-64.png">
+  <link rel="stylesheet" href="edit-review.css?v=kivvi-99">
+  <script defer src="edit-review.js?v=kivvi-99"></script>
+</head>
+<body>
+  <a class="skip" href="#view">본문 바로가기</a>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><img src="img/kiwi-64.png" alt="" width="34" height="34"><span>Kivvi</span></div>
+      <nav aria-label="주 메뉴">
+        <ul class="menu" id="menu">
+          <li><button type="button" data-route="home" data-icon="home">홈</button></li>
+          <li><button type="button" data-route="browse" data-icon="search">규정 탐색</button></li>
+          <li><button type="button" data-route="analyze/1" data-icon="analyze">영향 분석</button></li>
+          <li><button type="button" data-route="history" data-icon="history">검토 내역</button></li>
+        </ul>
+      </nav>
+      <button type="button" class="side-settings" id="settings">설정</button>
+    </aside>
+    <div class="shell">
+      <header class="topbar">
+        <button type="button" class="back" id="back" hidden></button>
+        <div class="top-actions">
+          <button type="button" class="icon-btn" id="bell" aria-label="알림"></button>
+          <button type="button" class="avatar-btn" id="me" aria-label="프로필"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="14" r="6" fill="currentColor"/><path d="M5 36c0-7.5 5.8-11.5 13-11.5S31 28.500 31 36z" fill="currentColor"/></svg></button>
+        </div>
+      </header>
+      <main id="view" tabindex="-1"></main>
+      <div id="actions" hidden></div>
+    </div>
+  </div>
+</body>
+</html>

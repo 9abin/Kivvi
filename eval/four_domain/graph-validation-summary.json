@@ -1,0 +1,111 @@
+{
+  "reviewed_batches": 144,
+  "common_rule_review_batches": 12,
+  "reviewed_source_units": 2998,
+  "original_leave_edges_preserved": 151,
+  "original_rows_preservation": {
+    "meta": {
+      "original_rows": 8,
+      "preserved_rows": 8,
+      "unchanged": true
+    },
+    "document": {
+      "original_rows": 17,
+      "preserved_rows": 17,
+      "unchanged": true
+    },
+    "article": {
+      "original_rows": 49,
+      "preserved_rows": 49,
+      "unchanged": true
+    },
+    "item": {
+      "original_rows": 135,
+      "preserved_rows": 135,
+      "unchanged": true
+    },
+    "concept": {
+      "original_rows": 6,
+      "preserved_rows": 6,
+      "unchanged": true
+    },
+    "concept_attr": {
+      "original_rows": 38,
+      "preserved_rows": 38,
+      "unchanged": true
+    },
+    "concept_primary": {
+      "original_rows": 7,
+      "preserved_rows": 7,
+      "unchanged": true
+    },
+    "edge_item_concept": {
+      "original_rows": 151,
+      "preserved_rows": 151,
+      "unchanged": true
+    },
+    "edge_attr": {
+      "original_rows": 148,
+      "preserved_rows": 148,
+      "unchanged": true
+    },
+    "edge_head": {
+      "original_rows": 38,
+      "preserved_rows": 38,
+      "unchanged": true
+    },
+    "change_log": {
+      "original_rows": 46,
+      "preserved_rows": 46,
+      "unchanged": true
+    }
+  },
+  "old_nonleave_edges": 2105,
+  "reviewed_nonleave_edges": 1846,
+  "old_edge_not_reconfirmed": 656,
+  "old_edge_changed_literal_rel_or_attrs": 1337,
+  "old_edge_same_literal_rel_and_attrs": 112,
+  "new_edge_identities": 397,
+  "reviewed_by_domain": {
+    "인사": 1190,
+    "보수": 469,
+    "휴가": 187
+  },
+  "review_status_counts": {
+    "source_checked_ai": 1845,
+    "needs_review": 1
+  },
+  "semantic_flags": 0,
+  "uncertain_units": 52,
+  "source_exactness_check": "passed for every accepted connection and attribute quotation",
+  "repair_rounds": 47,
+  "normalization_events": 17,
+  "database_counts": {
+    "document": 90,
+    "article": 3244,
+    "item": 3133,
+    "concept": 44,
+    "concept_attr": 428,
+    "concept_primary": 68,
+    "edge_item_concept": 1997,
+    "edge_attr": 2533,
+    "edge_head": 516,
+    "change_log": 1892,
+    "edge_rule_fact": 2466
+  },
+  "user_original_sha256": "e7d1c80787900ddb790925bccc1e4f37cfe6cbc8ae5cfa371182933310b95384",
+  "reviewed_db_sha256": "f780ecfa29e49ea2a15a35846557c3ee92fb89384a5a181a994540f064c0a694",
+  "benchmark_rerun_performed": false,
+  "human_review_performed": false,
+  "note": "Literal changes are not a measured error rate; attributes and taxonomy were revised. AI semantic review can still be wrong. Existing performance numbers did not use the user original graph.",
+  "uncertainty_classification_counts": {
+    "NO_EDGE_DELETED_SOURCE": 4,
+    "NO_EDGE_HISTORICAL_DATE_RECORD": 25,
+    "NO_EDGE_OUTSIDE_FIXED_TAXONOMY_OR_HEADER": 18,
+    "SOURCE_PARSE_TRUNCATION_REQUIRES_CORRECTION": 1,
+    "REFERENCED_RULE_CONTEXT_NOT_IN_SINGLE_ARTICLE_REVIEW": 1,
+    "RESOLVED_BY_DIRECT_SOURCE_REVIEW": 3
+  },
+  "direct_source_corrections": 5,
+  "primary_policy": "Preserve all original primary rows; new primary requires exact concept title or explicit defined subject. Other AI proposals retained separately."
+}

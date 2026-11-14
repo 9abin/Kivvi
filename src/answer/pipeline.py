@@ -21,7 +21,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from config import (ANSWER_NONE_BELOW, ANSWER_PARTIAL_BELOW, FAST_PIPELINE, GAP_CHECK, GAP_CHECK_MODEL, PARTIAL_SHOW,
-                    QUERY_PLAN, USE_REWRITE)
+                    QUERY_PLAN, TOP_K, USE_REWRITE)
 from src.answer.gapcheck import GapChecker, gap_notes
 from src.answer.generate import (Generator, flatten, order_entries, revision_notes,
                                  state_notes, topic_notes)
@@ -110,7 +110,7 @@ class Assistant:
                                             rewritten=self.generator.rewrite_query(question))
         return [document_to_entry(d) for d in retriever.invoke(question)]
 
-    def ask(self, question, k=5, filters=None, on_token=None, wait_checks=True, asker=None):
+    def ask(self, question, k=TOP_K, filters=None, on_token=None, wait_checks=True, asker=None):   # 2026.10.19 기본 5 → config.TOP_K(10)
         """질문 하나에 답한다. 반환의 timing: 질문부터 첫 글자(first_token, on_token을 줄 때)·답 완성(answer)까지 초.
 
         on_token: 주면 답변을 스트리밍한다(글이 생기는 대로 on_token(조각)). 다시 쓴 답(retried)은 스트리밍되지 않으니

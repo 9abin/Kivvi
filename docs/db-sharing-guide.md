@@ -86,4 +86,11 @@ SELECT src, evidence, target, check_status FROM amend.edge WHERE check_status IN
 - **ER 다이어그램에 선이 거의 없다**: 가빈 표 재적재를 막지 않으려고 `public` 쪽 외래키를 걸지 않았다 ([31](reports/261012-1540-31-amend-schema.md)). 연결 키는 `chunk_detail.chunk_id = chunks.chunk_id`, `edge.target = chunk_detail.article_id`, `finding.src_id = chunk_detail.item_id`, `*.reg_id = documents.doc_id`. DBeaver에서 보려면 ER 다이어그램 → 가상 키(Virtual key)로 추가
 - 데이터는 박형건이 파이프라인을 다시 돌리고 `amend_load.py`를 실행할 때만 바뀐다. 기준 시점은 `amend.finding.run` (실행 ID)
 - 법률 DB(한석희 SQLite)는 이 DB에 없다. DBeaver에서 SQLite로 따로 연다 (`data/law_rag.sqlite3`)
-- 원문(HWP)은 KVIC 저작물. DB 내용을 외부로 내보낼 때는 원문 대신 ALIO 링크 (AGENTS §4)
+- 원문(HWP)은 KVIC 저작물. DB 내용을 외부로 내보낼 때는 원문 대신 ALIO 링크 ([작업 규칙 §4](05-working-agreement.md))
+
+## 6. 챗봇 청크(public.chunks)가 바뀌었을 때 (261014)
+
+가빈이 공유 DB의 `public.chunks`를 다시 적재하거나 청크 단위·`chunk_id` 규칙을 바꾸면, 우리 항과 가빈 청크의 대응(`amend.chunk_detail.chunk_id`)이 옛 ID를 가리킨다. 그러면 화면에서 근거 원문·개정 정보·「개정 검토 중」 배지가 열리지 않는다.
+- **알아채기:** 화면 오른쪽 위 연결 표시가 「청크 대응 끊김 N곳」으로 바뀐다(`/api/status`의 `stale`). DBeaver에서는 `SELECT problem, count(*) FROM amend.v_chunk_unmatched GROUP BY 1`로 본다.
+- **고치기 (박형건 PC):** `uv run --extra db python scripts/amend_load.py`를 실행하면 대응을 다시 계산한다. 조 단위 청크도 「가빈 조 단위」 규칙으로 잇는다. 개정안·결정 기록·탐색 기록은 그대로 남는다. 끝나면 `v_chunk_unmatched`가 0건인지 확인한다.
+- **미리 알려 줄 것 (가빈):** 공유 DB 재적재, `chunk_id` 규칙 변경. 조 단위 같은 실험용 색인은 별도 표나 가빈 PC에서 쓰고, `public.chunks`는 항 단위 공통 ID로 둔다 (제안).

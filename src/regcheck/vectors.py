@@ -72,15 +72,48 @@ def preamble_chunks(r: dict) -> list[dict]:
     return out
 
 
-def load_model(name: str = DEFAULT_MODEL):
+def load_model(name: str = DEFAULT_MODEL, device: str | None = None):
     import torch
     from sentence_transformers import SentenceTransformer
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model = SentenceTransformer(name, device=device)
     if device == "cuda":
         model.half()
     return model
+
+
+# 영향 점검 의미 검색의 질의 지시문 (Qwen3-Embedding 계열은 질의 앞에 지시문을 붙인다). 문서 쪽에는 붙이지 않는다
+IMPACT_QUERY_INSTRUCT = "Instruct: Given an amendment to one internal regulation article, retrieve other regulation articles that cite, repeat or must stay consistent with the changed content\nQuery: "
+
+
+class OllamaEncoder:
+    """Ollama 임베딩을 SentenceTransformer처럼 쓰는 얇은 껍데기 (encode(texts, normalize_embeddings=True)). 로컬 서버만 쓴다."""
+
+    def __init__(self, model: str, instruction: str = "", url: str = "http://127.0.0.1:11434/api/embed", timeout: int = 300):
+        self.model, self.instruction, self.url, self.timeout = model, instruction, url, timeout
+
+    def encode(self, texts, batch_size: int = 16, normalize_embeddings: bool = True, show_progress_bar: bool = False):
+        import urllib.request
+
+        import numpy as np
+
+        out: list = []
+        for i in range(0, len(texts), batch_size):
+            body = json.dumps({"model": self.model, "input": [self.instruction + t for t in texts[i : i + batch_size]], "truncate": True}).encode("utf-8")
+            req = urllib.request.Request(self.url, data=body, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                out += json.loads(r.read())["embeddings"]
+        v = np.asarray(out, dtype=np.float32)
+        return v / np.linalg.norm(v, axis=1, keepdims=True) if normalize_embeddings else v
+
+
+def load_encoder(index_dir: Path, device: str | None = None):
+    """색인 폴더의 meta.json이 ollama 백엔드면 OllamaEncoder(영향 점검 질의 지시문), 아니면 SentenceTransformer(device 기본: GPU가 있으면 GPU)."""
+    meta = json.loads((index_dir / "meta.json").read_text(encoding="utf-8"))
+    if meta.get("backend") == "ollama":
+        return OllamaEncoder(meta["model"], meta.get("impact_query_instruction", IMPACT_QUERY_INSTRUCT))
+    return load_model(meta["model"], device)
 
 
 def embed(model, texts: list[str], batch_size: int = 32) -> np.ndarray:
@@ -91,7 +124,7 @@ def embed(model, texts: list[str], batch_size: int = 32) -> np.ndarray:
     )
 
 
-def save(out: Path, chunks: list[dict], vecs: np.ndarray, model_name: str) -> None:
+def save(out: Path, chunks: list[dict], vecs: np.ndarray, model_name: str, *, backend: str = "", query_instruction: str = "") -> None:
     import numpy as np
 
     out.mkdir(parents=True, exist_ok=True)
@@ -99,10 +132,10 @@ def save(out: Path, chunks: list[dict], vecs: np.ndarray, model_name: str) -> No
     with (out / "chunks.jsonl").open("w", encoding="utf-8") as f:
         for c in chunks:
             f.write(json.dumps(c, ensure_ascii=False) + "\n")
-    (out / "meta.json").write_text(
-        json.dumps({"model": model_name, "count": len(chunks), "dim": int(vecs.shape[1])}, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    meta = {"model": model_name, "count": len(chunks), "dim": int(vecs.shape[1])}
+    if backend:
+        meta.update(backend=backend, impact_query_instruction=query_instruction, query_instruction=query_instruction)
+    (out / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
 
 
 def to_chroma(out: Path, chunks: list[dict], vecs: np.ndarray, collection: str = "articles_hang"):
