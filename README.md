@@ -358,9 +358,9 @@ config.py, run.py      경로·설정, 전처리 실행 진입점
 
 | Name | Roles | GitHub |
 | :-- | :-- | :-- |
-| 김가빈 | Frontend, Design | [@9abin](https://github.com/9abin) |
-| 박형건 | Backend | [@Broogun](https://github.com/Broogun) |
-| 이민형 | (역할 확인 필요) | [@minhyeongi-lab](https://github.com/minhyeongi-lab) |
-| 한석희 | Backend | [@han14308](https://github.com/han14308) |
+| 김가빈 | Frontend, Backend, Design | [@9abin](https://github.com/9abin) |
+| 박형건 | 팀장, Frontend, Backend | [@Broogun](https://github.com/Broogun) |
+| 이민형 | Frontend, Backend | [@minhyeongi-lab](https://github.com/minhyeongi-lab) |
+| 한석희 | Frontend, Backend | [@han14308](https://github.com/han14308) |
 
 > 과거 계획서와 실험 기록은 `docs/archive/`, `docs/reports/`에 있으며 지금 구현과 다를 수 있습니다.
