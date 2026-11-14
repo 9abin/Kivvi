@@ -175,7 +175,7 @@ function actionBar({ back, next, hint }) {
   return { node: bar, next: nextBtn, hint: bar.querySelector(".hint") };
 }
 
-function regPicker(onPick, hover) {
+function regPicker(onPick, hover, st = S) {
   const search = el("input", { type: "search", placeholder: "규정명으로 검색하세요", "aria-label": "규정명 검색" });
   const count = el("p", { class: "count" });
   const list = el("ul", { class: "doc-list", style: "list-style:none" });
@@ -186,7 +186,7 @@ function regPicker(onPick, hover) {
     for (const reg of S.regs) {
       if (!reg.name.replace(/\s+/g, "").toLowerCase().includes(query)) continue;
       shown++;
-      list.append(el("li", null, el("button", { type: "button", class: "doc-row", "aria-pressed": String(S.regId === reg.id), onclick: () => onPick(reg),
+      list.append(el("li", null, el("button", { type: "button", class: "doc-row", "aria-pressed": String(st.regId === reg.id), onclick: () => onPick(reg),
         onmouseenter: () => hover?.enter(reg), onfocus: () => hover?.enter(reg), onmouseleave: () => hover?.leave(), onblur: () => hover?.leave() },
         el("span", { class: "radio" }), el("span", { class: "doc-ico" }, icon("doc")),
         el("span", { class: "doc-name", text: reg.name }), el("span", { class: "chev" }, icon("chevron")))));
@@ -205,16 +205,16 @@ function emptyPreview(text, hint) {
 }
 
 // 아무것도 고르지 않았을 때, 목록 위에 마우스를 올리면 그 규정의 첫 조항들을 오른쪽에 미리 보여 준다
-function hoverPreview(panel) {
+function hoverPreview(panel, st = S) {
   let current = "";
   return {
     enter: async (reg) => {
-      if (S.regId) return;   // 이미 고른 규정이 있으면 그 내용을 그대로 둔다
+      if (st.regId) return;   // 이미 고른 규정이 있으면 그 내용을 그대로 둔다
       current = reg.id;
       panel.replaceChildren(el("div", { class: "quick" }, el("div", { class: "doc-head" }, el("span", { class: "doc-ico" }, icon("doc")), el("h2", { text: reg.name })), el("p", { class: "muted", text: "불러오는 중입니다…" })));
       try {
         const cat = await loadCatalog(reg.id);
-        if (S.regId || current !== reg.id) return;
+        if (st.regId || current !== reg.id) return;
         const list = cat.articles.filter((a) => !a.deleted);
         panel.replaceChildren(el("div", { class: "quick" },
           el("div", { class: "doc-head" }, el("span", { class: "doc-ico" }, icon("doc")), el("div", null, el("h2", { text: reg.name }), el("p", { class: "muted", text: `조 ${list.length}개` }))),
@@ -223,25 +223,25 @@ function hoverPreview(panel) {
           el("p", { class: "hint", text: "눌러서 전체 내용을 확인하세요." })));
       } catch (error) { /* 미리보기는 없어도 된다 */ }
     },
-    leave: () => { current = ""; if (!S.regId) fillDocument(panel); },
+    leave: () => { current = ""; if (!st.regId) fillDocument(panel, st); },
   };
 }
 
 // 규정 전문을 쭉 보여 준다(읽기 전용). 규정 탐색과 영향 분석 1단계가 함께 쓴다.
-function fillDocument(panel) {
+function fillDocument(panel, st = S) {
   panel.replaceChildren();
-  if (!S.regId) return panel.append(emptyPreview("왼쪽에서 규정 문서를 선택하면\n해당 문서의 내용을 확인할 수 있어요.", "목록에 마우스를 올리면 미리 볼 수 있어요."));
-  if (S.catError) return panel.append(el("p", { class: "notice error", text: S.catError }));
-  if (!S.cat) return panel.append(el("p", { class: "muted", text: "규정 문서를 불러오는 중입니다…" }));
-  panel.append(el("div", { class: "doc-head" }, el("span", { class: "doc-ico" }, icon("doc")), el("h2", { text: S.cat.name })));
-  if (S.cat.preamble.length) panel.append(el("p", { class: "doc-text", text: S.cat.preamble.join("\n") }));
+  if (!st.regId) return panel.append(emptyPreview("왼쪽에서 규정 문서를 선택하면\n해당 문서의 내용을 확인할 수 있어요.", "목록에 마우스를 올리면 미리 볼 수 있어요."));
+  if (st.catError) return panel.append(el("p", { class: "notice error", text: st.catError }));
+  if (!st.cat) return panel.append(el("p", { class: "muted", text: "규정 문서를 불러오는 중입니다…" }));
+  panel.append(el("div", { class: "doc-head" }, el("span", { class: "doc-ico" }, icon("doc")), el("h2", { text: st.cat.name })));
+  if (st.cat.preamble.length) panel.append(el("p", { class: "doc-text", text: st.cat.preamble.join("\n") }));
   let chapter = "";
-  for (const a of S.cat.articles) {
+  for (const a of st.cat.articles) {
     if (a.chapter && a.chapter !== chapter) panel.append(el("h3", { class: "chapter", text: a.chapter }));
     chapter = a.chapter || chapter;
     panel.append(el("section", { class: a.chapter ? "article indent" : "article" }, el("h3", { text: [a.label, a.title].filter(Boolean).join(" ") }), el("p", { text: bodyText(a) })));
   }
-  for (const item of S.cat.sections) panel.append(el("section", { class: "article" }, el("h3", { text: item.label }), el("p", { text: item.text })));
+  for (const item of st.cat.sections) panel.append(el("section", { class: "article" }, el("h3", { text: item.label }), el("p", { text: item.text })));
 }
 
 // 진행 막대: 왼쪽에 「1 / 4 규정 문서 선택」, 오른쪽에 단계 수만큼 막대
@@ -470,19 +470,22 @@ function clearRegSelection() {
 }
 
 /* ---------- 규정 탐색(읽기 전용) ---------- */
+// 규정 탐색에서 고른 규정은 영향 분석(S)과 따로 둔다. 읽어 보려고 누른 규정이 개정 대상으로 넘어가면 안 된다.
+const B = { regId: "", cat: null, catError: "" };
+
 function pageBrowse() {
   const reader = el("section", { class: "panel reader" });
+  const drawReader = () => fillDocument(reader, B);
   const picker = regPicker(async (reg) => {
-    if (S.regId === reg.id) { clearRegSelection(); picker.redraw(); drawReader(); return; }
-    S.regId = reg.id; S.regName = reg.name; S.cat = null; S.catError = ""; S.articleId = ""; S.edited = ""; S.editing = false; S.result = null; S.review = {};
+    if (B.regId === reg.id) { Object.assign(B, { regId: "", cat: null, catError: "" }); picker.redraw(); drawReader(); return; }
+    Object.assign(B, { regId: reg.id, cat: null, catError: "" });
     picker.redraw();
     drawReader();
-    try { S.cat = await loadCatalog(reg.id); } catch (error) { S.catError = error.message; }
-    if (S.regId === reg.id) drawReader();
-  }, hoverPreview(reader));
-  const drawReader = () => fillDocument(reader);
+    try { B.cat = await loadCatalog(reg.id); } catch (error) { B.catError = error.message; }
+    if (B.regId === reg.id) drawReader();
+  }, hoverPreview(reader, B), B);
   drawReader();
-  if (S.regId && !S.cat) loadCatalog(S.regId).then((cat) => { S.cat = cat; drawReader(); }).catch((error) => { S.catError = error.message; drawReader(); });
+  if (B.regId && !B.cat) loadCatalog(B.regId).then((cat) => { B.cat = cat; drawReader(); }).catch((error) => { B.catError = error.message; drawReader(); });
   return el("section", { class: "page browse" }, ...pageHead("규정 탐색", `${S.regs.length || 90}건의 내부규정을 읽어 볼 수 있어요.`),
     el("div", { class: "split" }, el("div", null, picker.node), reader));
 }
