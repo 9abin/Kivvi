@@ -2,7 +2,7 @@
 
 - 기준: 261013, master `85c5f08` 이후(가빈 PR #3·#4로 두 프로젝트 병합). 수치는 이날 DB·파일에서 직접 센 값
 - 아이디어·목표 구조는 [모듈러 RAG와 에이전트 구조](https://claude.ai/code/artifact/b1a80e5b-eb3b-4548-9b0e-5372ca5ece38), 여기는 **지금 실제로 있는 것**만
-- 관련: [작업 규칙](05-working-agreement.md) · [접속 정보](../team/connections.md) · [공유 DB 안내](../team/db-sharing-guide.md) · [챗봇 통합 결정](../chatbot/chatbot-integration-proposal.md)
+- 관련: [작업 규칙](05-working-agreement.md) · [챗봇 통합 결정](../chatbot/chatbot-integration-proposal.md)
 
 ## 1. 한눈에
 
